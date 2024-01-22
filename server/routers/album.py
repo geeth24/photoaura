@@ -209,7 +209,6 @@ async def get_album(album_name: str):
 
     album_photos = create_album_photos_json(album_name, images, file_metadata)
 
-    
     return {
         "album_name": album_name,
         "image_count": album[4],
@@ -222,7 +221,7 @@ def create_album_photos_json(album_name, images, file_metadata):
     album_photos = [
         {
             "album_name": album_name,
-            "image": f"http://localhost:8000/static/{album_name}/compressed/{image}",
+            "image": f"https//photoaura-api.reactiveshots.com/static/{album_name}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
                 "size": meta[4],

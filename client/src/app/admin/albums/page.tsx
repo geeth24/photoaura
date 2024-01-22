@@ -38,7 +38,7 @@ function Page() {
 
   const getAlbums = async () => {
     console.log('Getting albums');
-    const response = await fetch('http://localhost:8000/albums');
+    const response = await fetch('https//photoaura-api.reactiveshots.com/albums');
     const data = await response.json();
     console.log(data);
     setAlbums(data);
@@ -81,7 +81,7 @@ function Page() {
     }
 
     const response = await fetch(
-      `http://localhost:8000/upload-files/?album_name=${encodeURIComponent(albumName)}`,
+      `https//photoaura-api.reactiveshots.com/upload-files/?album_name=${encodeURIComponent(albumName)}`,
       {
         method: 'POST',
         body: formData,

@@ -19,7 +19,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     setIsLoading(true);
-    axios.get(`http://localhost:8000/album/${params.slug}`).then((response) => {
+    axios.get(`https//photoaura-api.reactiveshots.com/album/${params.slug}`).then((response) => {
       setAlbumGrid(response.data);
       setShared(response.data.shared);
     });

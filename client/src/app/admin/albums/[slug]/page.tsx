@@ -51,7 +51,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:8000/album/${params.slug}`)
+      .get(`https//photoaura-api.reactiveshots.com/album/${params.slug}`)
       .then((response) => {
         setAlbumGrid(response.data);
         setShared(response.data.shared);
@@ -66,9 +66,12 @@ function Page({ params }: { params: { slug: string } }) {
   const { sidebarOpened } = useAuth();
 
   const deleteAlbum = async (albumName: string) => {
-    const response = await fetch(`http://localhost:8000/album/${encodeURIComponent(albumName)}`, {
-      method: 'DELETE',
-    });
+    const response = await fetch(
+      `https//photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
+      {
+        method: 'DELETE',
+      },
+    );
     const result = await response.json();
     console.log(result);
     router.push('/admin/albums');
@@ -76,7 +79,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   const updateAlbum = async (newAlbumName: string, shared: boolean) => {
     const response = await fetch(
-      `http://localhost:8000/album/?album_name=${params.slug}&album_new_name=${newAlbumName}&shared=${shared}`,
+      `https//photoaura-api.reactiveshots.com/album/?album_name=${params.slug}&album_new_name=${newAlbumName}&shared=${shared}`,
       {
         method: 'PUT',
       },

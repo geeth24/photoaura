@@ -12,7 +12,7 @@ from routers.album import router as album_router
 
 
 # add cors
-origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
+origins = ["http://localhost:3000", "https://photoaura-api.reactiveshots.com"]
 
 
 app = FastAPI()
