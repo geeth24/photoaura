@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    volumes:
+      - ./server:/app
+      - ~/aura-data:/var/aura/data  # Adding a named volume for data persistence
+    ports:
+      - "8000:8000"
+    networks:
+      - app-network
+    command: uvicorn main:app --host 0.0.0.0 --reload --port 8000  # or any other command to start your FastAPI backend
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    command: pnpm run dev  # or any other command to start your Next.js frontend
+
+  ngrok:
+      image: ngrok/ngrok
+      ports:
+        - "4040:4040"
+      command: http backend:8000
+      networks:
+        - app-network
+      environment:
+        - NGROK_AUTHTOKEN=2TpHuUdHw2j8yjyjlOnoIQSc4Mq_6fTraqjb55aQnV2SvXfV5
+      depends_on:
+        - backend
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  aura-data:
+    driver: local
