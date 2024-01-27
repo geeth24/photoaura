@@ -66,16 +66,8 @@ function Page({ params }: { params: { slug: string } }) {
   const { sidebarOpened } = useAuth();
 
   const deleteAlbum = async (albumName: string) => {
-    // const response = await fetch(
-    //   `https://photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
-    //   {
-    //     method: 'DELETE',
-    //   },
-    // );
-    // const result = await response.json();
-
-    const response = await axios.delete(
-      `https://photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
+    const response = await axios.get(
+      `https://photoaura-api.reactiveshots.com/album/delete/${encodeURIComponent(albumName)}`,
     );
     const result = response.data;
     console.log(result);

@@ -309,7 +309,7 @@ async def get_all_photos():
     return all_photos
 
 
-@router.delete("/album/{album_name}")
+@router.get("/album/delete/{album_name}")
 async def delete_album(album_name: str):
     db, cursor = get_db()
 

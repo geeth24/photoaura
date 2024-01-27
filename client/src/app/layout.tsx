@@ -14,6 +14,19 @@ const lato = Lato({
 export const metadata: Metadata = {
   title: 'PhotoAura',
   description: 'All your photos in one place',
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://photoaura.reactiveshots.com',
+    images: [
+      {
+        url: '/images/Logo-Banner.png',
+        width: 1200,
+        height: 630,
+        alt: 'PhotoAura',
+      },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
