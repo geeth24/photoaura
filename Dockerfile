@@ -3,7 +3,7 @@ FROM python:3.9 AS backend
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
-COPY server/* /app/
+COPY server /app/
 
 # Stage 2: Next.js Frontend Setup
 FROM node:20 AS frontend

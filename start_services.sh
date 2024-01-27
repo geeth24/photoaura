@@ -4,7 +4,7 @@
 set -x
 
 # Start the Python backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+uvicorn main:app --host 0.0.0.0 --port 8000 &
 
 # Attempt to change directory and list contents to verify
 cd client

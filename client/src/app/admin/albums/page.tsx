@@ -38,7 +38,7 @@ function Page() {
 
   const getAlbums = async () => {
     console.log('Getting albums');
-    const response = await fetch('https//photoaura-api.reactiveshots.com/albums');
+    const response = await fetch('https://photoaura-api.reactiveshots.com/albums');
     const data = await response.json();
     console.log(data);
     setAlbums(data);
@@ -67,7 +67,7 @@ function Page() {
 
     setUploading(true);
     // Connect to WebSocket
-    const newSocket = new WebSocket('ws://localhost:8000/ws');
+    const newSocket = new WebSocket('wss://photoaura-api.reactiveshots.com/ws');
 
     newSocket.onmessage = (event) => {
       console.log('Message from server:', event.data);
@@ -81,7 +81,7 @@ function Page() {
     }
 
     const response = await fetch(
-      `https//photoaura-api.reactiveshots.com/upload-files/?album_name=${encodeURIComponent(albumName)}`,
+      `https://photoaura-api.reactiveshots.com/upload-files/?album_name=${encodeURIComponent(albumName)}`,
       {
         method: 'POST',
         body: formData,

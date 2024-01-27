@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests"></meta>
       <body className={lato.className}>
         <ThemeProvider
           attribute="class"

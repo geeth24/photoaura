@@ -51,7 +51,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     axios
-      .get(`https//photoaura-api.reactiveshots.com/album/${params.slug}`)
+      .get(`https://photoaura-api.reactiveshots.com/album/${params.slug}`)
       .then((response) => {
         setAlbumGrid(response.data);
         setShared(response.data.shared);
@@ -67,7 +67,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   const deleteAlbum = async (albumName: string) => {
     const response = await fetch(
-      `https//photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
+      `https://photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
       {
         method: 'DELETE',
       },
@@ -79,7 +79,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   const updateAlbum = async (newAlbumName: string, shared: boolean) => {
     const response = await fetch(
-      `https//photoaura-api.reactiveshots.com/album/?album_name=${params.slug}&album_new_name=${newAlbumName}&shared=${shared}`,
+      `https://photoaura-api.reactiveshots.com/album/?album_name=${params.slug}&album_new_name=${newAlbumName}&shared=${shared}`,
       {
         method: 'PUT',
       },

@@ -7,9 +7,14 @@ function Page() {
   const [photos, setPhotos] = React.useState<Album[]>([]);
 
   React.useEffect(() => {
-    axios.get('https//photoaura-api.reactiveshots.com/photos').then((response) => {
-      setPhotos(response.data);
-    });
+    // axios.get('https://photoaura-api.reactiveshots.com/photos').then((response) => {
+    //   setPhotos(response.data);
+    // });
+    fetch('https://photoaura-api.reactiveshots.com/photos')
+      .then((response) => response.json())
+      .then((data) => {
+        setPhotos(data);
+      });
   }, []);
 
   const { sidebarOpened } = useAuth();

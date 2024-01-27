@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await fetch('https//photoaura-api.reactiveshots.com/login', {
+      const response = await fetch('https://photoaura-api.reactiveshots.com/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const storedUser = getCookie('user');
 
     if (storedToken && storedUser) {
-      fetch('https//photoaura-api.reactiveshots.com/verify-token', {
+      fetch('https://photoaura-api.reactiveshots.com/verify-token', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${storedToken}`,
@@ -127,9 +127,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(parsedUser);
           setAccessToken(storedToken);
           // Ensure the parsedUser object has the full_name property before displaying the message
-          if (parsedUser && parsedUser.full_name) {
-            toast.success(`Welcome Back, ${parsedUser.full_name}!`);
-          }
+          // if (parsedUser && parsedUser.full_name) {
+          //   toast.success(`Welcome Back, ${parsedUser.full_name}!`);
+          // }
           if (pathname === '/login') {
             router.push('/admin/photos');
           }
