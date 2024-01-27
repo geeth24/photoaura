@@ -127,12 +127,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(parsedUser);
           setAccessToken(storedToken);
           // Ensure the parsedUser object has the full_name property before displaying the message
-          // if (parsedUser && parsedUser.full_name) {
-          //   toast.success(`Welcome Back, ${parsedUser.full_name}!`);
-          // }
+          if (parsedUser && parsedUser.full_name) {
+            toast.success(`Welcome Back, ${parsedUser.full_name}!`);
+          }
           if (pathname === '/login') {
             router.push('/admin/photos');
           }
+          setIsLoading(false);
         })
         .catch((error) => {
           console.error('Token verification error:', error);
@@ -142,10 +143,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           deleteCookie('user');
           toast.error('Session ex pired. Please log in again.');
           router.push('/login');
+          setIsLoading(false);
         });
     } else {
       if (pathname !== '/login' && !pathname.startsWith('/share')) {
         router.push('/login');
+        setIsLoading(false);
       }
     }
 
@@ -155,7 +158,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSidebarOpened(JSON.parse(storedSidebarState));
     }
 
-    setIsLoading(false);
   }, [pathname, router]);
 
   const saveSidebarState = (value: boolean) => {
