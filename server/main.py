@@ -11,10 +11,6 @@ from routers.user import router as user_router
 from routers.album import router as album_router
 
 
-# add cors
-# origins = ["https://photoaura.reactiveshots.com"]
-
-
 app = FastAPI()
 origins = ["*"]
 app.add_middleware(
@@ -22,7 +18,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     expose_headers=["*"],
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

@@ -157,8 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (storedSidebarState) {
       setSidebarOpened(JSON.parse(storedSidebarState));
     }
-
-  }, [pathname, router]);
+  }, [router]);
 
   const saveSidebarState = (value: boolean) => {
     setSidebarOpened(value);

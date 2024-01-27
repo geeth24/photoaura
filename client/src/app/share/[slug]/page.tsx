@@ -28,13 +28,13 @@ function Page({ params }: { params: { slug: string } }) {
 
   if (shared && !isLoading) {
     return (
-      <div className={`p-4 `}>
+      <div className={`p-4`}>
         <div className="mt-4 flex  flex-col justify-between space-y-2 md:flex-row md:space-x-2 md:space-y-0">
           <h1 className="text-3xl font-bold ">{albumGrid.album_name}</h1>
           <div className="flex w-full items-center justify-between space-x-2 md:w-10/12 md:justify-end ">
             <Input
               type="text"
-              value={`http://localhost:3000/share/${albumGrid.album_name}`}
+              value={`photoaura.reactiveshots.com/share/${albumGrid.album_name}`}
               readOnly
               className="w-[calc(100%-3rem)] md:w-1/2 lg:w-1/3"
             />

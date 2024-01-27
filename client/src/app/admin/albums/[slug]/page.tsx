@@ -66,13 +66,18 @@ function Page({ params }: { params: { slug: string } }) {
   const { sidebarOpened } = useAuth();
 
   const deleteAlbum = async (albumName: string) => {
-    const response = await fetch(
+    // const response = await fetch(
+    //   `https://photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
+    //   {
+    //     method: 'DELETE',
+    //   },
+    // );
+    // const result = await response.json();
+
+    const response = await axios.delete(
       `https://photoaura-api.reactiveshots.com/album/${encodeURIComponent(albumName)}`,
-      {
-        method: 'DELETE',
-      },
     );
-    const result = await response.json();
+    const result = response.data;
     console.log(result);
     router.push('/admin/albums');
   };
@@ -134,7 +139,7 @@ function Page({ params }: { params: { slug: string } }) {
                       toast.success('Link copied to clipboard');
                       // copy to clipboard
                       navigator.clipboard.writeText(
-                        `http://localhost:3000/share/${albumGrid.album_name}`,
+                        `https://photoaura.reactiveshots.com/share/${albumGrid.album_name}`,
                       );
                     }
                   }}
@@ -146,7 +151,7 @@ function Page({ params }: { params: { slug: string } }) {
                   <Label>Share Link</Label>
                   <Input
                     type="text"
-                    value={`http://localhost:3000/share/${albumGrid.album_name}`}
+                    value={`https://photoaura.reactiveshots.com/share/${albumGrid.album_name}`}
                     readOnly
                   />
                   <Alert>
