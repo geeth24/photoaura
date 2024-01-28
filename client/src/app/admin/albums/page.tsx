@@ -142,7 +142,7 @@ function Page() {
               {uploading && (
                 <div>
                   <h1 className="text-center">
-                    {socketMessages.length} / {selectedFiles?.length} files uploaded.
+                    {socketMessages.length / 2} / {selectedFiles?.length} files uploaded.
                   </h1>
                   <Progress value={(socketMessages.length / (selectedFiles?.length ?? 1)) * 100} />
                 </div>
