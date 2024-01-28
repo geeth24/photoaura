@@ -8,7 +8,7 @@ services:
       target: backend
     volumes:
       - ./server:/app
-      - ~/aura-data:/var/aura/data  # Adding a named volume for data persistence
+      - /Volumes/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
     ports:
       - "8000:8000"
     networks:
@@ -29,17 +29,6 @@ services:
       - app-network
     command: pnpm run dev  # or any other command to start your Next.js frontend
 
-  ngrok:
-      image: ngrok/ngrok
-      ports:
-        - "4040:4040"
-      command: http backend:8000
-      networks:
-        - app-network
-      environment:
-        - NGROK_AUTHTOKEN=2TpHuUdHw2j8yjyjlOnoIQSc4Mq_6fTraqjb55aQnV2SvXfV5
-      depends_on:
-        - backend
 
 networks:
   app-network:
