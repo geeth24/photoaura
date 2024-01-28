@@ -7,10 +7,7 @@ function Page() {
   const [photos, setPhotos] = React.useState<Album[]>([]);
 
   React.useEffect(() => {
-    // axios.get('https://photoaura-api.reactiveshots.com/photos').then((response) => {
-    //   setPhotos(response.data);
-    // });
-    fetch('https://photoaura-api.reactiveshots.com/photos')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos`)
       .then((response) => response.json())
       .then((data) => {
         setPhotos(data);

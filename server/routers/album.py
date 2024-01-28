@@ -221,7 +221,7 @@ def create_album_photos_json(album_name, images, file_metadata):
     album_photos = [
         {
             "album_name": album_name,
-            "image": f"https://photoaura-api.reactiveshots.com/static/{album_name}/compressed/{image}",
+            "image": f"https://photoaura-api.reactiveshots.com/static/{album_name}/{image}",
             "file_metadata": {
                 "content_type": meta[3],
                 "size": meta[4],

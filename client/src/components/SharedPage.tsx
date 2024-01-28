@@ -24,7 +24,7 @@ function SharedPage({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     setIsLoading(true);
-    axios.get(`https://photoaura-api.reactiveshots.com/album/${params.slug}`).then((response) => {
+    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}`).then((response) => {
       setAlbumGrid(response.data);
       setShared(response.data.shared);
     });

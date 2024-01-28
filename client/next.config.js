@@ -9,7 +9,7 @@ const nextConfig = {
       // },
       {
         protocol: 'https',
-        hostname: 'photoaura-api.reactiveshots.com',
+        hostname: process.env.NEXT_PUBLIC_API_URL.split("/")[1] || 'photoaura-api.reactiveshots.com',
         port: '',
       },
     ],
