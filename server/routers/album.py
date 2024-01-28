@@ -74,7 +74,6 @@ async def create_upload_files(
             f.write(contents)
             await manager.send_message(file.filename, websocket)
 
-
     images_count = len(os.listdir(album_dir)) - 1
 
     # create new album in database
@@ -132,7 +131,7 @@ async def create_upload_files(
             ),
         )
 
-        # compress image and save it  
+        # compress image and save it
 
         await manager.send_message(file.filename, websocket)
 
@@ -221,7 +220,7 @@ def create_album_photos_json(album_name, images, file_metadata):
     album_photos = [
         {
             "album_name": album_name,
-            "image": f"https://photoaura-api.reactiveshots.com/static/{album_name}/{image}",
+            "image": f"https://photoaura-api.reactiveshots.com/static/{album_name}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
                 "size": meta[4],
