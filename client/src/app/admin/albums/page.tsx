@@ -67,9 +67,7 @@ function Page() {
 
     setUploading(true);
     // Connect to WebSocket
-    const newSocket = new WebSocket(
-      `wss://${process.env.NEXT_PUBLIC_API_URL?.split('/')[1] ?? 'photoaura-api.reactiveshots.com'}/ws`,
-    );
+    const newSocket = new WebSocket(`wss://photoaura-api.reactiveshots.com/ws`);
 
     newSocket.onmessage = (event) => {
       console.log('Message from server:', event.data);
@@ -116,7 +114,7 @@ function Page() {
           </div>
         </div>
         <DrawerContent
-          className={`ml-auto w-full ${sidebarOpened ? 'pl-16' : 'pl-[21%]'} transition-all duration-500`}
+          className={`ml-auto w-full ${sidebarOpened ? 'md:pl-16' : 'pl-[21%]'} transition-all duration-500`}
         >
           <DrawerHeader>
             <DrawerTitle>New Album</DrawerTitle>

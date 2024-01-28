@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests"></meta>
+      <link rel="icon" href="/logo-color.png" />
       <body className={lato.className}>
         <ThemeProvider
           attribute="class"

@@ -10,7 +10,7 @@ function Page() {
       <div className="absolute right-0 top-0 m-4">
         <ModeToggle />
       </div>
-      <FadeIn className="pointer-events-none relative h-1/3 w-full md:h-full">
+      <FadeIn className="-z-20 pointer-events-none relative h-1/2 w-full md:h-full">
         <Image
           src="/images/login.png"
           alt="Login"
@@ -27,7 +27,7 @@ function Page() {
         />
       </FadeIn>
 
-      <div className="flex flex-col items-center justify-center md:grid-cols-1">
+      <div className="-mt-32 md:mt-0 z-10 flex flex-col items-center justify-center md:grid-cols-1">
         <Login />
       </div>
     </div>

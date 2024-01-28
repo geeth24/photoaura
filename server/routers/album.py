@@ -72,6 +72,8 @@ async def create_upload_files(
         contents = await file.read()
         with open(os.path.join(album_dir, file.filename), "wb") as f:
             f.write(contents)
+            await manager.send_message(file.filename, websocket)
+
 
     images_count = len(os.listdir(album_dir)) - 1
 
@@ -96,7 +98,7 @@ async def create_upload_files(
     # get album id
     cursor.execute("SELECT * FROM album WHERE name=%s", (album_name,))
     album = cursor.fetchone()
-
+    websocket = manager.active_connections[0]
     # get file metadata
     for file in files:
         # Rewind the file pointer to the beginning for reading metadata
@@ -130,9 +132,7 @@ async def create_upload_files(
             ),
         )
 
-        # compress image and save it
-
-        websocket = manager.active_connections[0]
+        # compress image and save it  
 
         await manager.send_message(file.filename, websocket)
 
