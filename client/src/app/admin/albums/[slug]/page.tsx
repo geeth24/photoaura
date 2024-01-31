@@ -287,7 +287,7 @@ function Page({ params }: { params: { slug: string } }) {
                           toast.success('Link copied to clipboard');
                           // copy to clipboard
                           navigator.clipboard.writeText(
-                            `https://photoaura.reactiveshots.com/share/${albumGrid.slug}`,
+                            `https://aura.reactiveshots.com/share/${albumGrid.slug}`,
                           );
                         }
                         updateAlbum(albumGrid.album_name, !shared);
@@ -305,7 +305,7 @@ function Page({ params }: { params: { slug: string } }) {
                     <Label>Share Link</Label>
                     <Input
                       type="text"
-                      value={`https://photoaura.reactiveshots.com/share/${albumGrid.slug}`}
+                      value={`https://aura.reactiveshots.com/share/${albumGrid.slug}`}
                       readOnly
                     />
                     <Alert>

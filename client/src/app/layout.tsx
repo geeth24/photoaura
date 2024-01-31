@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   openGraph: {
     images: [
       {
-        url: 'https://photoaura.reactiveshots.com/images/Logo-Banner.png',
+        url: 'https://aura.reactiveshots.com/images/Logo-Banner.png',
       },
     ],
   },

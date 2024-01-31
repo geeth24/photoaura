@@ -12,7 +12,7 @@ from routers.album import router as album_router
 
 
 app = FastAPI()
-origins = ["http://localhost:3000", "https://photoaura.reactiveshots.com"]
+origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -25,13 +25,13 @@ app.add_middleware(
 app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(album_router)
-app.mount("/static", StaticFiles(directory=data_dir), name="static")
+app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
 
 create_table()
 
 os.makedirs(data_dir, exist_ok=True)
 
 
-@app.get("/")
+@app.get("/api")
 async def root():
     return {"message": "PhotoAura API"}

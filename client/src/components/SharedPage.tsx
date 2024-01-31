@@ -41,7 +41,7 @@ function SharedPage({ params }: { params: { slug: string } }) {
           <div className="flex w-full items-center justify-between space-x-2 md:w-10/12 md:justify-end ">
             <Input
               type="text"
-              value={`photoaura.reactiveshots.com/share/${albumGrid.slug}`}
+              value={`aura.reactiveshots.com/share/${albumGrid.slug}`}
               readOnly
               className="w-[calc(100%-3rem)] md:w-1/2 lg:w-1/3"
             />

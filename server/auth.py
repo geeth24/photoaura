@@ -78,7 +78,7 @@ def verify_token(token: str, credentials_exception):
     return token_data
 
 
-@router.get("/verify-token")
+@router.get("/api/verify-token")
 def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
     print(token)
     credentials_exception = HTTPException(

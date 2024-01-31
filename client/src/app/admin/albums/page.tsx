@@ -68,7 +68,7 @@ function Page() {
 
     setUploading(true);
     // Connect to WebSocket
-    const newSocket = new WebSocket(`wss://photoaura-api.reactiveshots.com/ws`);
+    const newSocket = new WebSocket(`wss://aura.reactiveshots.com/api/ws`);
     // const newSocket = new WebSocket(`ws://localhost:8000/ws`);
 
     newSocket.onmessage = (event) => {

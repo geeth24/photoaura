@@ -41,7 +41,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.websocket("/ws")
+@router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     # print if connection is established
@@ -65,7 +65,7 @@ def add_album_to_user(user_id, album_id):
     cursor.close()
 
 
-@router.post("/upload-files/")
+@router.post("/api/upload-files/")
 async def create_upload_files(
     files: List[UploadFile] = File(...),
     album_name: str = Query(None),
@@ -198,7 +198,7 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
-@router.get("/album/{slug}")
+@router.get("/api/album/{slug}")
 async def get_album(slug: str):
     album_name = slug.replace("-", " ")
     album_dir = os.path.join(data_dir, album_name.lower())
@@ -264,7 +264,7 @@ def create_album_photos_json(album_name, images, file_metadata):
     album_photos = [
         {
             "album_name": album_name,
-            "image": f"https://photoaura-api.reactiveshots.com/static/{album_name}/compressed/{image}",
+            "image": f"https://aura.reactiveshots.com/api/static/{album_name}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
                 "size": meta[4],
@@ -280,7 +280,7 @@ def create_album_photos_json(album_name, images, file_metadata):
     return album_photos
 
 
-@router.get("/albums/")
+@router.get("/api/albums/")
 async def get_all_albums(
     user_id: int = None,
 ):
@@ -335,7 +335,7 @@ async def get_all_albums(
     return all_albums
 
 
-@router.get("/photos/")
+@router.get("/api/photos/")
 async def get_all_photos():
     # get all album names
     db, cursor = get_db()
@@ -367,7 +367,7 @@ async def get_all_photos():
     return all_photos
 
 
-@router.get("/album/delete/{album_name}")
+@router.get("/api/album/delete/{album_name}")
 async def delete_album(album_name: str):
     db, cursor = get_db()
 
@@ -398,7 +398,7 @@ async def delete_album(album_name: str):
     return {"message": "Album deleted successfully."}
 
 
-@router.put("/album")
+@router.put("/api/album")
 async def update_album(
     album_name: str,
     album_new_name: str,
@@ -465,7 +465,7 @@ async def update_album(
     return {"message": "Album updated successfully."}
 
 
-@router.get("/shared-albums/")
+@router.get("/api/shared-albums/")
 async def get_shared_albums():
     # get all ablnum names and first 4 images in each album
     db, cursor = get_db()

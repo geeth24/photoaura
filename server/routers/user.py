@@ -14,7 +14,7 @@ from auth import (
 router = APIRouter()
 
 
-@router.post("/login")
+@router.post("/api/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     # Replace with actual user authentication logic
     user = authenticate_user(form_data.username, form_data.password)
@@ -57,7 +57,7 @@ def create_new_user(
 
 
 # Protected endpoints
-@router.post("/create-user")
+@router.post("/api/create-user")
 def create_user(form_data: User):
     # check if user already exists
     db, cursor = get_db()
@@ -117,7 +117,7 @@ def get_albums_for_user(user_id):
     ]
 
 
-@router.get("/users/")
+@router.get("/api/users/")
 def read_users(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -144,7 +144,7 @@ def get_user_by_id(user_id: int):
     return user
 
 
-@router.get("/users/{user_id}")
+@router.get("/api/users/{user_id}")
 def read_user(user_id: int, token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -158,7 +158,7 @@ def read_user(user_id: int, token: str = Depends(oauth2_scheme)):
     return create_user_json(user)
 
 
-@router.put("/users/{user_id}")
+@router.put("/api/users/{user_id}")
 def update_user(
     user_id: int, form_data: UpdateUserForm, token: str = Depends(oauth2_scheme)
 ):
@@ -173,7 +173,12 @@ def update_user(
     # update user
     cursor.execute(
         "UPDATE users SET user_name=%s, full_name=%s, user_email=%s WHERE id=%s",
-        (form_data.user.user_name, form_data.user.full_name, form_data.user.user_email, user_id),
+        (
+            form_data.user.user_name,
+            form_data.user.full_name,
+            form_data.user.user_email,
+            user_id,
+        ),
     )
     db.commit()
 
