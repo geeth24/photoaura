@@ -55,9 +55,21 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
+def add_album_to_user(user_id, album_id):
+    db, cursor = get_db()
+    cursor.execute(
+        "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
+        (user_id, album_id),
+    )
+    db.commit()
+    cursor.close()
+
+
 @router.post("/upload-files/")
 async def create_upload_files(
-    files: List[UploadFile] = File(...), album_name: str = Query(None)
+    files: List[UploadFile] = File(...),
+    album_name: str = Query(None),
+    user_id: int = None,
 ):
     # create new folder for album
     album_dir = os.path.join(data_dir, album_name.lower())
@@ -65,7 +77,8 @@ async def create_upload_files(
 
     os.makedirs(album_dir, exist_ok=True)
     os.makedirs(compressed_dir, exist_ok=True)  # Ensure this directory exists
-
+    if manager.active_connections:
+        websocket = manager.active_connections[0]
     # save files to album folder
 
     for file in files:
@@ -89,15 +102,17 @@ async def create_upload_files(
                 (images_count, album_name),
             )
     else:
+        slug = album_name.lower().replace(" ", "-")
         cursor.execute(
-            "INSERT INTO album (name, location, date, image_count, shared) VALUES (%s, %s, %s, %s, %s)",
-            (album_name, album_dir, datetime.now(), images_count, False),
+            "INSERT INTO album (name, slug, location, date, image_count, shared) VALUES (%s, %s, %s, %s, %s, %s)",
+            (album_name, slug, album_dir, datetime.now(), images_count, False),
         )
 
     # get album id
     cursor.execute("SELECT * FROM album WHERE name=%s", (album_name,))
     album = cursor.fetchone()
-    websocket = manager.active_connections[0]
+    # websocket = manager.active_connections[0]
+
     # get file metadata
     for file in files:
         # Rewind the file pointer to the beginning for reading metadata
@@ -133,9 +148,14 @@ async def create_upload_files(
 
         # compress image and save it
 
-        await manager.send_message(file.filename, websocket)
+        if manager.active_connections:
+            await manager.send_message(file.filename, websocket)
 
         db.commit()
+
+    # add album to user
+    if user_id:
+        add_album_to_user(user_id, album[0])
 
     return {"filenames": [file.filename for file in files]}
 
@@ -178,8 +198,9 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
-@router.get("/album/{album_name}")
-async def get_album(album_name: str):
+@router.get("/album/{slug}")
+async def get_album(slug: str):
+    album_name = slug.replace("-", " ")
     album_dir = os.path.join(data_dir, album_name.lower())
     print(album_dir)
     if not os.path.exists(album_dir):
@@ -208,10 +229,33 @@ async def get_album(album_name: str):
 
     album_photos = create_album_photos_json(album_name, images, file_metadata)
 
+    # get album permissions
+    cursor.execute(
+        "SELECT * FROM user_album_permissions WHERE album_id=%s", (album[0],)
+    )
+    album_permissions = cursor.fetchall()
+
+    album_permissions = [
+        {"user_id": album_permission[1], "album_id": album_permission[2]}
+        for album_permission in album_permissions
+    ]
+
+    # get user data for the album permissions
+    for album_permission in album_permissions:
+        cursor.execute(
+            "SELECT * FROM users WHERE id=%s", (album_permission["user_id"],)
+        )
+        user = cursor.fetchone()
+        album_permission["user_name"] = user[1]
+        album_permission["full_name"] = user[3]
+        album_permission["user_email"] = user[4]
+
     return {
         "album_name": album_name,
-        "image_count": album[4],
-        "shared": album[5],
+        "slug": album[2],
+        "image_count": album[5],
+        "shared": album[6],
+        "album_permissions": album_permissions,
         "album_photos": album_photos,
     }
 
@@ -237,7 +281,9 @@ def create_album_photos_json(album_name, images, file_metadata):
 
 
 @router.get("/albums/")
-async def get_all_albums():
+async def get_all_albums(
+    user_id: int = None,
+):
     # get all ablnum names and first 4 images in each album
     db, cursor = get_db()
     cursor.execute("SELECT * FROM album")
@@ -245,7 +291,7 @@ async def get_all_albums():
 
     all_albums = []
     for album in albums:
-        album_dir = album[2]
+        album_dir = album[3]
         album_name = album[1]
         if not os.path.exists(album_dir):
             raise HTTPException(status_code=404, detail="Album not found")
@@ -266,12 +312,25 @@ async def get_all_albums():
 
         all_albums.append(
             {
+                "album_id": album[0],
                 "album_name": album_name,
-                "image_count": album[4],
-                "shared": album[5],
+                "slug": album[2],
+                "image_count": album[5],
+                "shared": album[6],
                 "album_photos": album_photos,
             }
         )
+
+    # return all albums which userid has access to
+    if user_id:
+        cursor.execute(
+            "SELECT * FROM user_album_permissions WHERE user_id=%s", (user_id,)
+        )
+        user_albums = cursor.fetchall()
+        user_album_ids = [album[2] for album in user_albums]
+        all_albums = [
+            album for album in all_albums if album["album_id"] in user_album_ids
+        ]
 
     return all_albums
 
@@ -286,7 +345,7 @@ async def get_all_photos():
     all_photos = []
     for album in albums:
         print(album)
-        album_dir = album[2]
+        album_dir = album[3]
         album_name = album[1]
         if not os.path.exists(album_dir):
             raise HTTPException(status_code=404, detail="Album not found")
@@ -312,17 +371,24 @@ async def get_all_photos():
 async def delete_album(album_name: str):
     db, cursor = get_db()
 
-    # First, delete related file metadata records
-    cursor.execute(
-        "DELETE FROM file_metadata WHERE album_id IN (SELECT id FROM album WHERE name=%s)",
-        (album_name,),
-    )
+    # First, find the album ID
+    cursor.execute("SELECT id FROM album WHERE name=%s", (album_name,))
+    album = cursor.fetchone()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    album_id = album[0]
 
-    # Then, delete the album
-    cursor.execute("DELETE FROM album WHERE name=%s", (album_name,))
+    # Delete references from user_album_permissions
+    cursor.execute("DELETE FROM user_album_permissions WHERE album_id=%s", (album_id,))
+
+    # Then, delete related file metadata records
+    cursor.execute("DELETE FROM file_metadata WHERE album_id=%s", (album_id,))
+
+    # Now, delete the album itself
+    cursor.execute("DELETE FROM album WHERE id=%s", (album_id,))
     db.commit()
 
-    # delete album folder and all its contents including compressed folder recursively
+    # Delete album directory
     album_dir = os.path.join(data_dir, album_name.lower())
     if os.path.exists(album_dir):
         import shutil
@@ -333,17 +399,25 @@ async def delete_album(album_name: str):
 
 
 @router.put("/album")
-async def update_album(album_name: str, album_new_name: str, shared: bool):
+async def update_album(
+    album_name: str,
+    album_new_name: str,
+    shared: bool,
+    user_id: int = None,
+    action: str = None,
+):
     print(album_name, album_new_name, shared)
     db, cursor = get_db()
 
     try:
+        slug = album_new_name.lower().replace(" ", "-")
         cursor.execute(
-            "UPDATE album SET name=%s, shared=%s, location=%s WHERE name=%s",
+            "UPDATE album SET name=%s, shared=%s, location=%s, slug=%s WHERE name=%s",
             (
                 album_new_name,
                 shared,
                 os.path.join(data_dir, album_new_name.lower()),
+                slug,
                 album_name,
             ),
         )
@@ -367,6 +441,26 @@ async def update_album(album_name: str, album_new_name: str, shared: bool):
                 raise HTTPException(
                     status_code=500, detail="Failed to move album directory"
                 )
+
+    if user_id is not None:
+        # cursor.execute("SELECT * FROM album WHERE name=%s", (album_new_name,))
+        # album = cursor.fetchone()
+        # add_album_to_user(user_id, album[0])
+        if action == "update":
+            cursor.execute("SELECT * FROM album WHERE name=%s", (album_new_name,))
+            album = cursor.fetchone()
+            add_album_to_user(user_id, album[0])
+
+        elif action == "delete":
+            cursor.execute("SELECT * FROM album WHERE name=%s", (album_name,))
+            album = cursor.fetchone()
+
+            # delete only the row that has the user_id
+            cursor.execute(
+                "DELETE FROM user_album_permissions WHERE user_id=%s AND album_id=%s",
+                (user_id, album[0]),
+            )
+            db.commit()
 
     return {"message": "Album updated successfully."}
 
@@ -402,8 +496,9 @@ async def get_shared_albums():
         all_albums.append(
             {
                 "album_name": album_name,
-                "image_count": album[4],
-                "shared": album[5],
+                "slug": album[2],
+                "image_count": album[5],
+                "shared": album[6],
                 "album_photos": album_photos,
             }
         )

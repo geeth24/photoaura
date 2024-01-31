@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from models.user import User
+from models.user import User, UpdateUserForm
 from db_config import get_db
 from fastapi import HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -9,7 +9,6 @@ from auth import (
     create_token,
     get_password_hash,
     verify_password,
-    
 )
 
 router = APIRouter()
@@ -90,6 +89,34 @@ def create_user_json(user):
     }
 
 
+def get_albums_for_user(user_id):
+    db, cursor = get_db()
+    cursor.execute(
+        """
+        SELECT album.* FROM album
+        JOIN user_album_permissions ON album.id = user_album_permissions.album_id
+        WHERE user_album_permissions.user_id = %s
+        """,
+        (user_id,),
+    )
+    albums = cursor.fetchall()
+    cursor.close()
+
+    # convert to json
+    return [
+        {
+            "id": album[0],
+            "name": album[1],
+            "slug": album[2],
+            "location": album[3],
+            "date": album[4],
+            "image_count": album[5],
+            "shared": album[6],
+        }
+        for album in albums
+    ]
+
+
 @router.get("/users/")
 def read_users(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
@@ -102,6 +129,11 @@ def read_users(token: str = Depends(oauth2_scheme)):
 
     # Assuming the tuple structure matches your User model: (id, user_name, user_password, full_name, user_email)
     users = [create_user_json(user) for user in all_users]
+
+    # get all albums for each user
+    for user in users:
+        user["albums"] = get_albums_for_user(user["id"])
+
     return users
 
 
@@ -124,3 +156,34 @@ def read_user(user_id: int, token: str = Depends(oauth2_scheme)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return create_user_json(user)
+
+
+@router.put("/users/{user_id}")
+def update_user(
+    user_id: int, form_data: UpdateUserForm, token: str = Depends(oauth2_scheme)
+):
+    # check if user already exists
+    album_ids = form_data.album_ids
+    db, cursor = get_db()
+    cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # update user
+    cursor.execute(
+        "UPDATE users SET user_name=%s, full_name=%s, user_email=%s WHERE id=%s",
+        (form_data.user.user_name, form_data.user.full_name, form_data.user.user_email, user_id),
+    )
+    db.commit()
+
+    # update album permissions
+    cursor.execute("DELETE FROM user_album_permissions WHERE user_id=%s", (user_id,))
+    for album_id in album_ids:
+        cursor.execute(
+            "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
+            (user_id, album_id),
+        )
+    db.commit()
+
+    return {"message": "User updated successfully."}

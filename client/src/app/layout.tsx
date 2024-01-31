@@ -12,6 +12,7 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('http://localhost:3000'),
   title: 'PhotoAura',
   description: 'All your photos in one place',
   openGraph: {

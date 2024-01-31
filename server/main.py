@@ -12,7 +12,7 @@ from routers.album import router as album_router
 
 
 app = FastAPI()
-origins = ["*"]
+origins = ["http://localhost:3000", "https://photoaura.reactiveshots.com"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

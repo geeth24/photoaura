@@ -23,6 +23,7 @@ import { ModeToggle } from '@/components/ui/mode-toggle';
 
 interface AlbumGrid {
   album_name: string;
+  slug: string;
   image_count: number;
   shared: boolean;
   album_photos: Album[];
@@ -34,11 +35,11 @@ function Page() {
   const [uploading, setUploading] = useState<boolean>(false);
   const [albumName, setAlbumName] = useState<string>('test'); // Replace 'test' with the variable holding the actual album name if necessary
   const [albums, setAlbums] = useState<AlbumGrid[]>([]);
-  const { sidebarOpened } = useAuth();
+  const { sidebarOpened, user } = useAuth();
 
   const getAlbums = async () => {
     console.log('Getting albums');
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums?user_id=${user?.id}`);
     const data = await response.json();
     console.log(data);
     setAlbums(data);
@@ -68,6 +69,7 @@ function Page() {
     setUploading(true);
     // Connect to WebSocket
     const newSocket = new WebSocket(`wss://photoaura-api.reactiveshots.com/ws`);
+    // const newSocket = new WebSocket(`ws://localhost:8000/ws`);
 
     newSocket.onmessage = (event) => {
       console.log('Message from server:', event.data);
@@ -81,7 +83,7 @@ function Page() {
     }
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumName)}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumName)}&user_id=${user?.id}`,
       {
         method: 'POST',
         body: formData,
@@ -105,7 +107,9 @@ function Page() {
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}
     >
       <Drawer>
-        <div className="mt-4 flex w-full items-end justify-end">
+        <div className="mt-4 flex w-full items-center justify-between">
+          <h1 className="text-2xl font-bold">Albums</h1>
+
           <div className="flex space-x-2">
             <DrawerTrigger asChild>
               <Button className="">New Album</Button>
@@ -129,7 +133,6 @@ function Page() {
                 accept=".png,.jpg,.jpeg"
               />
             </div>
-
             <div className="mt-2">
               {socketMessages.length === 0 ? (
                 <>
@@ -137,14 +140,19 @@ function Page() {
                   <Input value={albumName} onChange={(e) => setAlbumName(e.target.value)} />
                 </>
               ) : (
-                <div>{socketMessages.length} files uploaded.</div>
+                <></>
               )}
               {uploading && (
                 <div>
                   <h1 className="text-center">
-                    {socketMessages.length / 2} / {selectedFiles?.length} files uploaded.
+                    {Math.floor(socketMessages.length / 2)} / {selectedFiles?.length} files
+                    uploaded.
                   </h1>
-                  <Progress value={(socketMessages.length / (selectedFiles?.length ?? 1)) * 100} />
+                  <Progress
+                    value={
+                      (Math.floor(socketMessages.length / 2) / (selectedFiles?.length ?? 1)) * 100
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -162,7 +170,7 @@ function Page() {
       <div className="mt-4 grid w-full grid-cols-1  gap-4 p-4  md:grid-cols-2 lg:grid-cols-3">
         {albums.map((album) => (
           <Link
-            href={`/admin/albums/${encodeURIComponent(album.album_name)}`}
+            href={`/admin/albums/${album.slug}`}
             key={album.album_name}
             className="h-full w-full"
           >
