@@ -99,7 +99,7 @@ function Page() {
     }
     setUploading(false);
     getAlbums();
-    router.push(`/admin/albums/${encodeURIComponent(albumName)}`);
+    router.push(`/admin/albums/${albumName.replace(/ /g, '-')}`);
   };
 
   return (
