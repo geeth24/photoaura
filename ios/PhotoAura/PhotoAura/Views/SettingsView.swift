@@ -20,7 +20,7 @@ struct SettingsView: View {
     
     var body: some View {
         NavigationStack{
-            VStack{
+            VStack(alignment: .leading){
                 if let userData = vm.getUserDetail() {
                     RoundedRectangle(cornerRadius: 4.0)
                         .frame(height: 210)
@@ -75,10 +75,42 @@ struct SettingsView: View {
                             }
                             .padding()
                         }
+                    
+                  
+                    
+                   
+                    VStack(alignment: .leading){
+                        HStack{
+                            Image("logo-color")
+                                .resizable()
+                                .frame(width: 36, height: 36)
+                            
+                         
+                                Text("PhotoAura")
+                                    .font(.custom(Lato, size: 20))
+                                    .lineSpacing(28)
+                                    .fontWeight(.bold)
+                            
+                        }
+                        Text("Version \(UIApplication.appVersion ?? "") (\(UIApplication.appBuild ?? ""))")
+                            .font(.custom(Lato, size: 14))
+                            .lineSpacing(22)
+                            .foregroundStyle(.textDefault)
+                        
+                        Link(destination: URL(string: "https://reactiveshots.com")!, label: {
+                            Text("Contact Support")
+                                .font(.custom(Lato, size: 14))
+                                .lineSpacing(22)
+                                .foregroundStyle(.textDefault)
+                        })
+                        
+                    }
+                    .padding(.top)
                     Spacer()
-
                     
                 }
+                
+                
             }
             .padding()
             .navigationTitle("Settings")
