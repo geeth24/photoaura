@@ -5,16 +5,16 @@ import PhotosGrid, { Album } from '@/components/PhotosGrid';
 import { useAuth } from '@/context/AuthContext';
 function Page() {
   const [photos, setPhotos] = React.useState<Album[]>([]);
+  const { user, sidebarOpened } = useAuth();
 
   React.useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos?user_id=${user?.id}`)
       .then((response) => response.json())
       .then((data) => {
         setPhotos(data);
       });
   }, []);
 
-  const { sidebarOpened } = useAuth();
 
   return (
     <div className={`w-full ${sidebarOpened ? 'pl-4' : ''} pr-4`}>

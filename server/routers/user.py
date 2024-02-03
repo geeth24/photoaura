@@ -192,3 +192,24 @@ def update_user(
     db.commit()
 
     return {"message": "User updated successfully."}
+
+
+@router.get("/api/users/{user_id}/delete")
+def delete_user(user_id: int, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
+    db, cursor = get_db()
+
+    # First, delete user album permissions to avoid foreign key constraint violation
+    cursor.execute("DELETE FROM user_album_permissions WHERE user_id=%s", (user_id,))
+    db.commit()
+
+    # Then, delete the user
+    cursor.execute("DELETE FROM users WHERE id=%s", (user_id,))
+    db.commit()
+
+    return {"message": "User deleted successfully."}

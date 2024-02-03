@@ -227,7 +227,7 @@ async def get_album(slug: str):
     cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
     file_metadata = cursor.fetchall()
 
-    album_photos = create_album_photos_json(album_name, images, file_metadata)
+    album_photos = create_album_photos_json(album[0], album_name, images, file_metadata)
 
     # get album permissions
     cursor.execute(
@@ -260,9 +260,10 @@ async def get_album(slug: str):
     }
 
 
-def create_album_photos_json(album_name, images, file_metadata):
+def create_album_photos_json(album_id, album_name, images, file_metadata):
     album_photos = [
         {
+            "album_id": album_id,
             "album_name": album_name,
             "image": f"https://aura.reactiveshots.com/api/static/{album_name}/compressed/{image}",
             "file_metadata": {
@@ -308,7 +309,9 @@ async def get_all_albums(
 
         file_metadata = cursor.fetchall()
 
-        album_photos = create_album_photos_json(album_name, images, file_metadata)
+        album_photos = create_album_photos_json(
+            album[0], album_name, images, file_metadata
+        )
 
         all_albums.append(
             {
@@ -336,7 +339,9 @@ async def get_all_albums(
 
 
 @router.get("/api/photos/")
-async def get_all_photos():
+async def get_all_photos(
+    user_id: int = None,
+):
     # get all album names
     db, cursor = get_db()
     cursor.execute("SELECT * FROM album")
@@ -361,8 +366,21 @@ async def get_all_photos():
 
         file_metadata = cursor.fetchall()
 
-        album_photos = create_album_photos_json(album_name, images, file_metadata)
+        album_photos = create_album_photos_json(
+            album[0], album_name, images, file_metadata
+        )
         all_photos.extend(album_photos)
+
+    # return all albums which userid has access to
+    if user_id:
+        cursor.execute(
+            "SELECT * FROM user_album_permissions WHERE user_id=%s", (user_id,)
+        )
+        user_albums = cursor.fetchall()
+        user_album_ids = [album[2] for album in user_albums]
+        all_photos = [
+            photo for photo in all_photos if photo["album_id"] in user_album_ids
+        ]
 
     return all_photos
 
@@ -491,7 +509,9 @@ async def get_shared_albums():
 
         file_metadata = cursor.fetchall()
 
-        album_photos = create_album_photos_json(album_name, images, file_metadata)
+        album_photos = create_album_photos_json(
+            album[0], album_name, images, file_metadata
+        )
 
         all_albums.append(
             {
