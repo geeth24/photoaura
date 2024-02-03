@@ -23,18 +23,18 @@ services:
     networks:
       - app-network
 
-nginx:
-  image: nginx:alpine
-  volumes:
-    - ./nginx:/etc/nginx/conf.d  # Mount custom Nginx config directory
-  ports:
-    - "80:82"  # Map external port 80 to internal port 82
-    - "443:445"  # Map external port 443 to internal port 445, if you're setting up HTTPS
-  depends_on:
-    - frontend
-    - backend
-  networks:
-    - app-network
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx:/etc/nginx/conf.d  # Mount custom Nginx config directory
+    ports:
+      - "80:82"  # Map external port 80 to internal port 82
+      - "443:445"  # Map external port 443 to internal port 445, if you're setting up HTTPS
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
 
 networks:
   app-network:
