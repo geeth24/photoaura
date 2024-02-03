@@ -55,7 +55,7 @@ struct SettingsView: View {
                                 HStack{
                                     Spacer()
                                     Button{
-                                        showDeleteAlert = true
+                                        vm.showDeleteAlert = true
                                     } label: {
                                         
                                         Text("Delete Account")
@@ -114,19 +114,9 @@ struct SettingsView: View {
             }
             .padding()
             .navigationTitle("Settings")
-            .alert("Are you sure you want to delete your account?", isPresented: $showDeleteAlert){
-                
-                Button("Cancel", role: .cancel){
-                    showDeleteAlert = false
-                }
-                
-                Button("Delete", role: .destructive){
-                    Task{
-                        do {
-                            try await vm.deleteUser()
-                        }
-                    }
-                }
+            .sheet(isPresented: $vm.showDeleteAlert){
+                ActionSheet(action: "delete", icon: "xmark.circle", actionText: "Are you sure you want to delete your account?")
+                    .presentationDetents([.height(200)])
             }
         }
     }

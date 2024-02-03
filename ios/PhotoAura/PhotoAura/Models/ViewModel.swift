@@ -33,7 +33,8 @@ class ViewModel: NSObject, ObservableObject {
     @Published var album: AlbumsModel = AlbumsModel()
 
     @Published var currentTab: Tab = .photos
-
+    @Published var showLogoutAlert: Bool = false
+    @Published var showDeleteAlert: Bool = false
 
 
     private let defaults = UserDefaults.standard

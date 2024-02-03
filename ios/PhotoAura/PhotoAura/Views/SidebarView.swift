@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SidebarView<Content: View>: View {
-
+    
     let content: Content // Define a property to hold the custom content
     
     // Add an initializer to accept the custom content
@@ -18,7 +18,7 @@ struct SidebarView<Content: View>: View {
     
     @EnvironmentObject var vm: ViewModel
     
-   
+    
     
     var body: some View {
         ZStack{
@@ -34,9 +34,9 @@ struct SidebarView<Content: View>: View {
                                 }
                             }
                         }
-              
+                    
                 )
-
+            
             HStack{
                 
                 Rectangle()
@@ -54,6 +54,11 @@ struct SidebarView<Content: View>: View {
                                 }
                             }
                     )
+                    .onTapGesture {
+                        withAnimation {
+                            vm.sidebarOpened.toggle()
+                        }
+                    }
                     .overlay(alignment: vm.sidebarOpened ? .topLeading : .top) {
                         VStack(alignment: vm.sidebarOpened ? .leading : .center){
                             HStack{
@@ -91,21 +96,25 @@ struct SidebarView<Content: View>: View {
                             
                         }   .padding(.horizontal)
                     }
+                    .sheet(isPresented: $vm.showLogoutAlert, content: {
+                        ActionSheet(action: "logout", icon: "rectangle.portrait.and.arrow.forward", actionText: "Are you sure you want to logout?")
+                            .presentationDetents([.height(200)])
+                    })
                 
                 
                 
                 
                 
                 Spacer()
-            
-        }
+                
+            }
         }
     }
 }
 
 #Preview {
     ContentView()
-    .environmentObject(ViewModel())
+        .environmentObject(ViewModel())
 }
 
 
@@ -115,7 +124,6 @@ struct SidebarNavButton : View {
     @State var tabText: String
     @EnvironmentObject var vm: ViewModel
     
-    @State var showLogoutAlert: Bool = false
     var body: some View {
         
         Button{
@@ -123,7 +131,7 @@ struct SidebarNavButton : View {
             if tab != .logout {
                 vm.currentTab = tab
             }else {
-                showLogoutAlert = true
+                vm.showLogoutAlert = true
             }
         } label: {
             HStack{
@@ -143,20 +151,87 @@ struct SidebarNavButton : View {
                 
                 
             }
-           
-           
             
             
-        }
-        .alert("Are you sure you want to logout?", isPresented: $showLogoutAlert){
-            Button("Cancel", role: .cancel){
-                showLogoutAlert = false
-            }
             
-            Button("Log out", role: .destructive){
-                vm.logout()
-            }
+            
         }
         
+        
     }
+}
+
+
+struct ActionSheet: View {
+    @EnvironmentObject var vm: ViewModel
+    @Environment(\.presentationMode) var presentationMode
+    @State var action: String
+    @State var icon: String
+    @State var actionText: String
+    
+    var body: some View {
+        VStack{
+            
+            Image(systemName: icon)
+                .font(.system(size: 30))
+                .fontWeight(.medium)
+                .foregroundStyle(.textDefault)
+                .padding(.bottom)
+            
+            Text(actionText)
+                .font(.custom(Lato, size: 20))
+                .multilineTextAlignment(.center)
+                .lineSpacing(0)
+                .fontWeight(.bold)
+            
+            HStack{
+                Button{
+                    presentationMode.wrappedValue.dismiss()
+                } label: {
+                    
+                    Text("Cancel")
+                    
+                        .font(.custom(Lato, size: 14))
+                        .fontWeight(.medium)
+                        .foregroundStyle(.buttonTextDefault)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.buttonDefault)
+                        .cornerRadius(4.0)
+                    
+                }
+                Button{
+                    
+                    if action == "logout"{
+                        vm.logout()
+                    }else if action == "delete"{
+                        Task{
+                            do {
+                                try await vm.deleteUser()
+                            }
+                        }
+                    }
+                    
+                } label: {
+                    
+                    Text(action.firstUppercased)
+                    
+                        .font(.custom(Lato, size: 14))
+                        .fontWeight(.medium)
+                        .foregroundStyle(.textDestructiveDefault)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    
+                        .background(.buttonDestructiveDefault)
+                        .cornerRadius(4.0)
+                    
+                }
+            }.padding(.top)
+        }
+    }
+}
+
+extension StringProtocol {
+    var firstUppercased: String { prefix(1).uppercased() + dropFirst() }
+    var firstCapitalized: String { prefix(1).capitalized + dropFirst() }
 }
