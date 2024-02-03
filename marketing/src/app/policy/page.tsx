@@ -19,7 +19,7 @@ function Page() {
         <h2 className="mb-2 text-xl font-semibold">Information We Collect</h2>
         <p className="mb-4 text-base">
           PhotoAura is designed to let users organize, edit, and share your photos from a single
-          place privately and deploys on your own server. It's a self-hosted, open-source.
+          place privately and deploys on your own server. It&apos;s a self-hosted, open-source.
         </p>
         <ul className="mb-4 list-inside list-disc">
           <div>
