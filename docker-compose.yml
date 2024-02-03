@@ -8,7 +8,7 @@ services:
       target: backend
     volumes:
       - ./server:/app
-      - /Volumes/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
+      - /mnt/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
     ports:
       - "8000:8000"
     networks:

@@ -12,10 +12,10 @@ from routers.album import router as album_router
 
 
 app = FastAPI()
-origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
+# origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     expose_headers=["*"],
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
