@@ -4,8 +4,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: backend
+      dockerfile: Dockerfile.backend
     volumes:
       - ./server:/app
       - /mnt/share-data/photoaura:/var/aura/data
@@ -15,21 +14,19 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: frontend
+      dockerfile: Dockerfile.frontend
     volumes:
       - ./client:/app/client
-      - /app/client/node_modules
     networks:
       - app-network
 
   nginx:
     image: nginx:alpine
     volumes:
-      - ./nginx:/etc/nginx/conf.d  # Mount custom Nginx config directory
+      - ./nginx:/etc/nginx/conf.d
     ports:
-      - "80:82"  # Map external port 80 to internal port 82
-      - "443:445"  # Map external port 443 to internal port 445, if you're setting up HTTPS
+      - "80:80"
+      - "443:443"
     depends_on:
       - frontend
       - backend
@@ -39,7 +36,3 @@ services:
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  aura-data:
-    driver: local
