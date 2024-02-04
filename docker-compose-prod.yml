@@ -1,35 +1,15 @@
 version: '3.8'
 
 services:
-  backend:
+  photoaura-app:
     build:
       context: .
       dockerfile: Dockerfile
-    volumes:
-      - ./server:/app
-      - /mnt/share-data/photoaura:/var/aura/data
-    networks:
-      - app-network
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    volumes:
-      - ./client:/app/client
-    networks:
-      - app-network
-
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./nginx:/etc/nginx/conf.d
     ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      - frontend
-      - backend
+      - "80:3000"  # Expose the frontend on port 80
+      - "8000:8000"  # Expose the backend on port 8000 directly if needed
+    volumes:
+      - /mnt/share-data/photoaura:/var/aura/data
     networks:
       - app-network
 
