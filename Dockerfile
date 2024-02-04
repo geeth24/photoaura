@@ -17,9 +17,8 @@ RUN pnpm run build
 FROM python:3.9
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y ntpdate && ntpdate pool.ntp.org
 
-RUN apt-get update && apt-get install -y libpq-dev
+RUN apt-get update -o Acquire::Check-Valid-Until=false && apt-get install -y libpq-dev
 
 # Install Node.js
 RUN apt-get update && apt-get install -y curl software-properties-common && \
