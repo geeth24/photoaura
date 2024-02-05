@@ -29,13 +29,16 @@ services:
     image: nginx:alpine
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/ui.reactiveshots.com:/etc/nginx/ssl/ui.reactiveshots.com:ro
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - frontend
       - backend
     networks:
       - app-network
+
 
 networks:
   app-network:
