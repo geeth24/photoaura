@@ -23,7 +23,7 @@ services:
       - /app/client/node_modules
     networks:
       - app-network
-    command: pnpm run start  # or any other command to start your Next.js frontend
+    # command: pnpm run start  # or any other command to start your Next.js frontend
 
   certbot:
     image: certbot/certbot
