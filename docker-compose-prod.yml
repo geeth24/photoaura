@@ -25,6 +25,14 @@ services:
       - app-network
     command: pnpm run dev  # or any other command to start your Next.js frontend
 
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+    command: certonly --standalone -d ui.reactiveshots.com
+    networks:
+      - app-network
+      
   nginx:
     image: nginx:alpine
     volumes:
