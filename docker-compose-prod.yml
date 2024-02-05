@@ -23,7 +23,7 @@ services:
       - /app/client/node_modules
     networks:
       - app-network
-    command: sh -c "ls -al /app/client/.next && pnpm run start"
+    command: pnpm run dev  # or any other command to start your Next.js frontend
 
   certbot:
     image: certbot/certbot
