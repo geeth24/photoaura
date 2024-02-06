@@ -2,7 +2,7 @@
 import psycopg
 
 # Database connection details
-host = "192.168.1.38"
+host = "postgres"
 dbname = "postgres"
 user = "root"
 user_password = "banna"
