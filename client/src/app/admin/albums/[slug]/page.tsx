@@ -117,7 +117,7 @@ function Page({ params }: { params: { slug: string } }) {
   const { sidebarOpened } = useAuth();
 
   const deleteAlbum = async (albumName: string) => {
-    const response = await axios.get(
+    const response = await axios.delete(
       `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${encodeURIComponent(albumName)}/`,
     );
     const result = response.data;
