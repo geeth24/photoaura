@@ -385,7 +385,7 @@ async def get_all_photos(
     return all_photos
 
 
-@router.get("/api/album/delete/{album_name}")
+@router.delete("/api/album/delete/{album_name}/")
 async def delete_album(album_name: str):
     db, cursor = get_db()
 
@@ -416,7 +416,7 @@ async def delete_album(album_name: str):
     return {"message": "Album deleted successfully."}
 
 
-@router.put("/api/album")
+@router.put("/api/album/")
 async def update_album(
     album_name: str,
     album_new_name: str,
