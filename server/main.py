@@ -15,7 +15,7 @@ from starlette.responses import RedirectResponse
 class NormalizeSlashMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if not path.endswith("/") and not path.split("/")[-1].contains("."):
+        if not path.endswith("/") and not "." in path.split("/")[-1]:
             new_url = request.url.replace(path=path + "/")
             return RedirectResponse(url=str(new_url), status_code=301)
         response = await call_next(request)
