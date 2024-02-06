@@ -39,7 +39,7 @@ function Page() {
 
   const getAlbums = async () => {
     console.log('Getting albums');
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums?user_id=${user?.id}`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`);
     const data = await response.json();
     console.log(data);
     setAlbums(data);
@@ -68,7 +68,7 @@ function Page() {
 
     setUploading(true);
     // Connect to WebSocket
-    const newSocket = new WebSocket(`wss://aura.reactiveshots.com/api/ws`);
+    const newSocket = new WebSocket(`wss://ui.reactiveshots.com/api/ws/`);
     // const newSocket = new WebSocket(`ws://localhost:8000/ws`);
 
     newSocket.onmessage = (event) => {

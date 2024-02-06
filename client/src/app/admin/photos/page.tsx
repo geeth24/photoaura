@@ -8,7 +8,7 @@ function Page() {
   const { user, sidebarOpened } = useAuth();
 
   React.useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos?user_id=${user?.id}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos/?user_id=${user?.id}`)
       .then((response) => response.json())
       .then((data) => {
         setPhotos(data);

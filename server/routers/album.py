@@ -198,7 +198,7 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
-@router.get("/api/album/{slug}")
+@router.get("/api/album/{slug}/")
 async def get_album(slug: str):
     album_name = slug.replace("-", " ")
     album_dir = os.path.join(data_dir, album_name.lower())
