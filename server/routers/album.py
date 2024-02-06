@@ -41,7 +41,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.websocket("/api/ws")
+@router.websocket("/api/ws/")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     # print if connection is established
