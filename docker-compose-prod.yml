@@ -19,19 +19,10 @@ services:
       dockerfile: Dockerfile
       target: frontend
     volumes:
-      - ./client:/app/client
-      - /app/client/node_modules
+      - /app/client/node_modules # Consider only mounting node_modules or specific directories if necessary
     networks:
       - app-network
-    command: pnpm run dev  # or any other command to start your Next.js frontend
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
-    command: certonly --standalone -d aura.reactiveshots.com
-    networks:
-      - app-network
+    command: pnpm run start  # or any other command to start your Next.js frontend
       
   nginx:
     image: nginx:alpine
