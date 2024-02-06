@@ -6,7 +6,7 @@ export async function generateMetadata({
 }: {
   params: { slug: string };
 }): Promise<Metadata> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}`);
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`);
   const result = await response.json();
 
   return {

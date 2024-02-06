@@ -45,7 +45,7 @@ function UsersTable() {
       return;
     }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
       headers: {
         Authorization: `Bearer ${storedToken}`,
       },
