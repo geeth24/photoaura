@@ -1,16 +1,12 @@
 # db_config.py
 import psycopg
+import os
 
 # Database connection details
-host = "postgres"
-dbname = "postgres"
-user = "root"
-user_password = "banna"
-
-# host = "localhost"
-# dbname = "postgres"
-# user = "geeth"
-# user_password = "postgres"
+host = os.environ.get("POSTGRES_HOST", "localhost")
+dbname = os.environ.get("POSTGRES_DB", "aura")
+user = os.environ.get("POSTGRES_USER", "aura")
+user_password = os.environ.get("POSTGRES_PASSWORD", "aura")
 
 
 def get_db():
