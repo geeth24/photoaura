@@ -4,6 +4,14 @@ import { toast } from 'sonner';
 import { setCookie, getCookie, deleteCookie } from 'cookies-next';
 import { usePathname, useRouter } from 'next/navigation';
 import ProtectedRoute from './ProtectedRoute';
+import { Jwt } from 'jsonwebtoken';
+
+interface CustomJwt {
+  exp: number;
+  // Include other properties from the JWT you might need
+  iat?: number;
+  // Add any other properties as per your token's structure
+}
 
 // Define the type for the user (adjust according to your needs)
 type UserType = {
@@ -102,56 +110,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setIsLoading(true);
-    console.log('Checking for stored user details...');
-    // Check if the user details are already present in cookies
-    const storedToken = getCookie('token');
-    const storedUser = getCookie('user');
-
-    if (storedToken && storedUser) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/verify-token`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${storedToken}`,
-        },
-      })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('Invalid token');
-          }
-          return response.json();
-        })
-        .then((data) => {
-          console.log('Token verified:', data);
-          const parsedUser = JSON.parse(storedUser); // Parse the user JSON
-          setUser(parsedUser);
-          setAccessToken(storedToken);
-          // Ensure the parsedUser object has the full_name property before displaying the message
-          if (parsedUser && parsedUser.full_name) {
-            toast.success(`Welcome Back, ${parsedUser.full_name}!`);
-          }
-          if (pathname === '/login') {
-            router.push('/admin/photos');
-          }
-          setIsLoading(false);
-        })
-        .catch((error) => {
-          console.error('Token verification error:', error);
+    const checkTokenExpiration = () => {
+      const token = getCookie('token');
+      if (token) {
+        const decodedToken = JSON.parse(atob(token.split('.')[1])) as CustomJwt;
+        const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
+        const currentTime = new Date().getTime();
+        if (expirationTime < currentTime) {
+          console.log('Token expired');
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           deleteCookie('token');
           deleteCookie('user');
-          toast.error('Session ex pired. Please log in again.');
+          toast.error('Session expired. Please log in again.');
           router.push('/login');
-          setIsLoading(false);
-        });
-    } else {
-      if (pathname !== '/login' && !pathname.startsWith('/share')) {
-        router.push('/login');
-        setIsLoading(false);
+        } else {
+          console.log('Token still valid not loggin out');
+          const storedUser = getCookie('user');
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+          }
+        }
       }
-    }
+      setIsLoading(false);
+    };
 
+    // Check token expiration on initial load
+    checkTokenExpiration();
+
+    // Set an interval to check token expiration periodically, e.g., every 5 minutes
+    const intervalId = setInterval(checkTokenExpiration, 300000); // 300000 ms = 5 minutes
+
+    // Clear the interval when the component unmounts
+    return () => clearInterval(intervalId);
+  }, [router]);
+
+  useEffect(() => {
     //set sidebar state
     const storedSidebarState = localStorage.getItem('sidebarOpened');
     if (storedSidebarState) {
