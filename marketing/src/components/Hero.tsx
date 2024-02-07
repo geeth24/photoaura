@@ -62,7 +62,7 @@ export default function Hero() {
                 What&apos;s new
               </span>
               <span className="inline-flex items-center space-x-2 text-sm font-medium leading-6 text-muted-foreground">
-                <span>Just shipped v1.0</span>
+                <span>Just shipped beta</span>
                 <ChevronRightIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               </span>
             </a>
