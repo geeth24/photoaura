@@ -90,7 +90,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     axios
-      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}`)
+      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
       .then((response) => {
         setAlbumGrid(response.data);
         console.log(response.data);
@@ -100,10 +100,10 @@ function Page({ params }: { params: { slug: string } }) {
       .catch((error) => {
         console.log(error);
         toast.error('Album not found');
-        router.push('/admin/albums');
+        // router.push('/admin/albums');
       });
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
       headers: {
         Authorization: `Bearer ${getCookie('token')}`,
       },
@@ -117,8 +117,8 @@ function Page({ params }: { params: { slug: string } }) {
   const { sidebarOpened } = useAuth();
 
   const deleteAlbum = async (albumName: string) => {
-    const response = await axios.get(
-      `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${encodeURIComponent(albumName)}`,
+    const response = await axios.delete(
+      `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${encodeURIComponent(albumName)}/`,
     );
     const result = response.data;
     console.log(result);

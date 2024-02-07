@@ -41,7 +41,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.websocket("/api/ws")
+@router.websocket("/api/ws/")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     # print if connection is established
@@ -198,7 +198,7 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
-@router.get("/api/album/{slug}")
+@router.get("/api/album/{slug}/")
 async def get_album(slug: str):
     album_name = slug.replace("-", " ")
     album_dir = os.path.join(data_dir, album_name.lower())
@@ -265,7 +265,7 @@ def create_album_photos_json(album_id, album_name, images, file_metadata):
         {
             "album_id": album_id,
             "album_name": album_name,
-            "image": f"https://aura.reactiveshots.com/api/static/{album_name}/compressed/{image}",
+            "image": f"{os.getenv('API_CDN_URL')}/static/{album_name}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
                 "size": meta[4],
@@ -385,7 +385,7 @@ async def get_all_photos(
     return all_photos
 
 
-@router.get("/api/album/delete/{album_name}")
+@router.delete("/api/album/delete/{album_name}/")
 async def delete_album(album_name: str):
     db, cursor = get_db()
 
@@ -416,7 +416,7 @@ async def delete_album(album_name: str):
     return {"message": "Album deleted successfully."}
 
 
-@router.put("/api/album")
+@router.put("/api/album/")
 async def update_album(
     album_name: str,
     album_new_name: str,
