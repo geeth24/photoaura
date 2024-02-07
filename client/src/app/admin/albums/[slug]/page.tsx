@@ -118,7 +118,7 @@ function Page({ params }: { params: { slug: string } }) {
       .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
       .then((response) => {
         setAlbumGrid(response.data);
-        console.log(response.data);
+        // console.log(response.data);
         setShared(response.data.shared);
         setUpload(response.data.upload);
         setAlbumPermissions(response.data.album_permissions);
@@ -126,7 +126,7 @@ function Page({ params }: { params: { slug: string } }) {
         showToastWithCooldown('Album loaded', true);
       })
       .catch((error) => {
-        console.log(error);
+        // console.log(error);
         toast.error('Album not found');
         router.push('/admin/albums');
         setIsLoading(false);
@@ -151,7 +151,7 @@ function Page({ params }: { params: { slug: string } }) {
       `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${encodeURIComponent(albumName)}/`,
     );
     const result = response.data;
-    console.log(result);
+    // console.log(result);
     router.push('/admin/albums');
   };
 
@@ -163,9 +163,9 @@ function Page({ params }: { params: { slug: string } }) {
       },
     );
     const result = await response.json();
-    console.log(result);
+    // console.log(result);
     if (newAlbumName != '') {
-      console.log(`${params.slug} ${newAlbumName}`);
+      // console.log(`${params.slug} ${newAlbumName}`);
       router.push(`/admin/albums/${newAlbumName.replace(/ /g, '-')}`);
     }
     toast.success('Album updated');
@@ -184,7 +184,7 @@ function Page({ params }: { params: { slug: string } }) {
     const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
 
     newSocket.onmessage = (event) => {
-      console.log('Message from server:', event.data);
+      // console.log('Message from server:', event.data);
       setSocketMessages((prevMessages) => [...prevMessages, event.data]);
     };
 
@@ -203,7 +203,7 @@ function Page({ params }: { params: { slug: string } }) {
     );
 
     const result = await response.json();
-    console.log(result);
+    // console.log(result);
 
     // Disconnect from WebSocket
     if (newSocket.readyState === 1) {

@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      console.log(`${process.env.NEXT_PUBLIC_API_URL}/login`);
+      // console.log(`${process.env.NEXT_PUBLIC_API_URL}/login`);
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
         method: 'POST',
         headers: {
@@ -70,14 +70,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!response.ok) {
         // Check if the response JSON has a 'detail' field and use it for the message
         const errorMessage = data.detail || 'Login failed';
-        console.log('Login failed:', errorMessage);
+        // console.log('Login failed:', errorMessage);
         toast.error(errorMessage);
         return; // Exit early as the login failed
       }
 
       setAccessToken(data.access_token);
       setUser(data.user);
-      console.log('Login success:', data);
+      // console.log('Login success:', data);
       toast.success('Welcome Back, ' + data.user.full_name + '!');
       setCookie('token', data.access_token, {
         path: '/',
@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
         const currentTime = new Date().getTime();
         if (expirationTime < currentTime) {
-          console.log('Token expired');
+          // console.log('Token expired');
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           deleteCookie('token');
@@ -126,7 +126,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           toast.error('Session expired. Please log in again.');
           router.push('/login');
         } else {
-          console.log('Token still valid not loggin out');
+          // console.log('Token still valid not loggin out');
           const storedUser = getCookie('user');
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);

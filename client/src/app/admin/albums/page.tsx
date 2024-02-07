@@ -43,7 +43,7 @@ function Page() {
 
   const getAlbums = async () => {
     setIsLoading(true);
-    console.log('Getting albums');
+    // console.log('Getting albums');
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`);
     const data = await response.json();
 
@@ -52,7 +52,7 @@ function Page() {
       showToastWithCooldown('No albums found', false);
       return;
     }
-    console.log(data);
+    // console.log(data);
     setAlbums(data);
     setIsLoading(false);
     showToastWithCooldown('Albums loaded', true);
@@ -84,7 +84,7 @@ function Page() {
     const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
 
     newSocket.onmessage = (event) => {
-      console.log('Message from server:', event.data);
+      // console.log('Message from server:', event.data);
       setSocketMessages((prevMessages) => [...prevMessages, event.data]);
     };
 
@@ -103,7 +103,7 @@ function Page() {
     );
 
     const result = await response.json();
-    console.log(result);
+    // console.log(result);
 
     // Disconnect from WebSocket
     if (newSocket.readyState === 1) {

@@ -80,7 +80,7 @@ function SharedPage({ params }: { params: { slug: string } }) {
     const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
 
     newSocket.onmessage = (event) => {
-      console.log('Message from server:', event.data);
+      // console.log('Message from server:', event.data);
       setSocketMessages((prevMessages) => [...prevMessages, event.data]);
     };
 
@@ -99,7 +99,7 @@ function SharedPage({ params }: { params: { slug: string } }) {
     );
 
     const result = await response.json();
-    console.log(result);
+    // console.log(result);
 
     // Disconnect from WebSocket
     if (newSocket.readyState === 1) {

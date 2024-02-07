@@ -8,8 +8,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('user', user);
-    console.log('isLoading', isLoading);
+    // console.log('user', user);
+    // console.log('isLoading', isLoading);
     if (!isLoading && !user) {
       router.push('/login');
     }
