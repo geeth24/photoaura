@@ -20,6 +20,7 @@ import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { Share2Icon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
+import { showToastWithCooldown } from './ToastCooldown';
 
 export const metadata = {
   title: 'Share',
@@ -50,12 +51,20 @@ function SharedPage({ params }: { params: { slug: string } }) {
 
   const fetchAlbum = async () => {
     setIsLoading(true);
-    await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`).then((response) => {
-      setAlbumGrid(response.data);
-      setShared(response.data.shared);
-      setUpload(response.data.upload);
-      setIsLoading(false);
-    });
+    await axios
+      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
+      .then((response) => {
+        setAlbumGrid(response.data);
+        setShared(response.data.shared);
+        setUpload(response.data.upload);
+        setIsLoading(false);
+        showToastWithCooldown('Album loaded', true);
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        setIsLoading(false);
+        showToastWithCooldown('Error loading album', false);
+      });
   };
 
   // Function to handle file selection

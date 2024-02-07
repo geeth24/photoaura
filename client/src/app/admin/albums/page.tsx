@@ -21,6 +21,8 @@ import { Album } from '@/components/PhotosGrid';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { toast } from 'sonner';
+import { showToastWithCooldown } from '@/components/ToastCooldown';
 
 interface AlbumGrid {
   album_name: string;
@@ -44,9 +46,16 @@ function Page() {
     console.log('Getting albums');
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`);
     const data = await response.json();
+
+    if (data.length === 0) {
+      setIsLoading(false);
+      showToastWithCooldown('No albums found', false);
+      return;
+    }
     console.log(data);
     setAlbums(data);
     setIsLoading(false);
+    showToastWithCooldown('Albums loaded', true);
   };
 
   const router = useRouter();

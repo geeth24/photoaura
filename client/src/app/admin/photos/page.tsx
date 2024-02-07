@@ -4,6 +4,8 @@ import axios from 'axios';
 import PhotosGrid, { Album } from '@/components/PhotosGrid';
 import { useAuth } from '@/context/AuthContext';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { toast } from 'sonner';
+import { showToastWithCooldown } from '@/components/ToastCooldown';
 function Page() {
   const [photos, setPhotos] = React.useState<Album[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -16,6 +18,12 @@ function Page() {
       .then((data) => {
         setPhotos(data);
         setIsLoading(false);
+        showToastWithCooldown('Photos loaded', true);
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        setIsLoading(false);
+        showToastWithCooldown('Error loading photos', false);
       });
   }, []);
 

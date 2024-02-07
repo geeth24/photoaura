@@ -26,6 +26,8 @@ import { Input } from './ui/input';
 import { Pencil1Icon } from '@radix-ui/react-icons';
 import { ModeToggle } from './ui/mode-toggle';
 import { LoadingSpinner } from './ui/loading-spinner';
+import { toast } from 'sonner';
+import { showToastWithCooldown } from './ToastCooldown';
 export type User = {
   id: number;
   user_name: string;
@@ -57,6 +59,12 @@ function UsersTable() {
       .then((data) => {
         setUsers(data);
         setIsLoading(false);
+        showToastWithCooldown('Users loaded', true);
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        setIsLoading(false);
+        showToastWithCooldown('Error loading users', false);
       });
   }, []);
 

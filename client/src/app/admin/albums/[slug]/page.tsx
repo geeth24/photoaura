@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/drawer';
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Progress } from '@/components/ui/progress';
+import { showToastWithCooldown } from '@/components/ToastCooldown';
 
 export interface AlbumGrid {
   album_name: string;
@@ -110,6 +111,7 @@ function Page({ params }: { params: { slug: string } }) {
     getAlbum();
   }, [router, params.slug]);
 
+
   const getAlbum = async () => {
     setIsLoading(true);
     await axios
@@ -121,11 +123,14 @@ function Page({ params }: { params: { slug: string } }) {
         setUpload(response.data.upload);
         setAlbumPermissions(response.data.album_permissions);
         setIsLoading(false);
+        showToastWithCooldown('Album loaded', true);
       })
       .catch((error) => {
         console.log(error);
         toast.error('Album not found');
-        // router.push('/admin/albums');
+        router.push('/admin/albums');
+        setIsLoading(false);
+        showToastWithCooldown('Error loading album', false);
       });
 
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
