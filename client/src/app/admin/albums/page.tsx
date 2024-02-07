@@ -105,6 +105,25 @@ function Page() {
     router.push(`/admin/albums/${albumName.replace(/ /g, '-')}`);
   };
 
+  // Assuming we know the current phase based on the number of socket messages received
+  const totalFiles = selectedFiles?.length ?? 0;
+  const totalExpectedMessages = totalFiles * 2; // Total messages for both uploading and processing
+
+  // Determine the phase
+  const isUploading = socketMessages.length <= totalFiles;
+  const isProcessing =
+    socketMessages.length > totalFiles && socketMessages.length <= totalExpectedMessages;
+
+  // Calculate progress for each phase
+  let progress = 0;
+  if (isUploading) {
+    // Upload progress: 100% when socketMessages.length equals totalFiles
+    progress = (socketMessages.length / totalFiles) * 100;
+  } else if (isProcessing) {
+    // Processing progress: Starts from 0% after uploading is done
+    progress = ((socketMessages.length - totalFiles) / totalFiles) * 100;
+  }
+
   return (
     <div
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}
@@ -152,15 +171,20 @@ function Page() {
               )}
               {uploading && (
                 <div>
-                  <h1 className="text-center">
-                    {Math.floor(socketMessages.length / 2)} / {selectedFiles?.length} files
-                    uploaded.
-                  </h1>
-                  <Progress
-                    value={
-                      (Math.floor(socketMessages.length / 2) / (selectedFiles?.length ?? 1)) * 100
-                    }
-                  />
+                  {socketMessages.length <= totalFiles && (
+                    <>
+                      <Label>Uploading...</Label>
+                      <Progress value={Math.min(progress, 100)} />
+                      {/* Ensure value does not exceed 100% */}
+                    </>
+                  )}
+                  {socketMessages.length > totalFiles && (
+                    <div>
+                      <Label>Processing...</Label>
+                      <Progress value={Math.min(progress, 100)} />
+                      {/* Ensure value does not exceed 100% */}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

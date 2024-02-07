@@ -46,6 +46,16 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import {
+  Drawer,
+  DrawerTrigger,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerFooter,
+} from '@/components/ui/drawer';
+import { ModeToggle } from '@/components/ui/mode-toggle';
+import { Progress } from '@/components/ui/progress';
 
 export interface AlbumGrid {
   album_name: string;
@@ -89,10 +99,17 @@ function Page({ params }: { params: { slug: string } }) {
   const [value, setValue] = useState('');
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [socketMessages, setSocketMessages] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
 
   useEffect(() => {
+    getAlbum();
+  }, [router, params.slug]);
+
+  const getAlbum = async () => {
     setIsLoading(true);
-    axios
+    await axios
       .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
       .then((response) => {
         setAlbumGrid(response.data);
@@ -107,7 +124,7 @@ function Page({ params }: { params: { slug: string } }) {
         // router.push('/admin/albums');
       });
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
       headers: {
         Authorization: `Bearer ${getCookie('token')}`,
       },
@@ -116,7 +133,7 @@ function Page({ params }: { params: { slug: string } }) {
       .then((data) => {
         setUsers(data);
       });
-  }, [router, params.slug]);
+  };
 
   const { sidebarOpened } = useAuth();
 
@@ -145,6 +162,68 @@ function Page({ params }: { params: { slug: string } }) {
     toast.success('Album updated');
   };
 
+  // Function to handle file selection
+  const handleFileSelect = (files: FileList | null) => {
+    setSelectedFiles(files);
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFiles) return;
+
+    setUploading(true);
+    // Connect to WebSocket
+    const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
+
+    newSocket.onmessage = (event) => {
+      console.log('Message from server:', event.data);
+      setSocketMessages((prevMessages) => [...prevMessages, event.data]);
+    };
+
+    const formData = new FormData();
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      formData.append('files', selectedFiles[i]);
+    }
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}&user_id=${user?.id}`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    );
+
+    const result = await response.json();
+    console.log(result);
+
+    // Disconnect from WebSocket
+    if (newSocket.readyState === 1) {
+      newSocket.close();
+    }
+    setUploading(false);
+    getAlbum();
+    // close the drawer
+  };
+
+  // Assuming we know the current phase based on the number of socket messages received
+  const totalFiles = selectedFiles?.length ?? 0;
+  const totalExpectedMessages = totalFiles * 2; // Total messages for both uploading and processing
+
+  // Determine the phase
+  const isUploading = socketMessages.length <= totalFiles;
+  const isProcessing =
+    socketMessages.length > totalFiles && socketMessages.length <= totalExpectedMessages;
+
+  // Calculate progress for each phase
+  let progress = 0;
+  if (isUploading) {
+    // Upload progress: 100% when socketMessages.length equals totalFiles
+    progress = (socketMessages.length / totalFiles) * 100;
+  } else if (isProcessing) {
+    // Processing progress: Starts from 0% after uploading is done
+    progress = ((socketMessages.length - totalFiles) / totalFiles) * 100;
+  }
+
   return (
     <div
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}
@@ -160,11 +239,64 @@ function Page({ params }: { params: { slug: string } }) {
         <Sheet>
           <div className="mt-4 flex w-full justify-between">
             <h1 className="text-3xl font-bold">{albumGrid.album_name}</h1>
-            <SheetTrigger asChild>
-              <Button size="icon">
-                <Pencil1Icon className="h-[1.2rem] w-[1.2rem]" />
-              </Button>
-            </SheetTrigger>
+
+            <div className="flex space-x-2">
+              <Drawer>
+                <DrawerTrigger asChild>
+                  <Button className="">Upload Photos</Button>
+                </DrawerTrigger>
+
+                <DrawerContent
+                  className={`ml-auto w-full ${sidebarOpened ? 'md:pl-16' : 'pl-[21%]'} transition-all duration-500`}
+                >
+                  <DrawerHeader>
+                    <DrawerTitle>Upload Photos</DrawerTitle>
+                    <div className="mt-4">
+                      <Label>Upload Images</Label>
+                      <Input
+                        type="file"
+                        multiple
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          handleFileSelect(e.target.files)
+                        }
+                        accept=".png,.jpg,.jpeg"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      {uploading && (
+                        <div>
+                          {socketMessages.length <= totalFiles && (
+                            <>
+                              <Label>Uploading...</Label>
+                              <Progress value={Math.min(progress, 100)} />
+                            </>
+                          )}
+                          {socketMessages.length > totalFiles && (
+                            <div>
+                              <Label>Processing...</Label>
+                              <Progress value={Math.min(progress, 100)} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </DrawerHeader>
+                  <DrawerFooter>
+                    <Button
+                      onClick={handleFileUpload}
+                      disabled={uploading || !selectedFiles || selectedFiles.length === 0}
+                    >
+                      Upload
+                    </Button>
+                  </DrawerFooter>
+                </DrawerContent>
+              </Drawer>
+              <SheetTrigger asChild>
+                <Button size="icon">
+                  <Pencil1Icon className="h-[1.2rem] w-[1.2rem]" />
+                </Button>
+              </SheetTrigger>
+            </div>
           </div>
           <SheetContent>
             <SheetHeader>
