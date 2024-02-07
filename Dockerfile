@@ -12,36 +12,22 @@ COPY client/package.json client/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
 COPY client/ ./
 RUN pnpm run build
-# The .next directory is now inside /app/client
+
 # Final Stage
-FROM python:3.9
+FROM python:3.9-slim
 WORKDIR /app
 
-
-RUN apt-get update -o Acquire::Check-Valid-Until=false && apt-get install -y libpq-dev
-
-# Install Node.js
-RUN apt-get update && apt-get install -y curl software-properties-common && \
+# Install system dependencies, Node.js, and cleanup in one step
+RUN apt-get update -o Acquire::Check-Valid-Until=false && \
+    apt-get install -y libpq-dev curl software-properties-common && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+    apt-get install -y nodejs && \
+    npm install -g pnpm && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Install Python dependencies including uvicorn
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --from=backend /app /app
 COPY --from=frontend /app/client /app/client
-COPY --from=frontend /app/client/public /app/client/public
-COPY start_services.sh .
-RUN chmod +x start_services.sh
-
-ENV HOSTNAME "0.0.0.0"
-
-# Expose the ports the services run on
-EXPOSE 8000
-EXPOSE 3000
-
-CMD ["./start_services.sh"]
