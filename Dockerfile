@@ -10,7 +10,7 @@ FROM node:20 AS frontend
 WORKDIR /app/client
 COPY client/package.json client/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
-COPY client/.env* ./
+COPY .env* ./
 COPY client/ ./
 RUN pnpm run build
 
