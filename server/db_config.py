@@ -1,6 +1,7 @@
 # db_config.py
 import psycopg
 import os
+from auth import get_password_hash
 
 # Database connection details
 host = os.environ.get("POSTGRES_HOST", "localhost")
@@ -11,6 +12,7 @@ user_password = os.environ.get("POSTGRES_PASSWORD", "aura")
 
 root_user = os.environ.get("ROOT_USER", "root")
 root_password = os.environ.get("ROOT_PASSWORD", "password")
+root_password = get_password_hash(root_password)
 root_email = os.environ.get("ROOT_EMAIL", "xxxx@xxxxxxxxx")
 root_full_name = os.environ.get("ROOT_FULL_NAME", "root")
 
