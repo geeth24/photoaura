@@ -57,7 +57,7 @@ export default function Hero() {
             height={100}
           />
           <div className="mt-24 sm:mt-32 lg:mt-16">
-            <a href="#" className="inline-flex space-x-6">
+            <Link href="https://github.com/geeth24/photoaura" className="inline-flex space-x-6">
               <span className="rounded-full bg-primary px-3 py-1 text-sm font-semibold leading-6 text-primary-foreground ring-1 ring-inset ring-primary/10">
                 What&apos;s new
               </span>
@@ -65,7 +65,7 @@ export default function Hero() {
                 <span>Just shipped beta</span>
                 <ChevronRightIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               </span>
-            </a>
+            </Link>
           </div>
           <h1 className="mt-10 text-4xl font-bold tracking-tight sm:text-6xl">
             PhotoAura: Your Self-Hosted Photo Gallery
