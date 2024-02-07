@@ -113,6 +113,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkTokenExpiration = () => {
       const token = getCookie('token');
+      // check first if the token is valid
+      if (!token) {
+        console.log('No token found');
+        router.push('/login');
+        setIsLoading(false);
+        return;
+      }
       if (token) {
         const decodedToken = JSON.parse(atob(token.split('.')[1])) as CustomJwt;
         const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
@@ -140,8 +147,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check token expiration on initial load
     checkTokenExpiration();
 
-    // Set an interval to check token expiration periodically, e.g., every 5 minutes
-    const intervalId = setInterval(checkTokenExpiration, 300000); // 300000 ms = 5 minutes
+    // Set an interval to check token expiration periodically, e.g., every 5 seconds
+    const intervalId = setInterval(checkTokenExpiration, 5000);
 
     // Clear the interval when the component unmounts
     return () => clearInterval(intervalId);

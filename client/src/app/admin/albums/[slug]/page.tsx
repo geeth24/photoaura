@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 export interface AlbumGrid {
   album_name: string;
@@ -87,8 +88,10 @@ function Page({ params }: { params: { slug: string } }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     axios
       .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
       .then((response) => {
@@ -96,6 +99,7 @@ function Page({ params }: { params: { slug: string } }) {
         console.log(response.data);
         setShared(response.data.shared);
         setAlbumPermissions(response.data.album_permissions);
+        setIsLoading(false);
       })
       .catch((error) => {
         console.log(error);
@@ -145,6 +149,13 @@ function Page({ params }: { params: { slug: string } }) {
     <div
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}
     >
+      {isLoading && (
+        <div
+          className={`absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 transform`}
+        >
+          <LoadingSpinner size={48} />
+        </div>
+      )}
       {parseInt(user?.id ?? '') === 1 && (
         <Sheet>
           <div className="mt-4 flex w-full justify-between">

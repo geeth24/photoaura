@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import axios from 'axios';
 import { useState, useEffect } from 'react';
+import { LoadingSpinner } from './ui/loading-spinner';
 
 export const metadata = {
   title: 'Share',
@@ -26,7 +27,7 @@ function SharedPage({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     setIsLoading(true);
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}`).then((response) => {
+    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`).then((response) => {
       setAlbumGrid(response.data);
       setShared(response.data.shared);
     });
@@ -58,7 +59,11 @@ function SharedPage({ params }: { params: { slug: string } }) {
       </div>
     );
   } else if (isLoading) {
-    return <div></div>;
+    return (
+      <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform`}>
+        <LoadingSpinner size={48} />
+      </div>
+    );
   }
 }
 

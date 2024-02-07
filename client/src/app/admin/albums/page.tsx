@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Album } from '@/components/PhotosGrid';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { ModeToggle } from '@/components/ui/mode-toggle';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface AlbumGrid {
   album_name: string;
@@ -36,13 +37,16 @@ function Page() {
   const [albumName, setAlbumName] = useState<string>('test'); // Replace 'test' with the variable holding the actual album name if necessary
   const [albums, setAlbums] = useState<AlbumGrid[]>([]);
   const { sidebarOpened, user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
 
   const getAlbums = async () => {
+    setIsLoading(true);
     console.log('Getting albums');
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`);
     const data = await response.json();
     console.log(data);
     setAlbums(data);
+    setIsLoading(false);
   };
 
   const router = useRouter();
@@ -105,6 +109,11 @@ function Page() {
     <div
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}
     >
+      {isLoading && (
+        <div className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transform`}>
+          <LoadingSpinner size={48} />
+        </div>
+      )}
       <Drawer>
         <div className="mt-4 flex w-full items-center justify-between">
           <h1 className="text-2xl font-bold">Albums</h1>

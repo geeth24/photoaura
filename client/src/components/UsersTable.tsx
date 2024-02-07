@@ -25,6 +25,7 @@ import { Label } from '@radix-ui/react-label';
 import { Input } from './ui/input';
 import { Pencil1Icon } from '@radix-ui/react-icons';
 import { ModeToggle } from './ui/mode-toggle';
+import { LoadingSpinner } from './ui/loading-spinner';
 export type User = {
   id: number;
   user_name: string;
@@ -37,8 +38,10 @@ function UsersTable() {
   const [users, setUsers] = React.useState<User[]>([]);
   const [selectedUser, setSelectedUser] = React.useState<User>({} as User);
   const [newUser, setNewUser] = React.useState<User>({} as User);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     const storedToken = getCookie('token');
 
     if (!storedToken) {
@@ -53,6 +56,7 @@ function UsersTable() {
       .then((response) => response.json())
       .then((data) => {
         setUsers(data);
+        setIsLoading(false);
       });
   }, []);
 
@@ -77,6 +81,11 @@ function UsersTable() {
 
   return (
     <div className={`w-full ${sidebarOpened ? 'pl-4' : ''} pr-4`}>
+      {isLoading && (
+        <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform`}>
+          <LoadingSpinner size={48} />
+        </div>
+      )}
       <div className="mt-4 flex w-full items-center justify-between">
         <h1 className="text-2xl font-bold">Users</h1>
         <div className="flex space-x-2">
