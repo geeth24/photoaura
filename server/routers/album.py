@@ -105,7 +105,7 @@ async def create_upload_files(
         slug = album_name.lower().replace(" ", "-")
         cursor.execute(
             "INSERT INTO album (name, slug, location, date, image_count, shared, upload) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (album_name, slug, album_dir, datetime.now(), images_count, False),
+            (album_name, slug, album_dir, datetime.now(), images_count, False, False),
         )
 
     # get album id
