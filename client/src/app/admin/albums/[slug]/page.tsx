@@ -62,6 +62,7 @@ export interface AlbumGrid {
   slug: string;
   image_count: number;
   shared: boolean;
+  upload: boolean;
   album_permissions: User[];
   album_photos: Album[];
 }
@@ -86,6 +87,7 @@ function Page({ params }: { params: { slug: string } }) {
     slug: '',
     image_count: 0,
     shared: false,
+    upload: false,
     album_permissions: [],
     album_photos: [],
   });
@@ -94,6 +96,7 @@ function Page({ params }: { params: { slug: string } }) {
   const [newAlbumUser, setNewAlbumUser] = useState<newAlbumUser>({} as newAlbumUser);
   const [action, setAction] = useState<string>('' as string); // ['delete', 'update'
   const [shared, setShared] = useState<boolean>(false);
+  const [upload, setUpload] = useState<boolean>(false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
@@ -115,6 +118,7 @@ function Page({ params }: { params: { slug: string } }) {
         setAlbumGrid(response.data);
         console.log(response.data);
         setShared(response.data.shared);
+        setUpload(response.data.upload);
         setAlbumPermissions(response.data.album_permissions);
         setIsLoading(false);
       })
@@ -146,9 +150,9 @@ function Page({ params }: { params: { slug: string } }) {
     router.push('/admin/albums');
   };
 
-  const updateAlbum = async (newAlbumName: string, shared: boolean) => {
+  const updateAlbum = async (newAlbumName: string, shared: boolean, upload: boolean = false) => {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/album/?album_name=${params.slug.replace('-', ' ')}&album_new_name=${newAlbumName}&shared=${shared}${newAlbumUser.id ? `&user_id=${newAlbumUser.id}&action=${action}` : ''}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/album/?album_name=${params.slug.replace('-', ' ')}&album_new_name=${newAlbumName}&shared=${shared}&upload=${upload}${newAlbumUser.id ? `&user_id=${newAlbumUser.id}&action=${action}` : ''}`,
       {
         method: 'PUT',
       },
@@ -460,6 +464,25 @@ function Page({ params }: { params: { slug: string } }) {
                     </Alert>
                   </div>
                 )}
+                <div className="mt-4 flex flex-col space-y-2">
+                  <Label htmlFor="album_name">Upload Access</Label>
+
+                  <div className="mt-2 flex items-center space-x-2">
+                    <Switch
+                      checked={upload}
+                      onCheckedChange={() => {
+                        setUpload(!upload);
+
+                        updateAlbum(albumGrid.album_name, shared, !upload);
+                        setAlbumGrid({
+                          ...albumGrid,
+                          upload: !upload,
+                        });
+                      }}
+                    />
+                    <Label htmlFor="album_name"> {albumGrid.upload ? 'Enabled' : 'Disabled'}</Label>
+                  </div>
+                </div>
                 <Button
                   onClick={() => {
                     updateAlbum(albumGrid.album_name, shared);

@@ -104,7 +104,7 @@ async def create_upload_files(
     else:
         slug = album_name.lower().replace(" ", "-")
         cursor.execute(
-            "INSERT INTO album (name, slug, location, date, image_count, shared) VALUES (%s, %s, %s, %s, %s, %s)",
+            "INSERT INTO album (name, slug, location, date, image_count, shared, upload) VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (album_name, slug, album_dir, datetime.now(), images_count, False),
         )
 
@@ -255,6 +255,7 @@ async def get_album(slug: str):
         "slug": album[2],
         "image_count": album[5],
         "shared": album[6],
+        "upload": album[7],
         "album_permissions": album_permissions,
         "album_photos": album_photos,
     }
@@ -320,6 +321,7 @@ async def get_all_albums(
                 "slug": album[2],
                 "image_count": album[5],
                 "shared": album[6],
+                "upload": album[7],
                 "album_photos": album_photos,
             }
         )
@@ -421,6 +423,7 @@ async def update_album(
     album_name: str,
     album_new_name: str,
     shared: bool,
+    upload: bool,
     user_id: int = None,
     action: str = None,
 ):
@@ -430,10 +433,11 @@ async def update_album(
     try:
         slug = album_new_name.lower().replace(" ", "-")
         cursor.execute(
-            "UPDATE album SET name=%s, shared=%s, location=%s, slug=%s WHERE name=%s",
+            "UPDATE album SET name=%s, shared=%s, upload=%s, location=%s, slug=%s WHERE name=%s",
             (
                 album_new_name,
                 shared,
+                upload,
                 os.path.join(data_dir, album_new_name.lower()),
                 slug,
                 album_name,
@@ -519,6 +523,7 @@ async def get_shared_albums():
                 "slug": album[2],
                 "image_count": album[5],
                 "shared": album[6],
+                "upload": album[7],
                 "album_photos": album_photos,
             }
         )
