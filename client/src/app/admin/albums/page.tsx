@@ -68,8 +68,7 @@ function Page() {
 
     setUploading(true);
     // Connect to WebSocket
-    const newSocket = new WebSocket(`wss://aura.reactiveshots.com/api/ws/`);
-    // const newSocket = new WebSocket(`ws://localhost:8000/ws`);
+    const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
 
     newSocket.onmessage = (event) => {
       console.log('Message from server:', event.data);
