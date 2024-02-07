@@ -147,8 +147,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check token expiration on initial load
     checkTokenExpiration();
 
-    // Set an interval to check token expiration periodically, e.g., every 5 seconds
-    const intervalId = setInterval(checkTokenExpiration, 5000);
+    // Set an interval to check token expiration periodically, e.g., every 5 min
+    const intervalId = setInterval(checkTokenExpiration, 300000); // 5 min
 
     // Clear the interval when the component unmounts
     return () => clearInterval(intervalId);
