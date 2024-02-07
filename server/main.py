@@ -9,7 +9,7 @@ from db_config import create_table, data_dir
 from auth import router as auth_router
 from routers.user import router as user_router
 from routers.album import router as album_router
-
+import time
 
 app = FastAPI()
 # origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
@@ -27,6 +27,8 @@ app.include_router(auth_router)
 app.include_router(album_router)
 app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
 
+# wait for db to start for 10 seconds
+time.sleep(10)
 create_table()
 
 os.makedirs(data_dir, exist_ok=True)
