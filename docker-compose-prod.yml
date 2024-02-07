@@ -5,14 +5,12 @@ services:
     image: postgres:13
     volumes:
       - postgres-data:/var/lib/postgresql/data  # Persist database data
-    environment:
-      POSTGRES_DB: postgres  # Set your database name
-      POSTGRES_USER: root  # Set your database username
-      POSTGRES_PASSWORD: banna  # Set your database password
     networks:
       - app-network
     ports:
       - "5432:5432"
+    env_file:
+      - .env
 
   backend:
     build:
@@ -27,6 +25,8 @@ services:
     networks:
       - app-network
     command: uvicorn main:app --host 0.0.0.0 --reload --port 8000  # or any other command to start your FastAPI backend
+    env_file:
+      - .env
 
   frontend:
     build:
@@ -38,6 +38,8 @@ services:
     networks:
       - app-network
     command: pnpm run start  # or any other command to start your Next.js frontend
+    env_file:
+      - .env    
       
   nginx:
     image: nginx:alpine
