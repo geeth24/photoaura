@@ -15,7 +15,7 @@ services:
       - app-network
     command: uvicorn main:app --host 0.0.0.0 --reload --port 8000  # or any other command to start your FastAPI backend
     env_file:
-      - .env
+      - .env.local
 
   frontend:
     build:
@@ -31,7 +31,7 @@ services:
       - app-network
     command: pnpm run dev  # or any other command to start your Next.js frontend
     env_file:
-      - .env
+      - .env.local
 
 
 networks:
