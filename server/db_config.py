@@ -9,6 +9,11 @@ user = os.environ.get("POSTGRES_USER", "aura")
 user_password = os.environ.get("POSTGRES_PASSWORD", "aura")
 
 
+root_user = os.environ.get("ROOT_USER", "root")
+root_password = os.environ.get("ROOT_PASSWORD", "password")
+root_email = os.environ.get("ROOT_EMAIL", "xxxx@xxxxxxxxx")
+root_full_name = os.environ.get("ROOT_FULL_NAME", "root")
+
 def get_db():
     db = psycopg.connect(host=host, dbname=dbname, user=user, password=user_password)
     cursor = db.cursor()
@@ -46,7 +51,14 @@ def create_table():
         """
     )
     db.commit()
+
+    cursor.execute("SELECT * FROM users WHERE user_name = %s", (root_user,))
+    if cursor.rowcount == 0:
+        cursor.execute(
+            "INSERT INTO users (user_name, user_password, full_name, user_email) VALUES (%s, %s, %s, %s)",
+            (root_user, root_password, root_full_name, root_email),
+        )
+        db.commit()
+
     cursor.close()
-
-
 data_dir = "/var/aura/data"
