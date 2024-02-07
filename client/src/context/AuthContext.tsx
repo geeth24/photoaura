@@ -113,13 +113,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkTokenExpiration = () => {
       const token = getCookie('token');
-      // check first if the token is valid
-      if (!token) {
-        console.log('No token found');
-        router.push('/login');
-        setIsLoading(false);
-        return;
-      }
       if (token) {
         const decodedToken = JSON.parse(atob(token.split('.')[1])) as CustomJwt;
         const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
