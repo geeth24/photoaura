@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16
+    volumes:
+      - postgres-data:/var/lib/postgresql/data  # Persist database data
+    networks:
+      - app-network
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env.local
+
   backend:
     build:
       context: .
@@ -8,7 +19,9 @@ services:
       target: backend
     volumes:
       - ./server:/app
-      - /Volumes/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
+      - /Users/geeth/Pictures/photoaura:/var/aura/data  # Adding a named volume for data persistence
+    depends_on:
+      - postgres  # Ensure the backend waits for PostgreSQL to be ready
     ports:
       - "8000:8000"
     networks:
@@ -41,3 +54,6 @@ networks:
 volumes:
   aura-data:
     driver: local
+  postgres-data:
+    driver: local
+    
