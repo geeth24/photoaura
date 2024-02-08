@@ -80,9 +80,13 @@ async def create_upload_files(
     else:
         user_name = None  # Handle case where the query returns no results
 
-    if slug:
+
+    if slug is not None:
         user_name = slug.split("/")[0]
 
+    print("user_name", user_name)
+    print("slug", slug)
+    print("user_id", user_id)
     # create new folder for album
     album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
     compressed_dir = os.path.join(album_dir, "compressed")

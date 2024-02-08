@@ -94,7 +94,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
     }
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}?slug=${albumGrid.slug}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}&slug=${albumGrid.slug}`,
       {
         method: 'POST',
         body: formData,
