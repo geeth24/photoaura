@@ -28,7 +28,7 @@ app.include_router(album_router)
 app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
 
 # wait for db to start for 10 seconds
-time.sleep(10)
+# time.sleep(10)
 create_table()
 
 os.makedirs(data_dir, exist_ok=True)

@@ -15,7 +15,7 @@ from PIL import Image
 import json
 import PIL.ExifTags
 import logging
-
+import random
 from db_config import get_db, data_dir
 from image_utils import compress_image, generate_blur_data_url
 
@@ -71,8 +71,16 @@ async def create_upload_files(
     album_name: str = Query(None),
     user_id: int = None,
 ):
+    db, cursor = get_db()
+    cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
+    userData = cursor.fetchone()  # This fetches the first row of the results
+    if userData:
+        user_name = userData[1]  # Assuming the second column is the username
+    else:
+        user_name = None  # Handle case where the query returns no results
+
     # create new folder for album
-    album_dir = os.path.join(data_dir, album_name.lower())
+    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
     compressed_dir = os.path.join(album_dir, "compressed")
 
     os.makedirs(album_dir, exist_ok=True)
@@ -91,8 +99,7 @@ async def create_upload_files(
 
     # create new album in database
     # if album already exists, then dont create new album
-    db, cursor = get_db()
-    cursor.execute("SELECT * FROM album WHERE name=%s", (album_name,))
+    cursor.execute("SELECT * FROM album WHERE slug=%s", (user_name + "/" + album_name,))
     album = cursor.fetchone()
     # check if images_count changed for album and update it
     if album:
@@ -102,14 +109,24 @@ async def create_upload_files(
                 (images_count, album_name),
             )
     else:
-        slug = album_name.lower().replace(" ", "-")
+        slug = user_name + "/" + album_name.lower().replace(" ", "-")
+        secret = "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(10))
         cursor.execute(
-            "INSERT INTO album (name, slug, location, date, image_count, shared, upload) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (album_name, slug, album_dir, datetime.now(), images_count, False, False),
+            "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                album_name,
+                slug,
+                album_dir,
+                datetime.now(),
+                images_count,
+                False,
+                False,
+                secret,
+            ),
         )
 
     # get album id
-    cursor.execute("SELECT * FROM album WHERE name=%s", (album_name,))
+    cursor.execute("SELECT * FROM album WHERE slug=%s", (user_name + "/" + album_name,))
     album = cursor.fetchone()
     # websocket = manager.active_connections[0]
 
@@ -198,10 +215,11 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
-@router.get("/api/album/{slug}/")
-async def get_album(slug: str):
-    album_name = slug.replace("-", " ")
-    album_dir = os.path.join(data_dir, album_name.lower())
+@router.get("/api/album/{user_name}/{album_name}/")
+async def get_album(user_name: str, album_name: str, secret: str = None):
+    # album_name = slug.replace("-", " ")
+    # user_name = slug.split("/")[0]
+    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
     print(album_dir)
     if not os.path.exists(album_dir):
         raise HTTPException(status_code=404, detail="Album not found")
@@ -227,7 +245,7 @@ async def get_album(slug: str):
     cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
     file_metadata = cursor.fetchall()
 
-    album_photos = create_album_photos_json(album[0], album_name, images, file_metadata)
+    album_photos = create_album_photos_json(album[0], album_dir, images, file_metadata)
 
     # get album permissions
     cursor.execute(
@@ -254,19 +272,20 @@ async def get_album(slug: str):
         "album_name": album_name,
         "slug": album[2],
         "image_count": album[5],
-        "shared": album[6],
-        "upload": album[7],
+        "shared": False if secret and secret != album[8] else album[6],
+        "upload": False if secret and secret != album[8] else album[7],
+        "secret": album[8],
         "album_permissions": album_permissions,
         "album_photos": album_photos,
     }
 
 
-def create_album_photos_json(album_id, album_name, images, file_metadata):
+def create_album_photos_json(album_id, album_dir, images, file_metadata):
     album_photos = [
         {
             "album_id": album_id,
-            "album_name": album_name,
-            "image": f"{os.getenv('API_CDN_URL')}/static/{album_name}/compressed/{image}",
+            "album_name": album_dir.split("/")[-1],
+            "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
                 "size": meta[4],
@@ -290,6 +309,7 @@ async def get_all_albums(
     db, cursor = get_db()
     cursor.execute("SELECT * FROM album")
     albums = cursor.fetchall()
+    print(albums)
 
     all_albums = []
     for album in albums:
@@ -311,7 +331,7 @@ async def get_all_albums(
         file_metadata = cursor.fetchall()
 
         album_photos = create_album_photos_json(
-            album[0], album_name, images, file_metadata
+            album[0], album_dir, images, file_metadata
         )
 
         all_albums.append(
@@ -369,7 +389,7 @@ async def get_all_photos(
         file_metadata = cursor.fetchall()
 
         album_photos = create_album_photos_json(
-            album[0], album_name, images, file_metadata
+            album[0], album_dir, images, file_metadata
         )
         all_photos.extend(album_photos)
 
@@ -387,8 +407,8 @@ async def get_all_photos(
     return all_photos
 
 
-@router.delete("/api/album/delete/{album_name}/")
-async def delete_album(album_name: str):
+@router.delete("/api/album/delete/{user_name}/{album_name}/")
+async def delete_album(user_name: str, album_name: str):
     db, cursor = get_db()
 
     # First, find the album ID
@@ -409,7 +429,7 @@ async def delete_album(album_name: str):
     db.commit()
 
     # Delete album directory
-    album_dir = os.path.join(data_dir, album_name.lower())
+    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
     if os.path.exists(album_dir):
         import shutil
 
@@ -424,23 +444,27 @@ async def update_album(
     album_new_name: str,
     shared: bool,
     upload: bool,
+    slug: str,
     user_id: int = None,
     action: str = None,
 ):
     print(album_name, album_new_name, shared)
     db, cursor = get_db()
 
+    user_name = slug.split("/")[0]
+
     try:
-        slug = album_new_name.lower().replace(" ", "-")
+        slug = user_name + "/" + album_new_name.lower().replace(" ", "-")
+        print("slug", slug)
         cursor.execute(
-            "UPDATE album SET name=%s, shared=%s, upload=%s, location=%s, slug=%s WHERE name=%s",
+            "UPDATE album SET name=%s, shared=%s, upload=%s, location=%s, slug=%s WHERE slug=%s",
             (
                 album_new_name,
                 shared,
                 upload,
-                os.path.join(data_dir, album_new_name.lower()),
+                os.path.join(data_dir, user_name + "/" + album_new_name.lower()),
                 slug,
-                album_name,
+                slug,
             ),
         )
         print("updated album")
@@ -450,8 +474,8 @@ async def update_album(
         raise HTTPException(status_code=500, detail="Database update failed")
 
     if album_name != album_new_name:
-        album_dir = os.path.join(data_dir, album_name.lower())
-        album_new_dir = os.path.join(data_dir, album_new_name.lower())
+        album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
+        album_new_dir = os.path.join(data_dir, user_name + "/" + album_new_name.lower())
 
         if os.path.exists(album_dir):
             try:
@@ -514,7 +538,7 @@ async def get_shared_albums():
         file_metadata = cursor.fetchall()
 
         album_photos = create_album_photos_json(
-            album[0], album_name, images, file_metadata
+            album[0], album_dir, images, file_metadata
         )
 
         all_albums.append(

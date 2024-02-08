@@ -49,8 +49,11 @@ function UsersTable() {
     if (!storedToken) {
       return;
     }
+    fetchUsers();
+  }, []);
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
+  const fetchUsers = async () => {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/`, {
       headers: {
         Authorization: `Bearer ${getCookie('token')}`,
       },
@@ -66,7 +69,8 @@ function UsersTable() {
         setIsLoading(false);
         showToastWithCooldown('Error loading users', false);
       });
-  }, []);
+  };
+
 
   const createNewUser = () => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/create-user`, {
@@ -82,8 +86,9 @@ function UsersTable() {
       }),
     })
       .then((response) => response.json())
-      .then((data) => {
-        setUsers([...users, data]);
+      .then(() => {
+        fetchUsers();
+        showToastWithCooldown('User created', true);
       });
   };
 
