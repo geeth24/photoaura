@@ -70,6 +70,7 @@ async def create_upload_files(
     files: List[UploadFile] = File(...),
     album_name: str = Query(None),
     user_id: int = None,
+    slug: str = None,
 ):
     db, cursor = get_db()
     cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
@@ -78,6 +79,9 @@ async def create_upload_files(
         user_name = userData[1]  # Assuming the second column is the username
     else:
         user_name = None  # Handle case where the query returns no results
+
+    if slug:
+        user_name = slug.split("/")[0]
 
     # create new folder for album
     album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
