@@ -157,7 +157,7 @@ function Page() {
 
   const deleteAlbum = async (albumName: string) => {
     const response = await axios.delete(
-      `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${userSlug}/${albumName}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${userSlug}/${albumName}/`,
     );
     const result = response.data;
     // console.log(result);
