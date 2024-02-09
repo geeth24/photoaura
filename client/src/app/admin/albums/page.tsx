@@ -111,7 +111,7 @@ function Page() {
     }
     setUploading(false);
     getAlbums();
-    router.push(`/admin/albums/${albumName.replace(/ /g, '-')}`);
+    router.push(`/admin/albums/${user?.user_name}/${albumName.replace(/ /g, '-')}`);
   };
 
   // Assuming we know the current phase based on the number of socket messages received

@@ -57,6 +57,7 @@ import {
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Progress } from '@/components/ui/progress';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
+import { useParams } from 'next/navigation';
 
 export interface AlbumGrid {
   album_name: string;
@@ -64,6 +65,7 @@ export interface AlbumGrid {
   image_count: number;
   shared: boolean;
   upload: boolean;
+  secret: string;
   album_permissions: User[];
   album_photos: Album[];
 }
@@ -82,13 +84,21 @@ type newAlbumUser = {
   user_email: string;
 };
 
-function Page({ params }: { params: { slug: string } }) {
+function Page() {
+  const params = useParams();
+
+  const albumSlug = params.album;
+  const userSlug = params.user;
+
+  const slug = `${albumSlug}`;
+
   const [albumGrid, setAlbumGrid] = useState<AlbumGrid>({
     album_name: '',
     slug: '',
     image_count: 0,
     shared: false,
     upload: false,
+    secret: '',
     album_permissions: [],
     album_photos: [],
   });
@@ -111,11 +121,10 @@ function Page({ params }: { params: { slug: string } }) {
     getAlbum();
   }, [router, params.slug]);
 
-
   const getAlbum = async () => {
     setIsLoading(true);
     await axios
-      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
+      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${userSlug}/${albumSlug}/`)
       .then((response) => {
         setAlbumGrid(response.data);
         // console.log(response.data);
@@ -128,7 +137,7 @@ function Page({ params }: { params: { slug: string } }) {
       .catch((error) => {
         // console.log(error);
         toast.error('Album not found');
-        router.push('/admin/albums');
+        // router.push('/admin/albums');
         setIsLoading(false);
         showToastWithCooldown('Error loading album', false);
       });
@@ -148,7 +157,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   const deleteAlbum = async (albumName: string) => {
     const response = await axios.delete(
-      `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${encodeURIComponent(albumName)}/`,
+      `${process.env.NEXT_PUBLIC_API_URL}/album/delete/${userSlug}/${albumName}`,
     );
     const result = response.data;
     // console.log(result);
@@ -157,7 +166,7 @@ function Page({ params }: { params: { slug: string } }) {
 
   const updateAlbum = async (newAlbumName: string, shared: boolean, upload: boolean = false) => {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/album/?album_name=${params.slug.replace('-', ' ')}&album_new_name=${newAlbumName}&shared=${shared}&upload=${upload}${newAlbumUser.id ? `&user_id=${newAlbumUser.id}&action=${action}` : ''}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/album/?album_name=${slug.replace('-', ' ')}&album_new_name=${newAlbumName}&shared=${shared}&upload=${upload}&slug=${userSlug}/${albumSlug}${newAlbumUser.id ? `&user_id=${newAlbumUser.id}&action=${action}` : `&user_id=${user?.id}`}`,
       {
         method: 'PUT',
       },
@@ -166,7 +175,7 @@ function Page({ params }: { params: { slug: string } }) {
     // console.log(result);
     if (newAlbumName != '') {
       // console.log(`${params.slug} ${newAlbumName}`);
-      router.push(`/admin/albums/${newAlbumName.replace(/ /g, '-')}`);
+      router.push(`/admin/albums/${userSlug}/${newAlbumName}`);
     }
     toast.success('Album updated');
   };
@@ -439,7 +448,7 @@ function Page({ params }: { params: { slug: string } }) {
                           toast.success('Link copied to clipboard');
                           // copy to clipboard
                           navigator.clipboard.writeText(
-                            `https://aura.reactiveshots.com/share/${albumGrid.slug}`,
+                            `https://aura.reactiveshots.com/share/${albumGrid.slug}/${albumGrid.secret}`,
                           );
                         }
                         updateAlbum(albumGrid.album_name, !shared);
@@ -457,7 +466,7 @@ function Page({ params }: { params: { slug: string } }) {
                     <Label>Share Link</Label>
                     <Input
                       type="text"
-                      value={`https://aura.reactiveshots.com/share/${albumGrid.slug}`}
+                      value={`https://aura.reactiveshots.com/share/${albumGrid.slug}/${albumGrid.secret}`}
                       readOnly
                     />
                     <Alert>

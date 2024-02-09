@@ -1,6 +1,5 @@
 'use client';
 
-import { AlbumGrid } from '@/app/admin/albums/[slug]/page';
 import PhotosGrid from '@/components/PhotosGrid';
 import { Input } from '@/components/ui/input';
 import { ModeToggle } from '@/components/ui/mode-toggle';
@@ -21,18 +20,20 @@ import { Progress } from './ui/progress';
 import { Share2Icon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from './ToastCooldown';
+import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/page';
 
 export const metadata = {
   title: 'Share',
   description: 'Share your albums',
 };
 
-function SharedPage({ params }: { params: { slug: string } }) {
+function SharedPage({ params }: { params: { user: string; album: string; secret: string } }) {
   const [albumGrid, setAlbumGrid] = useState<AlbumGrid>({
     album_name: '',
     image_count: 0,
     shared: false,
     upload: false,
+    secret: '',
     album_photos: [],
     slug: '',
     album_permissions: [],
@@ -47,12 +48,14 @@ function SharedPage({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     fetchAlbum();
-  }, [params.slug]);
+  }, [params]);
 
   const fetchAlbum = async () => {
     setIsLoading(true);
     await axios
-      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`)
+      .get(
+        `${process.env.NEXT_PUBLIC_API_URL}/album/${params.user}/${params.album}/?secret=${params.secret}`,
+      )
       .then((response) => {
         setAlbumGrid(response.data);
         setShared(response.data.shared);
@@ -91,7 +94,7 @@ function SharedPage({ params }: { params: { slug: string } }) {
     }
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}&slug=${albumGrid.slug}`,
       {
         method: 'POST',
         body: formData,

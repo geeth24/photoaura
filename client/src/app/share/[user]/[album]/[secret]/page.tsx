@@ -4,9 +4,11 @@ import { Metadata } from 'next';
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: { user: string; album: string, secret: string  };
 }): Promise<Metadata> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/album/${params.slug}/`);
+  const response = await fetch(
+    `https://aura.reactiveshots.com/api/album/${params.user}/${params.album}/`,
+  );
   const result = await response.json();
 
   return {
@@ -22,7 +24,7 @@ export async function generateMetadata({
   };
 }
 
-function Page({ params }: { params: { slug: string } }) {
+function Page({ params }: { params: { user: string; album: string, secret: string } }) {
   return <SharedPage params={params} />;
 }
 
