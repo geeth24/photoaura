@@ -12,7 +12,7 @@ import CachedAsyncImage
 
 struct AlbumView: View {
     @EnvironmentObject var vm: ViewModel
-    @State var albumName: String
+    @State var slug: String
     // State for alert and album name
     @State private var showingSaveAlbumAlert = false
     @State private var newAlbumName = ""
@@ -64,14 +64,14 @@ struct AlbumView: View {
                 
                 Task {
                     do {
-                        try await vm.getAlbum(albumName: albumName)
-                        newAlbumName = albumName
+                        try await vm.getAlbum(slug: slug)
+                        newAlbumName = vm.album.albumName
                     } catch {
                         print("Error loading photos")
                     }
                 }
             }
-            .navigationTitle(albumName)
+            .navigationTitle(vm.album.albumName)
             .toolbar(content: {
                 Button {
                     showingSaveAlbumAlert = true
@@ -135,7 +135,7 @@ struct AlbumView: View {
 }
 
 #Preview {
-    AlbumView(albumName: "sunsets")
+    AlbumView(slug: "geeth/city")
         .environmentObject(ViewModel())
 }
 

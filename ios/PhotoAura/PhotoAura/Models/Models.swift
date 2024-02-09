@@ -42,12 +42,14 @@ struct AlbumsModel: Decodable, Hashable{
     
     let albumId: Int?
     let albumName: String
+    let slug: String
     let imageCount: Int
     let albumPhotos: [AlbumModel]
     
     enum CodingKeys: String, CodingKey {
         case albumId = "album_id"
         case albumName = "album_name"
+        case slug = "slug"
         case imageCount = "image_count"
         case albumPhotos = "album_photos"
     }
