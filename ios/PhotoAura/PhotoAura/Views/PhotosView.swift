@@ -33,7 +33,7 @@ struct PhotosView: View {
             ScrollView {
                 VStack {
                     
-                    MasonryVStack(columns: 2, spacing: 20) {
+                    MasonryVStack(columns: vm.sidebarOpened ? 1 : 2, spacing: 20) {
                         ForEach(vm.photos.indices, id: \.self) { index in
                             let photo = vm.photos[index]
                             PhotoView(photo: photo)

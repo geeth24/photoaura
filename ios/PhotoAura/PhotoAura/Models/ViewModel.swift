@@ -13,6 +13,8 @@ extension AlbumsModel {
     init() {
         self.albumId = 0
         self.albumName = ""
+        self.slug = ""
+        self.upload = false
         self.imageCount = 0
         self.albumPhotos = []
     }
@@ -319,9 +321,9 @@ class ViewModel: NSObject, ObservableObject {
        
     
     @MainActor
-    func getAlbum(albumName: String) async throws {
+    func getAlbum(slug: String) async throws {
         isLoading = true
-        guard let url = URL(string: "https://\(photoAuraURL)/api/album/\(albumName)") else {
+        guard let url = URL(string: "https://\(photoAuraURL)/api/album/\(slug)") else {
             isLoading = false
             return
         }

@@ -31,7 +31,7 @@ struct AlbumsView: View {
                     ForEach(vm.albums, id: \.self) { album in
                         
                         NavigationLink{
-                            AlbumView(albumName: album.albumName)
+                            AlbumView(slug: album.slug)
 //                                .navigationBarBackButtonHidden(true)
                         } label: {
                             ZStack{
@@ -95,6 +95,7 @@ struct AlbumsView: View {
                         } catch {
                             print("Error loading photos")
                         }
+
                     }
                 }
             }

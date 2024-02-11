@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SetupView: View {
     
-    @AppStorage("photoAuraURL") var photoAuraURL: String = ""
+    @AppStorage("photoAuraURL") var photoAuraURL: String = "aura.reactiveshots.com"
     @FocusState var photoAuraURLFieldFocus: Bool
 
     @EnvironmentObject var vm: ViewModel
