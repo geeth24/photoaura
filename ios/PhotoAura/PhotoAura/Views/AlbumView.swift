@@ -38,7 +38,7 @@ struct AlbumView: View {
                     }
 
                     
-                    MasonryVStack(columns: 2, spacing: 20) {
+                    MasonryVStack(columns: vm.sidebarOpened ? 1 : 2, spacing: 20) {
                         ForEach(vm.album.albumPhotos.indices, id: \.self) { index in
                             let photo = vm.album.albumPhotos[index]
                             PhotoView(photo: photo)

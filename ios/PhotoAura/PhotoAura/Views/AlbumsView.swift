@@ -95,7 +95,6 @@ struct AlbumsView: View {
                         } catch {
                             print("Error loading photos")
                         }
-                        vm.album = AlbumsModel()
 
                     }
                 }
