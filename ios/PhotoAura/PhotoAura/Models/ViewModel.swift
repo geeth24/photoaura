@@ -14,6 +14,7 @@ extension AlbumsModel {
         self.albumId = 0
         self.albumName = ""
         self.slug = ""
+        self.upload = false
         self.imageCount = 0
         self.albumPhotos = []
     }
