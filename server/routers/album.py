@@ -80,7 +80,6 @@ async def create_upload_files(
     else:
         user_name = None  # Handle case where the query returns no results
 
-
     if slug is not None:
         user_name = slug.split("/")[0]
 
@@ -107,8 +106,12 @@ async def create_upload_files(
 
     # create new album in database
     # if album already exists, then dont create new album
-    cursor.execute("SELECT * FROM album WHERE slug=%s", (user_name + "/" + album_name,))
+    cursor.execute(
+        "SELECT * FROM album WHERE slug=%s",
+        (user_name + "/" + album_name.replace(" ", "-"),),
+    )
     album = cursor.fetchone()
+    slug = user_name + "/" + album_name.lower().replace(" ", "-")
     # check if images_count changed for album and update it
     if album:
         if album[4] != images_count:
@@ -117,7 +120,7 @@ async def create_upload_files(
                 (images_count, album_name),
             )
     else:
-        slug = user_name + "/" + album_name.lower().replace(" ", "-")
+
         secret = "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(10))
         cursor.execute(
             "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
@@ -134,7 +137,7 @@ async def create_upload_files(
         )
 
     # get album id
-    cursor.execute("SELECT * FROM album WHERE slug=%s", (user_name + "/" + album_name,))
+    cursor.execute("SELECT * FROM album WHERE slug=%s", (slug,))
     album = cursor.fetchone()
     # websocket = manager.active_connections[0]
 
@@ -227,7 +230,9 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
 async def get_album(user_name: str, album_name: str, secret: str = None):
     # album_name = slug.replace("-", " ")
     # user_name = slug.split("/")[0]
-    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
+    album_dir = os.path.join(
+        data_dir, user_name + "/" + album_name.lower().replace("-", " ")
+    )
     print(album_dir)
     if not os.path.exists(album_dir):
         raise HTTPException(status_code=404, detail="Album not found")
@@ -277,7 +282,7 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
         album_permission["user_email"] = user[4]
 
     return {
-        "album_name": album_name,
+        "album_name": album_name.capitalize().replace("-", " "),
         "slug": album[2],
         "image_count": album[5],
         "shared": False if secret and secret != album[8] else album[6],
@@ -292,7 +297,7 @@ def create_album_photos_json(album_id, album_dir, images, file_metadata):
     album_photos = [
         {
             "album_id": album_id,
-            "album_name": album_dir.split("/")[-1],
+            "album_name": album_dir.split("/")[-1].capitalize(),
             "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
@@ -462,7 +467,7 @@ async def update_album(
     user_name = slug.split("/")[0]
 
     try:
-        slug = user_name + "/" + album_new_name.lower().replace(" ", "-")
+        newSlug = user_name + "/" + album_new_name.lower().replace(" ", "-")
         print("slug", slug)
         cursor.execute(
             "UPDATE album SET name=%s, shared=%s, upload=%s, location=%s, slug=%s WHERE slug=%s",
@@ -471,7 +476,7 @@ async def update_album(
                 shared,
                 upload,
                 os.path.join(data_dir, user_name + "/" + album_new_name.lower()),
-                slug,
+                newSlug,
                 slug,
             ),
         )
