@@ -45,7 +45,11 @@ struct ContentView: View {
         } else if vm.isLoading{
             ProgressView()
         } else{
-            SetupView()
+            if vm.photoAuraURL == "" {
+                SetupView()
+            }else{
+                LoginView()
+            }
         }
         
         
