@@ -114,9 +114,7 @@ struct LoginView: View {
                     Task {
                         do {
                             try await vm.login(username: username, password: password)
-                        } catch {
-                            print("error in login from ui")
-                        }
+                        } 
                     }
                 }) {
                     Text("\(forgotPasswordFlag ? "Send Reset Link" : "Log In")")
@@ -154,8 +152,14 @@ struct LoginView: View {
                 
             }
             Spacer()
+            
         }
         .edgesIgnoringSafeArea(.all)
+        .alert(vm.errorText, isPresented: $vm.showErrorAlert){
+            Button("Ok"){
+                vm.showErrorAlert = false
+            }
+        }
     }
 }
 

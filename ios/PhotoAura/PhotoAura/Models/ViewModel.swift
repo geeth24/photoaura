@@ -37,6 +37,9 @@ class ViewModel: NSObject, ObservableObject {
     @Published var currentTab: Tab = .photos
     @Published var showLogoutAlert: Bool = false
     @Published var showDeleteAlert: Bool = false
+    
+    @Published var showErrorAlert: Bool = false
+    @Published var errorText: String = ""
 
 
     private let defaults = UserDefaults.standard
@@ -117,7 +120,7 @@ class ViewModel: NSObject, ObservableObject {
                    do {
                        try await login(username: username, password: password)
                    } catch {
-                       print("Init login failed")
+                    print("Init login failed")
                     isLoading = false
                    }
                }
@@ -129,7 +132,11 @@ class ViewModel: NSObject, ObservableObject {
        @MainActor
        func login(username: String, password: String) async throws {
            isLoading = true
+           print("photoAuraURL: \(photoAuraURL)")
+
            guard let url = URL(string: "https://\(photoAuraURL)/api/login") else {
+               print("ERRR")
+
                isLoading = false
                return
            }
@@ -142,10 +149,13 @@ class ViewModel: NSObject, ObservableObject {
            urlRequest.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
            
            let (data, response) = try await URLSession.shared.data(for: urlRequest)
-           
+           print("test")
            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                isLoading = false
                print("Error: HTTP response status code is not 200.")
+               showErrorAlert = true
+               errorText = "Invalid username or password"
+               isLoading = false
                return
            }
            
