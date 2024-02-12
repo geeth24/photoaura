@@ -8,6 +8,7 @@
 import SwiftUI
 import MasonryStack
 import Photos
+import PhotosUI
 import CachedAsyncImage
 
 struct AlbumView: View {
@@ -23,7 +24,9 @@ struct AlbumView: View {
     @State private var saveProgress: Float = 0.0
     @State private var isSaving = false
     
-    
+    @State private var isPresentingPhotoPicker = false
+    @State private var selectedItems: [PhotosPickerItem] = []
+
     var body: some View {
         NavigationStack{
             ScrollView {
@@ -57,6 +60,9 @@ struct AlbumView: View {
                 
                 
             }
+            .photosPicker(isPresented: $isPresentingPhotoPicker, selection: $selectedItems, maxSelectionCount: 0, matching: .images, photoLibrary: .shared()) // 0 for unlimited selection
+
+
             .onAppear {
                 UIPageControl.appearance().currentPageIndicatorTintColor = .buttonDefault
                 UIPageControl.appearance().pageIndicatorTintColor = .buttonDefault.withAlphaComponent(0.2)
@@ -82,7 +88,7 @@ struct AlbumView: View {
                         .frame(width: 36, height: 36)
                         .cornerRadius(4.0)
                 }
-                .padding()
+              
                 .alert("Enter Album Name", isPresented: $showingSaveAlbumAlert) {
                     TextField("Album Name", text: $newAlbumName)
                     Button("Cancel"){
@@ -94,6 +100,18 @@ struct AlbumView: View {
                                await saveAllPhotos()
                            }                    }
                     
+                }
+                
+                if vm.album.upload {
+                    Button {
+                        isPresentingPhotoPicker = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .fontWeight(.medium)
+                            .foregroundStyle(.textDefault)
+                            .frame(width: 36, height: 36)
+                            .cornerRadius(4.0)
+                    }
                 }
                 
             })
