@@ -28,6 +28,7 @@
 		6FC5113E2B6B68070076CBC4 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC5113D2B6B68070076CBC4 /* Models.swift */; };
 		6FC511432B6B73C60076CBC4 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC511422B6B73C60076CBC4 /* KeychainHelper.swift */; };
 		6FC511452B6B78F60076CBC4 /* PhotosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC511442B6B78F60076CBC4 /* PhotosView.swift */; };
+		6FCF9A262B7BE464009BF519 /* WebSocketManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCF9A252B7BE464009BF519 /* WebSocketManager.swift */; };
 		6FE3781E2B6D87CE00EB3F5D /* AlbumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE3781D2B6D87CE00EB3F5D /* AlbumView.swift */; };
 		6FE378202B6D93FF00EB3F5D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE3781F2B6D93FF00EB3F5D /* SettingsView.swift */; };
 /* End PBXBuildFile section */
@@ -54,6 +55,7 @@
 		6FC5113D2B6B68070076CBC4 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		6FC511422B6B73C60076CBC4 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		6FC511442B6B78F60076CBC4 /* PhotosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotosView.swift; sourceTree = "<group>"; };
+		6FCF9A252B7BE464009BF519 /* WebSocketManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketManager.swift; sourceTree = "<group>"; };
 		6FE3781D2B6D87CE00EB3F5D /* AlbumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumView.swift; sourceTree = "<group>"; };
 		6FE3781F2B6D93FF00EB3F5D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -129,6 +131,7 @@
 			children = (
 				6FC5113B2B6B650F0076CBC4 /* ViewModel.swift */,
 				6FC5113D2B6B68070076CBC4 /* Models.swift */,
+				6FCF9A252B7BE464009BF519 /* WebSocketManager.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -253,6 +256,7 @@
 				6FC5113E2B6B68070076CBC4 /* Models.swift in Sources */,
 				6F30D3A92B6C31FA0098D86C /* AlbumsView.swift in Sources */,
 				6FE378202B6D93FF00EB3F5D /* SettingsView.swift in Sources */,
+				6FCF9A262B7BE464009BF519 /* WebSocketManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
