@@ -111,7 +111,13 @@ function Page() {
     }
     setUploading(false);
     getAlbums();
-    router.push(`/admin/albums/${user?.user_name}/${albumName.replace(/ /g, '-')}`);
+    //if response is 200, show success toast
+    if (response.status === 200) {
+      showToastWithCooldown('Files uploaded', true);
+      router.push(`/admin/albums/${user?.user_name}/${albumName.replace(/ /g, '-')}`);
+    } else {
+      showToastWithCooldown(`Error uploading files`, false);
+    }
   };
 
   // Assuming we know the current phase based on the number of socket messages received
