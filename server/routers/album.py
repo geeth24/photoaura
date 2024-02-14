@@ -96,12 +96,6 @@ async def create_upload_files(
         websocket = manager.active_connections[0]
     # save files to album folder
 
-    for file in files:
-        contents = await file.read()
-        with open(os.path.join(album_dir, file.filename), "wb") as f:
-            f.write(contents)
-            await manager.send_message(file.filename, websocket)
-
     images_count = len(os.listdir(album_dir)) - 1
 
     # create new album in database
@@ -113,14 +107,18 @@ async def create_upload_files(
     album = cursor.fetchone()
     slug = user_name + "/" + album_name.lower().replace(" ", "-")
     # check if images_count changed for album and update it
+
     if album:
+        print("album", album)
+        if album[1].lower() == album_name.lower():
+            raise HTTPException(status_code=400, detail="Album already exists")
+
         if album[4] != images_count:
             cursor.execute(
                 "UPDATE album SET image_count=%s WHERE name=%s",
                 (images_count, album_name),
             )
     else:
-
         secret = "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(10))
         cursor.execute(
             "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
@@ -135,6 +133,12 @@ async def create_upload_files(
                 secret,
             ),
         )
+
+    for file in files:
+        contents = await file.read()
+        with open(os.path.join(album_dir, file.filename), "wb") as f:
+            f.write(contents)
+            await manager.send_message(file.filename, websocket)
 
     # get album id
     cursor.execute("SELECT * FROM album WHERE slug=%s", (slug,))
@@ -252,13 +256,16 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
         raise HTTPException(status_code=404, detail="Album not found")
 
     print("album", album)
+    intial_album_name = album[1]
 
     # get file metadata
     db, cursor = get_db()
     cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
     file_metadata = cursor.fetchall()
 
-    album_photos = create_album_photos_json(album[0], album_dir, images, file_metadata)
+    album_photos = create_album_photos_json(
+        album[0], album_dir, intial_album_name, images, file_metadata
+    )
 
     # get album permissions
     cursor.execute(
@@ -282,7 +289,7 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
         album_permission["user_email"] = user[4]
 
     return {
-        "album_name": album_name.capitalize().replace("-", " "),
+        "album_name": intial_album_name,
         "slug": album[2],
         "image_count": album[5],
         "shared": False if secret and secret != album[8] else album[6],
@@ -293,11 +300,13 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
     }
 
 
-def create_album_photos_json(album_id, album_dir, images, file_metadata):
+def create_album_photos_json(
+    album_id, album_dir, intial_album_name, images, file_metadata
+):
     album_photos = [
         {
             "album_id": album_id,
-            "album_name": album_dir.split("/")[-1].capitalize(),
+            "album_name": intial_album_name,
             "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{image}",
             "file_metadata": {
                 "content_type": meta[3],
@@ -344,7 +353,7 @@ async def get_all_albums(
         file_metadata = cursor.fetchall()
 
         album_photos = create_album_photos_json(
-            album[0], album_dir, images, file_metadata
+            album[0], album_dir, album_name, images, file_metadata
         )
 
         all_albums.append(
@@ -402,7 +411,7 @@ async def get_all_photos(
         file_metadata = cursor.fetchall()
 
         album_photos = create_album_photos_json(
-            album[0], album_dir, images, file_metadata
+            album[0], album_dir, album_name, images, file_metadata
         )
         all_photos.extend(album_photos)
 
@@ -477,7 +486,7 @@ async def update_album(
                 upload,
                 os.path.join(data_dir, user_name + "/" + album_new_name.lower()),
                 newSlug,
-                slug,
+                slug.lower(),
             ),
         )
         print("updated album")
@@ -551,7 +560,7 @@ async def get_shared_albums():
         file_metadata = cursor.fetchall()
 
         album_photos = create_album_photos_json(
-            album[0], album_dir, images, file_metadata
+            album[0], album_dir, album_name, images, file_metadata
         )
 
         all_albums.append(
