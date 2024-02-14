@@ -134,7 +134,7 @@ struct AlbumView: View {
     func uploadPhotosData(photosData: [Data], albumName: String, slug: String, userID: Int?) async -> Bool {
         webSocketManager.connect()
         let boundary = "Boundary-\(UUID().uuidString)"
-        guard let url = URL(string: "https://aura.reactiveshots.com/api/upload-files/?album_name=\(vm.album.albumName.lowercased())&slug=\(vm.album.slug)") else {
+        guard let url = URL(string: "https://aura.reactiveshots.com/api/upload-files/?album_name=\(vm.album.albumName)&slug=\(vm.album.slug)") else {
             print("Invalid URL")
             return false
         }
