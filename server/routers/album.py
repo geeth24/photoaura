@@ -71,6 +71,7 @@ async def create_upload_files(
     album_name: str = Query(None),
     user_id: int = None,
     slug: str = None,
+    update: bool = False,
 ):
     db, cursor = get_db()
     cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
@@ -110,14 +111,18 @@ async def create_upload_files(
 
     if album:
         print("album", album)
-        if album[1].lower() == album_name.lower():
-            raise HTTPException(status_code=400, detail="Album already exists")
 
-        if album[4] != images_count:
-            cursor.execute(
-                "UPDATE album SET image_count=%s WHERE name=%s",
-                (images_count, album_name),
-            )
+        if update:
+
+            if album[4] != images_count:
+                cursor.execute(
+                    "UPDATE album SET image_count=%s WHERE name=%s",
+                    (images_count, album_name),
+                )
+
+        else:
+            if album[1].lower() == album_name.lower():
+                raise HTTPException(status_code=400, detail="Album already exists")
     else:
         secret = "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(10))
         cursor.execute(
