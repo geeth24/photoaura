@@ -102,7 +102,7 @@ async def create_upload_files(
     # if album already exists, then dont create new album
     cursor.execute(
         "SELECT * FROM album WHERE slug=%s",
-        (user_name + "/" + album_name.replace(" ", "-"),),
+        (user_name + "/" + album_name.lower().replace(" ", "-"),),
     )
     album = cursor.fetchone()
     slug = user_name + "/" + album_name.lower().replace(" ", "-")
