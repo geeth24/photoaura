@@ -315,6 +315,7 @@ def create_album_photos_json(
             "album_name": intial_album_name,
             "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{image}",
             "file_metadata": {
+                "filename": meta[2],
                 "content_type": meta[3],
                 "size": meta[4],
                 "width": meta[5],
