@@ -118,7 +118,7 @@ async def create_upload_files(
             if album[4] != images_count:
                 cursor.execute(
                     "UPDATE album SET image_count=%s WHERE name=%s",
-                    (images_count, album_name),
+                    (images_count + uploaded_image_count, album_name),
                 )
 
         else:
