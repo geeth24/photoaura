@@ -8,6 +8,7 @@
 import SwiftUI
 import MasonryStack
 import Photos
+import PhotosUI
 import CachedAsyncImage
 
 struct AlbumView: View {
@@ -23,6 +24,14 @@ struct AlbumView: View {
     @State private var saveProgress: Float = 0.0
     @State private var isSaving = false
     
+    @State private var isPresentingPhotoPicker = false
+    @State private var selectedItems: [PhotosPickerItem] = []
+    @StateObject private var webSocketManager = WebSocketManager()
+    
+    let dateFormatter = DateFormatter()
+
+   
+
     
     var body: some View {
         NavigationStack{
@@ -36,7 +45,7 @@ struct AlbumView: View {
                         
                             .padding()
                     }
-
+                    
                     
                     MasonryVStack(columns: vm.sidebarOpened ? 1 : 2, spacing: 20) {
                         ForEach(vm.album.albumPhotos.indices, id: \.self) { index in
@@ -57,6 +66,11 @@ struct AlbumView: View {
                 
                 
             }
+            .photosPicker(isPresented: $isPresentingPhotoPicker, selection: $selectedItems, maxSelectionCount: 0, matching: .images, photoLibrary: .shared()) // 0 for unlimited selection
+            .onChange(of: selectedItems) { newItems in
+                processSelectedItems(newItems)
+            }
+            
             .onAppear {
                 UIPageControl.appearance().currentPageIndicatorTintColor = .buttonDefault
                 UIPageControl.appearance().pageIndicatorTintColor = .buttonDefault.withAlphaComponent(0.2)
@@ -70,6 +84,10 @@ struct AlbumView: View {
                         print("Error loading photos")
                     }
                 }
+
+            }
+            .onDisappear(){
+                webSocketManager.disconnect()
             }
             .navigationTitle(vm.album.albumName)
             .toolbar(content: {
@@ -82,7 +100,7 @@ struct AlbumView: View {
                         .frame(width: 36, height: 36)
                         .cornerRadius(4.0)
                 }
-                .padding()
+                
                 .alert("Enter Album Name", isPresented: $showingSaveAlbumAlert) {
                     TextField("Album Name", text: $newAlbumName)
                     Button("Cancel"){
@@ -91,15 +109,131 @@ struct AlbumView: View {
                     
                     Button("Save") {
                         Task {
-                               await saveAllPhotos()
-                           }                    }
+                            await saveAllPhotos()
+                        }                    }
                     
+                }
+                
+                if vm.album.upload || vm.getUserDetail()?.id == 0 {
+                    Button {
+                        isPresentingPhotoPicker = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .fontWeight(.medium)
+                            .foregroundStyle(.textDefault)
+                            .frame(width: 36, height: 36)
+                            .cornerRadius(4.0)
+                    }
                 }
                 
             })
             
         }
     }
+    
+    func uploadPhotosData(photosData: [Data], albumName: String, slug: String, userID: Int?) async -> Bool {
+        webSocketManager.connect()
+        let boundary = "Boundary-\(UUID().uuidString)"
+        guard let url = URL(string: "https://aura.reactiveshots.com/api/upload-files/?album_name=\(vm.album.albumName)&slug=\(vm.album.slug)&update=true") else {
+            print("Invalid URL")
+            return false
+        }
+        // Set the desired format using hyphens
+        dateFormatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+
+        // Get the current date and time
+        let now = Date()
+
+        // Convert the current date and time to the specified format
+        let formattedDate = dateFormatter.string(from: now)
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        let body = NSMutableData()
+        
+        for (_, photoData) in photosData.enumerated() {
+            body.appendString("--\(boundary)\r\n")
+            body.appendString("Content-Disposition: form-data; name=\"files\"; filename=\"PhotoAura-iOS-\(slug.replacingOccurrences(of: "/", with: "-"))-\(formattedDate).jpg\"\r\n")
+            body.appendString("Content-Type: image/jpeg\r\n\r\n")
+            body.append(photoData)
+            body.appendString("\r\n")
+        }
+        
+       
+        
+        body.appendString("--\(boundary)--\r\n")
+        request.httpBody = body as Data
+        
+        do {
+            let (_, response) = try await URLSession.shared.upload(for: request, from: body as Data)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                print("Failed to upload photos. Server responded with status code: \(String(describing: (response as? HTTPURLResponse)?.statusCode))")
+                return false
+            }
+            
+            // Handle successful upload response
+            print("Photos uploaded successfully.")
+            webSocketManager.disconnect()
+
+            Task {
+                do {
+                    try await vm.getAlbum(slug: slug)
+                    newAlbumName = vm.album.albumName
+                } catch {
+                    print("Error loading photos")
+                }
+            }
+
+            return true
+        } catch {
+            webSocketManager.disconnect()
+
+            print("Failed to upload photos: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    
+    
+    func processSelectedItems(_ items: [PhotosPickerItem])  {
+        // Initialize an array to hold the data of all selected photos
+        var photosData: [Data] = []
+        
+        // Group for managing asynchronous tasks
+        let group = DispatchGroup()
+        
+        for item in items {
+            group.enter() // Enter the group for each item
+            item.loadTransferable(type: Data.self) { result in
+                defer { group.leave() } // Ensure to leave the group whether the operation succeeds or fails
+                switch result {
+                case .success(let data):
+                    if let data = data {
+                        photosData.append(data)
+                    }
+                case .failure(let error):
+                    print("Error loading image data: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        group.notify(queue: .main) {
+            // This block is executed once all selected items have been processed
+            Task {
+                let uploadSuccess = await self.uploadPhotosData(photosData: photosData, albumName: vm.album.albumName, slug: vm.album.slug, userID: vm.getUserDetail()?.id)
+                if uploadSuccess {
+                    print("All photos uploaded successfully.")
+                    // Optionally, perform any UI updates or further processing here
+                } else {
+                    print("Failed to upload one or more photos.")
+                    // Handle upload failure, update UI accordingly
+                }
+            }
+        }
+    }
+
     
     
     private func saveAllPhotos() async {
@@ -131,11 +265,11 @@ struct AlbumView: View {
             }
         }
     }
-
+    
 }
 
 #Preview {
-    AlbumView(slug: "geeth/city")
+    AlbumView(slug: "geeth/ios")
         .environmentObject(ViewModel())
 }
 
@@ -166,3 +300,12 @@ func createOrFetchAlbum(named albumName: String) async throws -> PHAssetCollecti
         }
     }
 }
+
+extension NSMutableData {
+    func appendString(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
+        }
+    }
+}
+
