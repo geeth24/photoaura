@@ -18,7 +18,7 @@ struct LoginView: View {
     @FocusState var passwordFieldFocus: Bool
     @EnvironmentObject var vm: ViewModel
 
-    
+    @State var sentPassword: Bool = false
     var body: some View {
         VStack {
             Image("login-image")
@@ -111,13 +111,18 @@ struct LoginView: View {
                 
                 Button(action: {
                     // Handle login action
-                    Task {
-                        do {
-                            try await vm.login(username: username, password: password)
-                        } 
+                    if !forgotPasswordFlag {
+                        Task {
+                            do {
+                                try await vm.login(username: username, password: password)
+                            }
+                        }
+                    }else{
+                        sentPassword = true
+
                     }
                 }) {
-                    Text("\(forgotPasswordFlag ? "Send Reset Link" : "Log In")")
+                    Text("\(forgotPasswordFlag ? "Send Reset Request" : "Log In")")
                         .font(.custom(Lato, size: 14))
                         .fontWeight(.medium)
                         .foregroundStyle(.buttonTextDefault)
@@ -146,6 +151,17 @@ struct LoginView: View {
                 }
                 .padding(.top, 10)
                 
+                Button(action: {
+                    // Handle forgot password action
+                    vm.changeURL = true
+                }) {
+                    Text("Change PhotoAura URL")
+                        .foregroundColor(.textDefault)
+                        .font(.custom(Lato, size: 14))
+                    
+                }
+                .padding(.top, 10)
+                
                 Spacer()
                 
                 
@@ -158,6 +174,11 @@ struct LoginView: View {
         .alert(vm.errorText, isPresented: $vm.showErrorAlert){
             Button("Ok"){
                 vm.showErrorAlert = false
+            }
+        }
+        .alert("Request Sent", isPresented: $sentPassword){
+            Button("Ok"){
+                sentPassword = false
             }
         }
     }

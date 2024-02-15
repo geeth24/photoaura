@@ -26,7 +26,8 @@ class ViewModel: NSObject, ObservableObject {
     @AppStorage("photoAuraURL") var photoAuraURL: String = ""
     @AppStorage("sidebarOpened") var sidebarOpened = false
     @AppStorage("token") var token = ""
-    
+    @Published var shareLink = ""
+
     @Published var loggedIn = false
     @Published var isLoading = true
     
@@ -40,6 +41,8 @@ class ViewModel: NSObject, ObservableObject {
     
     @Published var showErrorAlert: Bool = false
     @Published var errorText: String = ""
+    
+    @Published var changeURL: Bool = false
 
 
     private let defaults = UserDefaults.standard
@@ -346,6 +349,10 @@ class ViewModel: NSObject, ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             isLoading = false
             print("Error: HTTP response status code is not 200.")
+            if slug.components(separatedBy: "?")[1].starts(with: "secret") {
+                shareLink = ""
+                
+            }
             return
         }
         
