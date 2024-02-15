@@ -73,6 +73,8 @@ struct PhotosView: View {
 struct PhotoView: View {
     let photo: AlbumModel
     @State var savedAlert: Bool = false
+    @EnvironmentObject var vm: ViewModel
+    @State var slug: String?
 
     var body: some View {
         CachedAsyncImage(url: URL(string: photo.image)) { image in
@@ -94,6 +96,21 @@ struct PhotoView: View {
                                     print("Failed to save image: \(error.localizedDescription)")
                                     // Handle error, such as showing an alert to the user
                                 }
+                            }
+                        }
+                    }) {
+                        Label("Save to Photos", systemImage: "square.and.arrow.down")
+                    }
+                    
+                    Button(action: {
+                        Task {
+                            do {
+                                try await vm.deletePhoto(slug: slug, photoName: photo.fileMetadata.fileName)
+                                // Optionally, update UI or state to reflect the successful save
+                                savedAlert = true
+                            } catch {
+                                print("Failed to delete image: \(error.localizedDescription)")
+                                // Handle error, such as showing an alert to the user
                             }
                         }
                     }) {

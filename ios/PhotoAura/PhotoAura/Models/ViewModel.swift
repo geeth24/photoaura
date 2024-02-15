@@ -361,4 +361,29 @@ class ViewModel: NSObject, ObservableObject {
         isLoading = false
     }
     
+    @MainActor
+    func deletePhoto(slug: String, photoName: String) async throws {
+        isLoading = true
+        guard let url = URL(string: "https://\(photoAuraURL)/api/photo/delete/?slug=\(slug)&photo_name=\(photoName)") else {
+            isLoading = false
+            return
+        }
+        
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "DELETE"
+        
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            isLoading = false
+            print("Error: HTTP response status code is not 200.")
+            return
+        }
+        
+        logout()
+        
+        isLoading = false
+    }
+      
+    
 }
