@@ -22,15 +22,19 @@ struct AlbumView: View {
     @State private var selectedPhotoIndex = 0 // Keep track of the selected photo index
     
     @State private var saveProgress: Float = 0.0
+    @State private var uploadProgress: Float = 0.0
+
     @State private var isSaving = false
     
+    @State private var showUploadPhotoSheet = false
     @State private var isPresentingPhotoPicker = false
     @State private var selectedItems: [PhotosPickerItem] = []
     @StateObject private var webSocketManager = WebSocketManager()
     
     let dateFormatter = DateFormatter()
 
-   
+    @Environment(\.presentationMode) var presentationMode
+
 
     
     var body: some View {
@@ -61,10 +65,78 @@ struct AlbumView: View {
                     
                 }
             }
+
             .sheet(isPresented: $showingCarousel) {
                 PhotoCarouselView(photos: vm.album.albumPhotos, selectedIndex: $selectedPhotoIndex)
                 
                 
+            }
+            .sheet(isPresented: $showUploadPhotoSheet ){
+                VStack{
+                    
+                    Image(systemName: "photo.stack.fill")
+                        .font(.system(size: 30))
+                        .fontWeight(.medium)
+                        .foregroundStyle(.textDefault)
+                        .padding(.bottom)
+                    
+                    Text("Upload Photos")
+                        .font(.custom(Lato, size: 20))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(0)
+                        .fontWeight(.bold)
+
+
+                    ProgressView(value: 3)
+                        .tint(.textDefault)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(width: 200)
+                    
+                        .padding()
+                    
+                    
+//                    HStack{
+//                        Button{
+//                            presentationMode.wrappedValue.dismiss()
+//                        } label: {
+//                            
+//                            Text("Cancel")
+//                            
+//                                .font(.custom(Lato, size: 14))
+//                                .fontWeight(.medium)
+//                                .foregroundStyle(.textDestructiveDefault)
+//                                .padding(.horizontal, 16)
+//                                .padding(.vertical, 8)
+//                                .background(.buttonDestructiveDefault)
+//                                .cornerRadius(4.0)
+//                            
+//                        }
+//                        Button{
+//                            
+//                            isPresentingPhotoPicker = true
+//
+//                        } label: {
+//                            
+//                            Text("Open Library")
+//                            
+//                                .font(.custom(Lato, size: 14))
+//                                .fontWeight(.medium)
+//                                .foregroundStyle(.buttonTextDefault)
+//                                .padding(.horizontal, 16)
+//                                .padding(.vertical, 8)
+//                                .background(.buttonDefault)
+//                                .cornerRadius(4.0)
+//                            
+//                        }
+//                    }.padding(.top)
+
+                    
+                    
+                    
+                    
+                }
+                .presentationDetents([.height(200)])
+
             }
             .photosPicker(isPresented: $isPresentingPhotoPicker, selection: $selectedItems, maxSelectionCount: 0, matching: .images, photoLibrary: .shared()) // 0 for unlimited selection
             .onChange(of: selectedItems) { newItems in
@@ -132,6 +204,7 @@ struct AlbumView: View {
     }
     
     func uploadPhotosData(photosData: [Data], albumName: String, slug: String, userID: Int?) async -> Bool {
+        showUploadPhotoSheet = true
         webSocketManager.connect()
         let boundary = "Boundary-\(UUID().uuidString)"
         guard let url = URL(string: "https://aura.reactiveshots.com/api/upload-files/?album_name=\(vm.album.albumName)&slug=\(vm.album.slug)&update=true") else {
@@ -175,7 +248,7 @@ struct AlbumView: View {
             
             // Handle successful upload response
             print("Photos uploaded successfully.")
-            webSocketManager.disconnect()
+//            webSocketManager.disconnect()
 
             Task {
                 do {
@@ -188,7 +261,7 @@ struct AlbumView: View {
 
             return true
         } catch {
-            webSocketManager.disconnect()
+//            webSocketManager.disconnect()
 
             print("Failed to upload photos: \(error.localizedDescription)")
             return false
@@ -269,7 +342,7 @@ struct AlbumView: View {
 }
 
 #Preview {
-    AlbumView(slug: "geeth/ios")
+    AlbumView(slug: "geeth/test")
         .environmentObject(ViewModel())
 }
 
