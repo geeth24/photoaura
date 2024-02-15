@@ -77,6 +77,7 @@ struct AlbumModel: Decodable, Hashable{
 
 // Define the file metadata model
 struct FileMetadata: Decodable, Hashable {
+    let fileName: String
     let contentType: String
     let size: Int
     let width: Int
@@ -86,6 +87,7 @@ struct FileMetadata: Decodable, Hashable {
     let blurDataURL: String
     
     enum CodingKeys: String, CodingKey {
+        case fileName = "filename"
         case contentType = "content_type"
         case size
         case width

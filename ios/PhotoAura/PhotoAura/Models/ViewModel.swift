@@ -364,6 +364,7 @@ class ViewModel: NSObject, ObservableObject {
     @MainActor
     func deletePhoto(slug: String, photoName: String) async throws {
         isLoading = true
+        print("\(slug) \(photoName)")
         guard let url = URL(string: "https://\(photoAuraURL)/api/photo/delete/?slug=\(slug)&photo_name=\(photoName)") else {
             isLoading = false
             return
@@ -380,7 +381,6 @@ class ViewModel: NSObject, ObservableObject {
             return
         }
         
-        logout()
         
         isLoading = false
     }

@@ -55,7 +55,7 @@ struct AlbumView: View {
                     MasonryVStack(columns: vm.sidebarOpened ? 1 : 2, spacing: 20) {
                         ForEach(vm.album.albumPhotos.indices, id: \.self) { index in
                             let photo = vm.album.albumPhotos[index]
-                            PhotoView(photo: photo)
+                            PhotoView(photo: photo, slug: slug)
                                 .onTapGesture {
                                     self.selectedPhotoIndex = index
                                     self.showingCarousel = true

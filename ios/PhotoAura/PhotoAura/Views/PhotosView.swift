@@ -73,6 +73,8 @@ struct PhotosView: View {
 struct PhotoView: View {
     let photo: AlbumModel
     @State var savedAlert: Bool = false
+    @State var deleteAlert: Bool = false
+
     @EnvironmentObject var vm: ViewModel
     @State var slug: String?
 
@@ -102,19 +104,25 @@ struct PhotoView: View {
                         Label("Save to Photos", systemImage: "square.and.arrow.down")
                     }
                     
-                    Button(action: {
-                        Task {
-                            do {
-                                try await vm.deletePhoto(slug: slug, photoName: photo.fileMetadata.fileName)
-                                // Optionally, update UI or state to reflect the successful save
-                                savedAlert = true
-                            } catch {
-                                print("Failed to delete image: \(error.localizedDescription)")
-                                // Handle error, such as showing an alert to the user
+                    if (slug != nil) {
+                        Button(action: {
+                            Task {
+                                do {
+                                    try await vm.deletePhoto(slug: slug!, photoName: photo.fileMetadata.fileName)
+                                    
+                                    // Optionally, update UI or state to reflect the successful save
+//                                    deleteAlert = true
+                                    
+                                    try await vm.getAlbum(slug: slug!)
+                                } catch {
+                                    print("Failed to delete image: \(error.localizedDescription)")
+                                    // Handle error, such as showing an alert to the user
+                                }
                             }
+                        }) {
+                            Label("Delete Photo", systemImage: "xmark.circle")
+                                .foregroundStyle(.textDestructiveDefault)
                         }
-                    }) {
-                        Label("Save to Photos", systemImage: "square.and.arrow.down")
                     }
                 }
         } placeholder: {
@@ -125,6 +133,11 @@ struct PhotoView: View {
         .alert("Photo Saved", isPresented: $savedAlert){
             Button("Ok", role: .cancel){
                 savedAlert = false
+            }
+        }
+        .alert("Photo Deleted", isPresented: $deleteAlert){
+            Button("Ok", role: .cancel){
+                deleteAlert = false
             }
         }
     }
