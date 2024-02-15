@@ -581,3 +581,43 @@ async def get_shared_albums():
         )
 
     return all_albums
+
+
+@router.delete("/api/photo/delete/")
+async def delete_photo(slug: str, photo_name: str):
+    user_name = slug.split("/")[0]
+    album_name = slug.split("/")[1]
+
+    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
+    album_compressed_dir = os.path.join(album_dir, "compressed")
+
+    db, cursor = get_db()
+    cursor.execute("SELECT * FROM album WHERE slug=%s", (slug,))
+    album = cursor.fetchone()
+
+    if album is None:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    cursor.execute(
+        "DELETE FROM file_metadata WHERE album_id=%s AND filename=%s",
+        (album[0], photo_name),
+    )
+
+    db.commit()
+
+    if os.path.exists(os.path.join(album_dir, photo_name)):
+        os.remove(os.path.join(album_dir, photo_name))
+
+    if os.path.exists(os.path.join(album_compressed_dir, photo_name)):
+        os.remove(os.path.join(album_compressed_dir, photo_name))
+
+
+    # update album image count
+    cursor.execute(
+        "UPDATE album SET image_count=%s WHERE slug=%s",
+        (album[5] - 1, slug),
+    )
+
+    db.commit()
+
+    return {"message": "Photo deleted successfully."}
