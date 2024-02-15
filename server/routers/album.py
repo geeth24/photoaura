@@ -325,7 +325,7 @@ def create_album_photos_json(
                 "blur_data_url": meta[9],
             },
         }
-        for image, meta in zip(images, file_metadata)
+        for image, meta in zip(images[::-1], file_metadata)
     ]
     return album_photos
 
