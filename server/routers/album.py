@@ -313,7 +313,7 @@ def create_album_photos_json(
         {
             "album_id": album_id,
             "album_name": intial_album_name,
-            "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{image}",
+            "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{meta[2]}",
             "file_metadata": {
                 "filename": meta[2],
                 "content_type": meta[3],
@@ -325,7 +325,7 @@ def create_album_photos_json(
                 "blur_data_url": meta[9],
             },
         }
-        for image, meta in zip(images[::-1], file_metadata)
+        for _, meta in zip(images, file_metadata)
     ]
     return album_photos
 
