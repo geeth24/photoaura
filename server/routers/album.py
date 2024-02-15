@@ -98,6 +98,7 @@ async def create_upload_files(
     # save files to album folder
 
     images_count = len(os.listdir(album_dir)) - 1
+    uploaded_image_count = len(files)
 
     # create new album in database
     # if album already exists, then dont create new album
@@ -132,7 +133,7 @@ async def create_upload_files(
                 slug,
                 album_dir,
                 datetime.now(),
-                images_count,
+                uploaded_image_count,
                 False,
                 False,
                 secret,
