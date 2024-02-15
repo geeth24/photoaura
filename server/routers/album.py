@@ -57,6 +57,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
 def add_album_to_user(user_id, album_id):
     db, cursor = get_db()
+    # check if album already exists
+    cursor.execute(
+        "SELECT * FROM user_album_permissions WHERE user_id=%s AND album_id=%s",
+        (user_id, album_id),
+    )
+    album = cursor.fetchone()
+    if album:
+        return
     cursor.execute(
         "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
         (user_id, album_id),
