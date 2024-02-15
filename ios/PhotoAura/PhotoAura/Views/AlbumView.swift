@@ -26,7 +26,7 @@ struct AlbumView: View {
     
     @State private var isPresentingPhotoPicker = false
     @State private var selectedItems: [PhotosPickerItem] = []
-    @StateObject private var webSocketManager = WebSocketManager(urlString: "wss://aura.reactiveshots.com/api/ws/")
+    @StateObject private var webSocketManager = WebSocketManager()
     
     let dateFormatter = DateFormatter()
 
@@ -153,7 +153,7 @@ struct AlbumView: View {
         
         let body = NSMutableData()
         
-        for (index, photoData) in photosData.enumerated() {
+        for (_, photoData) in photosData.enumerated() {
             body.appendString("--\(boundary)\r\n")
             body.appendString("Content-Disposition: form-data; name=\"files\"; filename=\"PhotoAura-iOS-\(slug.replacingOccurrences(of: "/", with: "-"))-\(formattedDate).jpg\"\r\n")
             body.appendString("Content-Type: image/jpeg\r\n\r\n")

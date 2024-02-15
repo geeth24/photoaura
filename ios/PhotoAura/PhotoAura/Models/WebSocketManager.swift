@@ -9,14 +9,10 @@ import Foundation
 
 class WebSocketManager: ObservableObject {
     private var webSocketTask: URLSessionWebSocketTask?
-    let urlString: String
-    
-    init(urlString: String) {
-        self.urlString = urlString
-    }
-    
+    var urlString = UserDefaults.standard.string(forKey: "photoAuraURL") ?? "web.reactiveshots.com"
+
     func connect() {
-        guard let url = URL(string: urlString) else {
+        guard let url = URL(string: "wss://\(urlString)/api/ws/") else {
             print("WebSocketManager: Invalid URL")
             return
         }
