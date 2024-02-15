@@ -10,12 +10,14 @@ import Foundation
 class WebSocketManager: ObservableObject {
     private var webSocketTask: URLSessionWebSocketTask?
     var urlString = UserDefaults.standard.string(forKey: "photoAuraURL") ?? "web.reactiveshots.com"
+    @Published var count = 0
 
     func connect() {
         guard let url = URL(string: "wss://\(urlString)/api/ws/") else {
             print("WebSocketManager: Invalid URL")
             return
         }
+        count = 0
         webSocketTask = URLSession.shared.webSocketTask(with: url)
         webSocketTask?.resume()
         receiveMessage()
@@ -40,10 +42,13 @@ class WebSocketManager: ObservableObject {
                 print("WebSocket receiving error: \(error)")
             case .success(.string(let text)):
                 print("Received string: \(text)")
+                self?.count += 1
+                print(self?.count ?? 0)
                 // Handle received message, update your UI accordingly
                 self?.receiveMessage() // Listen for the next message
             case .success(.data(let data)):
                 print("Received data: \(data)")
+
                 self?.receiveMessage() // Listen for the next message
             default:
                 break

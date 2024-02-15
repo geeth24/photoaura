@@ -32,7 +32,7 @@ struct AlbumsView: View {
                         
                         NavigationLink{
                             AlbumView(slug: album.slug)
-//                                .navigationBarBackButtonHidden(true)
+                            //                                .navigationBarBackButtonHidden(true)
                         } label: {
                             ZStack{
                                 VStack(alignment: .leading){
@@ -54,14 +54,17 @@ struct AlbumsView: View {
                                     
                                         .foregroundStyle(.textDefault)
                                     
-                                    LazyVGrid(columns: columns, spacing: 20) {
+                                    LazyVGrid(columns: columns, spacing: 10) {
                                         
                                         ForEach(album.albumPhotos, id: \.self) { photo in
                                             
                                             CachedAsyncImage(url: URL(string: photo.image)) { image in
-                                                image .resizable()
+                                                image
+                                                    .resizable()
                                                     .aspectRatio(1.0, contentMode: .fill)
                                                     .cornerRadius(4.0)
+                                                
+                                                
                                                 
                                             } placeholder: {
                                                 ProgressView()
@@ -95,7 +98,7 @@ struct AlbumsView: View {
                         } catch {
                             print("Error loading photos")
                         }
-
+                        
                     }
                 }
             }
