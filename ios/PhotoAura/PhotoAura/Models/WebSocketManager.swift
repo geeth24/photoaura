@@ -42,12 +42,13 @@ class WebSocketManager: ObservableObject {
                 print("WebSocket receiving error: \(error)")
             case .success(.string(let text)):
                 print("Received string: \(text)")
+                self?.count += 1
+                print(self?.count ?? 0)
                 // Handle received message, update your UI accordingly
                 self?.receiveMessage() // Listen for the next message
             case .success(.data(let data)):
                 print("Received data: \(data)")
-                self?.count += 1
-                print(self?.count ?? 0)
+
                 self?.receiveMessage() // Listen for the next message
             default:
                 break

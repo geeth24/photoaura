@@ -29,6 +29,7 @@ struct AlbumView: View {
     @State private var showUploadPhotoSheet = false
     @State private var isPresentingPhotoPicker = false
     @State private var selectedItems: [PhotosPickerItem] = []
+    @State var selectedItemsCount = 0
     @StateObject private var webSocketManager = WebSocketManager()
     
     let dateFormatter = DateFormatter()
@@ -80,56 +81,19 @@ struct AlbumView: View {
                         .foregroundStyle(.textDefault)
                         .padding(.bottom)
                     
-                    Text("Upload Photos")
+                    Text("Uploading Photos")
                         .font(.custom(Lato, size: 20))
                         .multilineTextAlignment(.center)
                         .lineSpacing(0)
                         .fontWeight(.bold)
 
 
-                    ProgressView(value: 3)
+                    ProgressView()
                         .tint(.textDefault)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .frame(width: 200)
                     
                         .padding()
                     
                     
-//                    HStack{
-//                        Button{
-//                            presentationMode.wrappedValue.dismiss()
-//                        } label: {
-//                            
-//                            Text("Cancel")
-//                            
-//                                .font(.custom(Lato, size: 14))
-//                                .fontWeight(.medium)
-//                                .foregroundStyle(.textDestructiveDefault)
-//                                .padding(.horizontal, 16)
-//                                .padding(.vertical, 8)
-//                                .background(.buttonDestructiveDefault)
-//                                .cornerRadius(4.0)
-//                            
-//                        }
-//                        Button{
-//                            
-//                            isPresentingPhotoPicker = true
-//
-//                        } label: {
-//                            
-//                            Text("Open Library")
-//                            
-//                                .font(.custom(Lato, size: 14))
-//                                .fontWeight(.medium)
-//                                .foregroundStyle(.buttonTextDefault)
-//                                .padding(.horizontal, 16)
-//                                .padding(.vertical, 8)
-//                                .background(.buttonDefault)
-//                                .cornerRadius(4.0)
-//                            
-//                        }
-//                    }.padding(.top)
-
                     
                     
                     
@@ -141,6 +105,12 @@ struct AlbumView: View {
             .photosPicker(isPresented: $isPresentingPhotoPicker, selection: $selectedItems, maxSelectionCount: 0, matching: .images, photoLibrary: .shared()) // 0 for unlimited selection
             .onChange(of: selectedItems) { newItems in
                 processSelectedItems(newItems)
+            }
+            .onChange(of: webSocketManager.count){ newValue in
+                print("value chnaged")
+                uploadProgress = Float((webSocketManager.count / selectedItemsCount * 2 ) * 100)
+                print(uploadProgress)
+                
             }
             
             .onAppear {
@@ -205,6 +175,7 @@ struct AlbumView: View {
     
     func uploadPhotosData(photosData: [Data], albumName: String, slug: String, userID: Int?) async -> Bool {
         showUploadPhotoSheet = true
+        selectedItemsCount = selectedItems.count
         webSocketManager.connect()
         let boundary = "Boundary-\(UUID().uuidString)"
         guard let url = URL(string: "https://aura.reactiveshots.com/api/upload-files/?album_name=\(vm.album.albumName)&slug=\(vm.album.slug)&update=true") else {
@@ -212,26 +183,31 @@ struct AlbumView: View {
             return false
         }
         // Set the desired format using hyphens
-        dateFormatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
 
         // Get the current date and time
         let now = Date()
 
         // Convert the current date and time to the specified format
-        let formattedDate = dateFormatter.string(from: now)
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
         let body = NSMutableData()
-        
+        var fileCounter = 1 // Initialize a counter outside the loop
+
         for (_, photoData) in photosData.enumerated() {
+            dateFormatter.dateFormat = "yyyy-MM-dd-HH-mm-ss" // Add '
+            let formattedDate = dateFormatter.string(from: now)
+
+
             body.appendString("--\(boundary)\r\n")
-            body.appendString("Content-Disposition: form-data; name=\"files\"; filename=\"PhotoAura-iOS-\(slug.replacingOccurrences(of: "/", with: "-"))-\(formattedDate).jpg\"\r\n")
+            body.appendString("Content-Disposition: form-data; name=\"files\"; filename=\"PhotoAura-iOS-\(slug.replacingOccurrences(of: "/", with: "-"))-\(formattedDate)-\(fileCounter).jpg\"\r\n")
             body.appendString("Content-Type: image/jpeg\r\n\r\n")
             body.append(photoData)
             body.appendString("\r\n")
+            fileCounter += 1 // Increment the counter
+
         }
         
        
@@ -249,6 +225,7 @@ struct AlbumView: View {
             // Handle successful upload response
             print("Photos uploaded successfully.")
 //            webSocketManager.disconnect()
+            showUploadPhotoSheet = false
 
             Task {
                 do {
@@ -262,10 +239,12 @@ struct AlbumView: View {
             return true
         } catch {
 //            webSocketManager.disconnect()
+            showUploadPhotoSheet = false
 
             print("Failed to upload photos: \(error.localizedDescription)")
             return false
         }
+
     }
 
     
