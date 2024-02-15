@@ -168,6 +168,16 @@ struct AlbumView: View {
                     }
                 }
                 
+                Button {
+                    vm.shareLink = ""
+                } label: {
+                    Image(systemName: "xmark")
+                        .fontWeight(.medium)
+                        .foregroundStyle(.textDefault)
+                        .frame(width: 36, height: 36)
+                        .cornerRadius(4.0)
+                }
+                
             })
             
         }
