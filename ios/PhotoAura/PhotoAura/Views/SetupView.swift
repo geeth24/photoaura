@@ -99,6 +99,11 @@ struct SetupView: View {
                 
                 Spacer()
             } .edgesIgnoringSafeArea(.all)
+                .alert(vm.errorText, isPresented: $vm.showErrorAlert){
+                    Button("Ok"){
+                        vm.showErrorAlert = false
+                    }
+                }
         }
     }
 }

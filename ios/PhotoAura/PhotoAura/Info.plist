@@ -19,6 +19,8 @@
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+        <key>NSAllowsArbitraryLoads</key>
+           <true/>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>aura.reactiveshots.com</key>
@@ -29,6 +31,7 @@
 				<true/>
 			</dict>
 		</dict>
+        
 	</dict>
 	<key>UIAppFonts</key>
 	<array>

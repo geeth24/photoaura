@@ -27,14 +27,14 @@ class ViewModel: NSObject, ObservableObject {
     @AppStorage("sidebarOpened") var sidebarOpened = false
     @AppStorage("token") var token = ""
     @Published var shareLink = ""
-
+    
     @Published var loggedIn = false
     @Published var isLoading = true
     
     @Published var photos: [AlbumModel] = []
     @Published var albums: [AlbumsModel] = []
     @Published var album: AlbumsModel = AlbumsModel()
-
+    
     @Published var currentTab: Tab = .photos
     @Published var showLogoutAlert: Bool = false
     @Published var showDeleteAlert: Bool = false
@@ -43,8 +43,8 @@ class ViewModel: NSObject, ObservableObject {
     @Published var errorText: String = ""
     
     @Published var changeURL: Bool = false
-
-
+    
+    
     private let defaults = UserDefaults.standard
     
     // Keychain access for secure storage
@@ -89,7 +89,7 @@ class ViewModel: NSObject, ObservableObject {
             }
         }
     }
-
+    
     private var password: String {
         get {
             if let passwordData = loadFromKeychain(key: "password") {
@@ -104,85 +104,93 @@ class ViewModel: NSObject, ObservableObject {
             }
         }
     }
-
-
+    
+    
     override init() {
-           super.init()
-           autoLogin()
-       }
-       
-       private func autoLogin() {
-           let username = self.username // Retrieved from Keychain
-           let password = self.password // Retrieved from Keychain
-           
-           if !username.isEmpty && !password.isEmpty {
-               print(username)
-               print(password)
-
-               Task {
-                   do {
-                       try await login(username: username, password: password)
-                   } catch {
+        super.init()
+        autoLogin()
+    }
+    
+    private func autoLogin() {
+        let username = self.username // Retrieved from Keychain
+        let password = self.password // Retrieved from Keychain
+        
+        if !username.isEmpty && !password.isEmpty {
+            print(username)
+            print(password)
+            
+            Task {
+                do {
+                    try await login(username: username, password: password)
+                } catch {
                     print("Init login failed")
                     isLoading = false
-                   }
-               }
-           } else {
-               isLoading = false
-           }
-       }
-       
-       @MainActor
-       func login(username: String, password: String) async throws {
-           isLoading = true
-           print("photoAuraURL: \(photoAuraURL)")
-
-           guard let url = URL(string: "https://\(photoAuraURL)/api/login") else {
-               print("ERRR")
-
-               isLoading = false
-               return
-           }
-           
-           var urlRequest = URLRequest(url: url)
-           urlRequest.httpMethod = "POST"
-           
-           let params = "username=\(username)&password=\(password)"
-           urlRequest.httpBody = params.data(using: .utf8)
-           urlRequest.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-           
-           let (data, response) = try await URLSession.shared.data(for: urlRequest)
-           print("test")
-           guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-               isLoading = false
-               print("Error: HTTP response status code is not 200.")
-               showErrorAlert = true
-               errorText = "Invalid username or password"
-               isLoading = false
-               return
-           }
-           
-           do {
-               // Decode the data to your struct
-               let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
-               if let userData = try? JSONEncoder().encode(loginResponse.user) {
-                   defaults.set(userData, forKey: "userDetails")
-               }
-               
-               // Save credentials in Keychain only after successful login
-               saveCredentials(username: username, password: password)
-               
-               print("Message: \(loginResponse.message)")
-               print("Access Token: \(loginResponse.accessToken)")
-               token = loginResponse.accessToken
-               loggedIn = true
-           } catch {
-               isLoading = false
-               print("Error decoding the response: \(error)")
-           }
-           
-           isLoading = false
-       }
+                }
+            }
+        } else {
+            isLoading = false
+        }
+    }
+    
+    @MainActor
+    func login(username: String, password: String) async throws {
+        isLoading = true
+        print("photoAuraURL: \(photoAuraURL)")
+        
+        guard let url = URL(string: "https://\(photoAuraURL)/api/login") else {
+            print("ERRR")
+            isLoading = false
+            
+            return
+        }
+        
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.timeoutInterval = 10 // Timeout after 10 seconds
+        
+        let params = "username=\(username)&password=\(password)"
+        urlRequest.httpBody = params.data(using: .utf8)
+        urlRequest.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                isLoading = false
+                print("Error: HTTP response status code is not 200.")
+                showErrorAlert = true
+                errorText = "Invalid username or password"
+                isLoading = false
+                return
+            }
+            
+            // Decode the data to your struct
+            let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
+            if let userData = try? JSONEncoder().encode(loginResponse.user) {
+                defaults.set(userData, forKey: "userDetails")
+            }
+            
+            // Save credentials in Keychain only after successful login
+            saveCredentials(username: username, password: password)
+            
+            print("Message: \(loginResponse.message)")
+            print("Access Token: \(loginResponse.accessToken)")
+            token = loginResponse.accessToken
+            loggedIn = true
+        } catch {
+            isLoading = false
+            if let error = error as? URLError, error.code == .timedOut {
+                print("Error: Request timed out.")
+            } else {
+//                changeURL = true
+                print("Error making the request: \(error)")
+                showErrorAlert = true
+                errorText = "Invalid PhotoAura URL"
+            }
+        }
+        
+        isLoading = false
+    }
+    
     
     @MainActor
     func deleteUser() async throws {
@@ -195,7 +203,7 @@ class ViewModel: NSObject, ObservableObject {
         
         var urlRequest = URLRequest(url: url)
         urlRequest.setValue( "Bearer \(token)", forHTTPHeaderField: "Authorization")
-
+        
         let (_, response) = try await URLSession.shared.data(for: urlRequest)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -208,18 +216,18 @@ class ViewModel: NSObject, ObservableObject {
         
         isLoading = false
     }
-       
+    
     private func saveCredentials(username: String, password: String) {
         if let usernameData = username.data(using: .utf8),
            let passwordData = password.data(using: .utf8) {
             let usernameSaveStatus = saveToKeychain(key: "username", data: usernameData)
             let passwordSaveStatus = saveToKeychain(key: "password", data: passwordData)
-
+            
             // Check and handle the save status for username
             if usernameSaveStatus != errSecSuccess {
                 print("Error saving username to Keychain: \(usernameSaveStatus)")
             }
-
+            
             // Check and handle the save status for password
             if passwordSaveStatus != errSecSuccess {
                 print("Error saving password to Keychain: \(passwordSaveStatus)")
@@ -230,21 +238,21 @@ class ViewModel: NSObject, ObservableObject {
     func logout() {
         // Clear credentials from Keychain
         clearKeychain()
-
+        
         // Clear user details from UserDefaults
         defaults.removeObject(forKey: "userDetails")
         
         photos = []
         albums = []
         album = AlbumsModel()
-
+        
         // Update application state
         DispatchQueue.main.async {
             self.loggedIn = false
             self.isLoading = false
         }
     }
-
+    
     private func clearKeychain() {
         let keys = ["username", "password"]
         for key in keys {
@@ -252,20 +260,20 @@ class ViewModel: NSObject, ObservableObject {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrAccount as String: key
             ] as [String: Any]
-
+            
             let status = SecItemDelete(query as CFDictionary)
             if status != errSecSuccess && status != errSecItemNotFound {
                 print("Error clearing Keychain item for key \(key): \(status)")
             }
         }
     }
-
-
-       
-       func getUserDetail() -> UserDetail? {
-           guard let userData = defaults.data(forKey: "userDetails") else { return nil }
-           return try? JSONDecoder().decode(UserDetail.self, from: userData)
-       }
+    
+    
+    
+    func getUserDetail() -> UserDetail? {
+        guard let userData = defaults.data(forKey: "userDetails") else { return nil }
+        return try? JSONDecoder().decode(UserDetail.self, from: userData)
+    }
     
     
     @MainActor
@@ -331,7 +339,7 @@ class ViewModel: NSObject, ObservableObject {
         
         isLoading = false
     }
-       
+    
     
     @MainActor
     func getAlbum(slug: String) async throws {
@@ -391,6 +399,6 @@ class ViewModel: NSObject, ObservableObject {
         
         isLoading = false
     }
-      
+    
     
 }
