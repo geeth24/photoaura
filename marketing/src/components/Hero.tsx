@@ -57,7 +57,10 @@ export default function Hero() {
             height={100}
           />
           <div className="mt-24 sm:mt-32 lg:mt-16">
-            <Link href="https://github.com/geeth24/photoaura" className="inline-flex space-x-6">
+            <Link
+              href="https://github.com/geeth24/photoaura/releases"
+              className="inline-flex space-x-6"
+            >
               <span className="rounded-full bg-primary px-3 py-1 text-sm font-semibold leading-6 text-primary-foreground ring-1 ring-inset ring-primary/10">
                 What&apos;s new
               </span>
