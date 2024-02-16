@@ -6,17 +6,17 @@ import React from 'react';
 
 function Page() {
   return (
-    <div className="h-screen md:grid md:grid-cols-2">
+    <div className="h-screen overflow-hidden md:grid md:grid-cols-2">
       <div className="absolute right-0 top-0 m-4">
         <ModeToggle />
       </div>
-      <FadeIn className="-z-20 pointer-events-none relative h-1/2 w-full md:h-full">
+      <FadeIn className="pointer-events-none relative -z-20 h-1/2 w-full md:h-full">
         <Image
           src="/images/login.png"
           alt="Login"
           width={1440}
           height={1024}
-          className="h-full w-full object-cover blur-3xl"
+          className="h-full w-full object-cover blur-2xl"
         />
         <Image
           src="/images/logo.png"
@@ -27,7 +27,7 @@ function Page() {
         />
       </FadeIn>
 
-      <div className="-mt-32 md:mt-0 z-10 flex flex-col items-center justify-center md:grid-cols-1">
+      <div className="z-10 -mt-32 flex flex-col items-center justify-center md:mt-0 md:grid-cols-1">
         <Login />
       </div>
     </div>

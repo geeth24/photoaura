@@ -3,6 +3,10 @@
 @tailwind utilities;
  
 
+* {
+  font-family: "Lato", sans-serif!important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
