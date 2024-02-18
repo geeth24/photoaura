@@ -166,8 +166,8 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
                 height={1080}
                 alt="Enlarged photo"
                 className="h-full w-full rounded-md object-contain"
-                // placeholder="blur"
-                // blurDataURL={album.file_metadata.blur_data_url}
+                placeholder="blur"
+                blurDataURL={album.file_metadata.blur_data_url}
                 priority
                 onLoad={() => setLoaded(true)}
               />
