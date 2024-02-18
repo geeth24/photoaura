@@ -159,17 +159,17 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
         <CarouselContent>
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
-              <Image
+              <img
                 src={album.image}
                 //1080p
                 width={1920}
                 height={1080}
                 alt="Enlarged photo"
                 className="h-full w-full rounded-md object-contain"
-                placeholder="blur"
-                blurDataURL={album.file_metadata.blur_data_url}
-                priority
-                onLoad={() => setLoaded(true)}
+                // placeholder="blur"
+                // blurDataURL={album.file_metadata.blur_data_url}
+                // priority
+                // onLoad={() => setLoaded(true)}
               />
             </CarouselItem>
           ))}
@@ -208,6 +208,7 @@ function PhotosGrid({ albums }: { albums: Album[] }) {
               src={album.image}
               width={720}
               height={480}
+              style={{ transform: 'translate3d(0, 0, 0)' }}
               sizes="(max-width: 640px) 100vw,
                   (max-width: 1280px) 50vw,
                   (max-width: 1536px) 33vw,
