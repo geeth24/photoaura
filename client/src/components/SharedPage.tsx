@@ -54,13 +54,11 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
     // Detect device
     if (navigator.userAgent.match(/(iPad|iPhone|iPod)/g)) {
       setDevice('ios');
+      setIsMobile(true);
     } else if (navigator.userAgent.match(/(Android)/g)) {
       setDevice('android');
     } else {
       setDevice('desktop');
-    }
-    if (device === 'ios') {
-      setIsMobile(true);
     }
   }, [params]);
 
