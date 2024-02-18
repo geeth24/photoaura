@@ -29,6 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       {/* <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests"></meta>  */}
       <link rel="icon" href="/images/logo-color.png" />
+      <meta
+        name="apple-itunes-app"
+        content="app-id=6477320360, app-argument=https://apps.apple.com/us/app/photoaura/id6477320360"
+      />
       <body className={lato.className}>
         <ThemeProvider
           attribute="class"
