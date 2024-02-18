@@ -201,7 +201,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
                   try {
                     await navigator.share({
                       title: 'Check this album',
-                      url: `https://aura.reactiveshots.com/share/${albumGrid.slug}`,
+                      url: `https://aura.reactiveshots.com/share/${albumGrid.slug}/${params.secret}`,
                     });
                     // Handle successful share here
                   } catch (error) {
@@ -210,7 +210,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
                 } else {
                   // Fallback for browsers that do not support the Web Share API
                   navigator.clipboard.writeText(
-                    `https://aura.reactiveshots.com/share/${albumGrid.slug}`,
+                    `https://aura.reactiveshots.com/share/${albumGrid.slug}/${params.secret}`,
                   );
                   // Notify the user that the link has been copied to the clipboard
                   toast('Link copied to clipboard');
