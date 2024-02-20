@@ -46,7 +46,7 @@ services:
       - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
       - cert-data:/etc/letsencrypt:ro
       - webroot-data:/var/www/certbot
-      - ./entrypoint.sh:/entrypoint.sh
+      - ./nginx/entrypoint.sh:/entrypoint.sh
     ports:
       - "80:80"
       - "443:443"
