@@ -69,7 +69,7 @@ services:
       - EMAIL=${EMAIL}
       - DOMAINS=${DOMAINS}
     command: >
-      certonly --agree-tos --email ${EMAIL} -d ${DOMAINS}
+      certonly --agree-tos --email geeth0924@gmail.com -d aura.reactiveshots.com
       --non-interactive --webroot --webroot-path=/var/www/certbot
       --keep-until-expiring
 
