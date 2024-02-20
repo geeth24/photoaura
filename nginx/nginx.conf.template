@@ -5,16 +5,16 @@ http {
 
   server {
     listen 80;
-    server_name aura.reactiveshots.com;
+    server_name ${HOST_NAME};
     return 301 https://$host$request_uri;
   }
 
   server {
     listen 443 ssl;
-    server_name aura.reactiveshots.com;
+    server_name ${HOST_NAME};
 
-    ssl_certificate /etc/nginx/ssl/live/aura.reactiveshots.com/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/live/aura.reactiveshots.com/privkey.pem;
+    ssl_certificate /etc/nginx/ssl/live/${HOST_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/live/${HOST_NAME}/privkey.pem;
 
 
     ssl_protocols TLSv1.2 TLSv1.3;
