@@ -43,8 +43,8 @@ services:
   nginx:
     image: nginx:alpine
     volumes:
-      - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
-      - cert-data:/etc/letsencrypt:ro
+      - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
+      - cert-data:/etc/letsencrypt
       - webroot-data:/var/www/certbot
       - ./nginx/entrypoint.sh:/entrypoint.sh
     ports:
@@ -62,7 +62,7 @@ services:
   certbot:
     image: certbot/certbot
     volumes:
-      - cert-data:/etc/letsencrypt:ro
+      - cert-data:/etc/letsencrypt
       - webroot-data:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     environment:
