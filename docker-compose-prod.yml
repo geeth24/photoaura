@@ -19,7 +19,7 @@ services:
       target: backend
     volumes:
       - ./server:/app
-      - /mnt/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
+      - /Volumes/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
     depends_on:
       - postgres  # Ensure the backend waits for PostgreSQL to be ready
     networks:
@@ -64,12 +64,11 @@ services:
     volumes:
       - cert-data:/etc/letsencrypt
       - webroot-data:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     environment:
       - EMAIL=${EMAIL}
       - DOMAINS=${DOMAINS}
     command: >
-      certonly --agree-tos --email geeth0924@gmail.com -d aura.reactiveshots.com
+      certonly --agree-tos --email geeth.gunnampalli@gmail.com -d aura.reactiveshots.com
       --non-interactive --webroot --webroot-path=/var/www/certbot
       --keep-until-expiring
 
