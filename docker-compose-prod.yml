@@ -19,7 +19,7 @@ services:
       target: backend
     volumes:
       - ./server:/app
-      - /mnt/share-data/photoaura:/var/aura/data  # Adding a named volume for data persistence
+      - aura-data:/var/aura/data  # Adding a named volume for data persistence
     depends_on:
       - postgres  # Ensure the backend waits for PostgreSQL to be ready
     networks:
