@@ -173,12 +173,12 @@ function Page() {
     );
     const result = await response.json();
     // console.log(result);
-    if (newAlbumName != '') {
-      // console.log(`${params.slug} ${newAlbumName}`);
+    if (slug !== newAlbumName.split(' ').join('-').toLowerCase()) {
       router.push(`/admin/albums/${userSlug}/${newAlbumName.toLowerCase().replace(' ', '-')}`);
     }
     toast.success('Album updated');
   };
+
 
   // Function to handle file selection
   const handleFileSelect = (files: FileList | null) => {
