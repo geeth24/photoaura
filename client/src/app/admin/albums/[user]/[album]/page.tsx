@@ -175,7 +175,7 @@ function Page() {
     // console.log(result);
     if (newAlbumName != '') {
       // console.log(`${params.slug} ${newAlbumName}`);
-      router.push(`/admin/albums/${userSlug}/${newAlbumName}`);
+      router.push(`/admin/albums/${userSlug}/${newAlbumName.toLowerCase().replace(' ', '-')}`);
     }
     toast.success('Album updated');
   };
