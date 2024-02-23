@@ -19,7 +19,7 @@ struct PhotosView: View {
     
     @State private var showingCarousel = false
     @State private var selectedPhotoIndex = 0 // Keep track of the selected photo index
-
+    
     init() {
         UIPageControl.appearance().currentPageIndicatorTintColor = .buttonDefault
         UIPageControl.appearance().pageIndicatorTintColor = .buttonDefault.withAlphaComponent(0.2)
@@ -74,10 +74,10 @@ struct PhotoView: View {
     let photo: AlbumModel
     @State var savedAlert: Bool = false
     @State var deleteAlert: Bool = false
-
+    
     @EnvironmentObject var vm: ViewModel
     @State var slug: String?
-
+    
     var body: some View {
         CachedAsyncImage(url: URL(string: photo.image)) { image in
             image
@@ -111,7 +111,7 @@ struct PhotoView: View {
                                     try await vm.deletePhoto(slug: slug!, photoName: photo.fileMetadata.fileName)
                                     
                                     // Optionally, update UI or state to reflect the successful save
-//                                    deleteAlert = true
+                                    //                                    deleteAlert = true
                                     
                                     try await vm.getAlbum(slug: slug!)
                                 } catch {
@@ -149,6 +149,8 @@ struct PhotoCarouselView: View {
     
     
     @State var savedAlert: Bool = false
+    @State private var currentScale: CGFloat = 1 // 1. Add a state variable for current scale
+    
     var body: some View {
         NavigationStack{
             TabView(selection: $selectedIndex) {
@@ -157,6 +159,12 @@ struct PhotoCarouselView: View {
                         VStack{
                             CachedAsyncImage(url: url) { image in
                                 image.resizable().scaledToFit()
+                                    .scaleEffect(currentScale) // 2. Apply scale effect based on current scale
+                                    .gesture(MagnificationGesture().onChanged { value in
+                                        currentScale = value // 3. Update the current scale with the gesture's value
+                                    }.onEnded { _ in
+                                        currentScale = 1 // Optional: Reset the scale after the gesture ends
+                                    })
                             } placeholder: {
                                 ProgressView()
                             }
@@ -175,7 +183,7 @@ struct PhotoCarouselView: View {
                         Task {
                             do {
                                 try await saveImageToPhotos(url: modifiedURL)
-                               savedAlert = true
+                                savedAlert = true
                             } catch {
                                 print("Failed to save image: \(error.localizedDescription)")
                                 // Handle error, such as showing an alert to the user
@@ -243,7 +251,7 @@ struct PhotoCarouselView: View {
 func saveImageToPhotos(url: URL) async throws {
     // Download image data
     let (data, _) = try await URLSession.shared.data(from: url)
-
+    
     // Save image data to Photos library
     try await PHPhotoLibrary.shared().performChanges {
         let creationRequest = PHAssetCreationRequest.forAsset()
