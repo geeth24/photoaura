@@ -162,8 +162,6 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
                 src={album.compressed_image}
-              <img
-                src={album.compressed_image}
                 //1080p
                 width={1920}
                 height={1080}
