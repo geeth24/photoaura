@@ -292,7 +292,7 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
         )
 
     return {
-        "album_name": album_name,
+        "album_name": album[1],
         "slug": album[2],
         "image_count": album[5],
         "shared": album[6],
