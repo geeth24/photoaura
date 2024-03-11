@@ -17,10 +17,11 @@ import {
 } from './ui/drawer';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
-import { Share2Icon } from '@radix-ui/react-icons';
+import { MobileIcon, Share2Icon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from './ToastCooldown';
 import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/page';
+import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 
 export const metadata = {
   title: 'Share',
@@ -46,8 +47,19 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
 
+  const [device, setDevice] = useState<'ios' | 'android' | 'mobile' | 'desktop'>('desktop');
+  const [isMobile, setIsMobile] = useState<boolean>(false);
   useEffect(() => {
     fetchAlbum();
+    // Detect device
+    if (navigator.userAgent.match(/(iPad|iPhone|iPod)/g)) {
+      setDevice('ios');
+      setIsMobile(true);
+    } else if (navigator.userAgent.match(/(Android)/g)) {
+      setDevice('android');
+    } else {
+      setDevice('desktop');
+    }
   }, [params]);
 
   const fetchAlbum = async () => {
@@ -135,7 +147,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
     return (
       <div className={`p-4`}>
         <div className="mt-4 flex  flex-row justify-between md:space-x-2 ">
-          <h1 className="text-3xl font-bold ">{albumGrid.album_name}</h1>
+          <h1 className="text-xl font-bold md:text-3xl ">{albumGrid.album_name}</h1>
           <div className="flex w-full items-center justify-end  space-x-2 ">
             {/* <Input
               type="text"
@@ -201,7 +213,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
                   try {
                     await navigator.share({
                       title: 'Check this album',
-                      url: `https://aura.reactiveshots.com/share/${albumGrid.slug}`,
+                      url: `https://aura.reactiveshots.com/share/${albumGrid.slug}/${params.secret}`,
                     });
                     // Handle successful share here
                   } catch (error) {
@@ -210,7 +222,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
                 } else {
                   // Fallback for browsers that do not support the Web Share API
                   navigator.clipboard.writeText(
-                    `https://aura.reactiveshots.com/share/${albumGrid.slug}`,
+                    `https://aura.reactiveshots.com/share/${albumGrid.slug}/${params.secret}`,
                   );
                   // Notify the user that the link has been copied to the clipboard
                   toast('Link copied to clipboard');
@@ -221,6 +233,15 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
             </Button>
           </div>
         </div>
+        {isMobile && (
+          <Alert className="mt-4">
+            <MobileIcon className="h-6 w-6" />
+            <AlertTitle>Download the app</AlertTitle>
+            <AlertDescription>
+              For the best experience, download the PhotoAura app on your device
+            </AlertDescription>
+          </Alert>
+        )}
         <PhotosGrid albums={albumGrid.album_photos} />
       </div>
     );

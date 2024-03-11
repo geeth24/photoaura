@@ -25,7 +25,15 @@ import { Metadata } from 'next';
 // }
 
 function Page({ params }: { params: { user: string; album: string, secret: string } }) {
-  return <SharedPage params={params} />;
+  return (
+    <>
+      <meta
+        name="apple-itunes-app"
+        content={`app-id=6477320360, app-argument=photoaura://?url=aura.reactiveshots.com&shareLink=${params.user}/${params.album}/${params.secret}`}
+      />
+      <SharedPage params={params} />
+    </>
+  );
 }
 
 export default Page;
