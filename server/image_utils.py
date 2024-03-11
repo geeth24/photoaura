@@ -2,7 +2,7 @@ from PIL import Image
 import PIL.ExifTags
 import base64
 import io
-
+from pathlib import Path
 
 def rotate_image_based_on_exif(img):
     try:
@@ -29,7 +29,10 @@ def rotate_image_based_on_exif(img):
     return img
 
 
-def compress_image(file_path, output_path, quality=25):
+def compress_image(file_path, output_path, quality=50):
+    output_dir = Path(output_path).parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     with Image.open(file_path) as img:
         # Rotate image based on EXIF data
         img = rotate_image_based_on_exif(img)

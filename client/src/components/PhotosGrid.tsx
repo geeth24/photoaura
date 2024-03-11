@@ -21,6 +21,7 @@ import axios from 'axios';
 export interface Album {
   album_name: string;
   image: string;
+  compressed_image: string;
   file_metadata: {
     content_type: string;
     size: number;
@@ -104,7 +105,7 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
             const handleDownload = async () => {
               try {
                 const response = await axios.get(
-                  albums[current].image.replace('/compressed', ''),
+                  albums[current].image,
 
                   {
                     responseType: 'blob',
@@ -160,7 +161,7 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
-                src={album.image}
+                src={album.compressed_image}
                 //1080p
                 width={1920}
                 height={1080}
@@ -201,11 +202,11 @@ function PhotosGrid({ albums }: { albums: Album[] }) {
           // <FadeIn key={album.image}>
           <div
             onClick={() => handleImageClick(index)}
-            key={album.image}
+            key={album.compressed_image}
             className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
           >
             <Image
-              src={album.image}
+              src={album.compressed_image}
               width={720}
               height={480}
               sizes="(max-width: 640px) 100vw,

@@ -18,9 +18,13 @@ import logging
 import random
 from db_config import get_db, data_dir
 from image_utils import compress_image, generate_blur_data_url
+from s3 import s3_client
+from uuid import uuid4
+from io import BytesIO
+from botocore.exceptions import ClientError
 
 router = APIRouter()
-
+AWS_BUCKET = os.environ.get("AWS_BUCKET")
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -73,6 +77,18 @@ def add_album_to_user(user_id, album_id):
     cursor.close()
 
 
+# Function to extract EXIF data
+def extract_exif_data(file_content: bytes):
+    image = Image.open(BytesIO(file_content))
+    exif = {
+        PIL.ExifTags.TAGS.get(tag, tag): value
+        for tag, value in image._getexif().items()
+        if tag in PIL.ExifTags.TAGS
+    }
+    return exif
+
+
+# Upload files and handle DB logic
 @router.post("/api/upload-files/")
 async def create_upload_files(
     files: List[UploadFile] = File(...),
@@ -82,101 +98,79 @@ async def create_upload_files(
     update: bool = False,
 ):
     db, cursor = get_db()
-    cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
-    userData = cursor.fetchone()  # This fetches the first row of the results
-    if userData:
-        user_name = userData[1]  # Assuming the second column is the username
-    else:
-        user_name = None  # Handle case where the query returns no results
-
-    if slug is not None:
-        user_name = slug.split("/")[0]
-
-    print("user_name", user_name)
-    print("slug", slug)
-    print("user_id", user_id)
-    # create new folder for album
-    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
-    compressed_dir = os.path.join(album_dir, "compressed")
-
-    os.makedirs(album_dir, exist_ok=True)
-    os.makedirs(compressed_dir, exist_ok=True)  # Ensure this directory exists
-    if manager.active_connections:
-        websocket = manager.active_connections[0]
-    # save files to album folder
-
-    images_count = len(os.listdir(album_dir)) - 1
     uploaded_image_count = len(files)
 
-    # create new album in database
-    # if album already exists, then dont create new album
-    cursor.execute(
-        "SELECT * FROM album WHERE slug=%s",
-        (user_name + "/" + album_name.lower().replace(" ", "-"),),
-    )
-    album = cursor.fetchone()
-    slug = user_name + "/" + album_name.lower().replace(" ", "-")
-    # check if images_count changed for album and update it
-
-    if album:
-        print("album", album)
-
-        if update:
-
-            if album[4] != images_count:
-                cursor.execute(
-                    "UPDATE album SET image_count=%s WHERE name=%s",
-                    (images_count + uploaded_image_count, album_name),
-                )
-
-        else:
-            if album[1].lower() == album_name.lower():
-                raise HTTPException(status_code=400, detail="Album already exists")
+    user_name = None
+    if user_id:
+        cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
+        user = cursor.fetchone()
+        user_name = user[1]
     else:
-        secret = "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(10))
+        user_name = slug.split("/")[0]
+
+    # Check for album existence or create new one
+    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
+    cursor.execute("SELECT id FROM album WHERE slug = %s", (album_slug,))
+    album = cursor.fetchone()
+
+    if not album:
+        # Insert new album into DB if not exists
         cursor.execute(
             "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 album_name,
-                slug,
-                album_dir,
+                album_slug,
+                os.path.join(data_dir, album_slug),
                 datetime.now(),
-                uploaded_image_count,
+                len(files),
                 False,
                 False,
-                secret,
+                str(uuid4()),
             ),
         )
 
+        db.commit()
+
+        # Get the album ID
+        cursor.execute("SELECT id FROM album WHERE slug = %s", (album_slug,))
+        album = cursor.fetchone()
+
     for file in files:
-        contents = await file.read()
-        with open(os.path.join(album_dir, file.filename), "wb") as f:
-            f.write(contents)
-            await manager.send_message(file.filename, websocket)
+        # Read file content
+        content = await file.read()
 
-    # get album id
-    cursor.execute("SELECT * FROM album WHERE slug=%s", (slug,))
-    album = cursor.fetchone()
-    # websocket = manager.active_connections[0]
+        # Save file to disk
+        album_dir = os.path.join(data_dir, album_slug)
+        if not os.path.exists(album_dir):
+            os.makedirs(album_dir)
 
-    # get file metadata
-    for file in files:
-        # Rewind the file pointer to the beginning for reading metadata
-        file.file.seek(0)
-
-        file_metadata = get_file_metadata(
-            album[0], album_dir + "/" + file.filename, file
-        )
+        with open(album_dir + "/" + file.filename, "wb") as f:
+            f.write(content)
 
         compress_image(
-            album_dir + "/" + file.filename, album_dir + "/compressed/" + file.filename
+            album_dir + "/" + file.filename,
+            album_dir + "/compressed/" + file.filename,
+        )
+
+        # Generate unique filename for S3
+        s3_filename = f"{album_slug}/{file.filename}"
+        s3_client.put_object(Bucket=AWS_BUCKET, Key=s3_filename, Body=content)
+
+        # upload cpmpressed image to s3
+        s3_compressed_filename = f"{album_slug}/compressed/{file.filename}"
+        with open(album_dir + "/compressed/" + file.filename, "rb") as f:
+            s3_client.put_object(Bucket=AWS_BUCKET, Key=s3_compressed_filename, Body=f)
+
+        # get file metadata
+        album_dir = os.path.join(data_dir, album_slug)
+        file_metadata = get_file_metadata(
+            album[0], album_dir + "/" + file.filename, file
         )
 
         file_metadata["blur_data_url"] = generate_blur_data_url(
             album_dir + "/compressed/" + file.filename
         )
-
-        # save metadata to database
+        # Save file metadata to DB, including EXIF
         cursor.execute(
             "INSERT INTO file_metadata (album_id, filename, content_type, size, width, height, upload_date, exif_data, blur_data_url) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
@@ -192,12 +186,25 @@ async def create_upload_files(
             ),
         )
 
+        # delete all files from disk
+        os.remove(album_dir + "/" + file.filename)
+        os.remove(album_dir + "/compressed/" + file.filename)
+
+        if update:
+            images_count = len(file_metadata)
+            if album[5] != images_count:
+                cursor.execute(
+                    "UPDATE album SET image_count=%s WHERE name=%s",
+                    (images_count + uploaded_image_count, album_name),
+                )
+
         # compress image and save it
 
-        if manager.active_connections:
-            await manager.send_message(file.filename, websocket)
-
         db.commit()
+
+        message = f"File {file.filename} uploaded successfully!"
+        for connection in manager.active_connections:
+            await manager.send_message(message, connection)
 
     # add album to user
     if user_id:
@@ -246,95 +253,91 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
 
 @router.get("/api/album/{user_name}/{album_name}/")
 async def get_album(user_name: str, album_name: str, secret: str = None):
-    # album_name = slug.replace("-", " ")
-    # user_name = slug.split("/")[0]
-    album_dir = os.path.join(
-        data_dir, user_name + "/" + album_name.lower().replace("-", " ")
-    )
-    print(album_dir)
-    if not os.path.exists(album_dir):
-        raise HTTPException(status_code=404, detail="Album not found")
-
-    images = [
-        image
-        for image in os.listdir(album_dir + "/compressed")
-        if not image.startswith(".")
-    ]
-
-    # get album id
     db, cursor = get_db()
-    cursor.execute("SELECT * FROM album WHERE location=%s", (album_dir,))
+    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
+    cursor.execute("SELECT * FROM album WHERE slug=%s", (album_slug,))
     album = cursor.fetchone()
 
     if album is None:
         raise HTTPException(status_code=404, detail="Album not found")
 
-    print("album", album)
-    intial_album_name = album[1]
-
-    # get file metadata
-    db, cursor = get_db()
+    # Fetch file metadata
     cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
     file_metadata = cursor.fetchall()
 
-    album_photos = create_album_photos_json(
-        album[0], album_dir, intial_album_name, images, file_metadata
-    )
+    if not file_metadata:
+        raise HTTPException(status_code=404, detail="No images found in the album")
 
-    # get album permissions
+    # Generate album photos with presigned URLs
+    album_photos = create_album_photos_json(album_slug, file_metadata)
+
+    # Fetch album permissions
     cursor.execute(
         "SELECT * FROM user_album_permissions WHERE album_id=%s", (album[0],)
     )
     album_permissions = cursor.fetchall()
 
-    album_permissions = [
-        {"user_id": album_permission[1], "album_id": album_permission[2]}
-        for album_permission in album_permissions
-    ]
-
-    # get user data for the album permissions
-    for album_permission in album_permissions:
-        cursor.execute(
-            "SELECT * FROM users WHERE id=%s", (album_permission["user_id"],)
-        )
+    # Construct permissions list
+    permissions_list = []
+    for perm in album_permissions:
+        cursor.execute("SELECT * FROM users WHERE id=%s", (perm[1],))
         user = cursor.fetchone()
-        album_permission["user_name"] = user[1]
-        album_permission["full_name"] = user[3]
-        album_permission["user_email"] = user[4]
+        permissions_list.append(
+            {
+                "user_id": user[0],
+                "user_name": user[1],
+                "full_name": user[3],
+                "user_email": user[4],
+            }
+        )
 
     return {
-        "album_name": intial_album_name,
+        "album_name": album_name,
         "slug": album[2],
         "image_count": album[5],
-        "shared": False if secret and secret != album[8] else album[6],
-        "upload": False if secret and secret != album[8] else album[7],
+        "shared": album[6],
+        "upload": album[7],
         "secret": album[8],
-        "album_permissions": album_permissions,
+        "album_permissions": permissions_list,
         "album_photos": album_photos,
     }
 
 
-def create_album_photos_json(
-    album_id, album_dir, intial_album_name, images, file_metadata
-):
-    album_photos = [
-        {
-            "album_id": album_id,
-            "album_name": intial_album_name,
-            "image": f"{os.getenv('API_CDN_URL')}/static/{album_dir.split('/')[-2]}/{album_dir.split('/')[-1]}/compressed/{meta[2]}",
-            "file_metadata": {
-                "filename": meta[2],
-                "content_type": meta[3],
-                "size": meta[4],
-                "width": meta[5],
-                "height": meta[6],
-                "upload_date": meta[7],
-                "exif_data": meta[8],
-                "blur_data_url": meta[9],
-            },
-        }
-        for _, meta in zip(images, file_metadata)
-    ]
+def create_album_photos_json(album_slug, file_metadata):
+    album_photos = []
+    for meta in file_metadata:
+        object_key_compressed = (
+            f"{album_slug}/compressed/{meta[2]}"  # meta[2] should be the filename
+        )
+        compressed_presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": AWS_BUCKET, "Key": object_key_compressed},
+            ExpiresIn=3600,
+        )
+
+        object_key = f"{album_slug}/{meta[2]}"  # meta[2] should be the filename
+        presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": AWS_BUCKET, "Key": object_key},
+            ExpiresIn=3600,
+        )
+        album_photos.append(
+            {
+                "image": presigned_url,
+                "compressed_image": compressed_presigned_url,
+                "file_metadata": {
+                    "album_id": meta[1],
+                    "filename": meta[2],
+                    "content_type": meta[3],
+                    "size": meta[4],
+                    "width": meta[5],
+                    "height": meta[6],
+                    "upload_date": meta[7],
+                    "exif_data": meta[8],
+                    "blur_data_url": meta[9],
+                },
+            }
+        )
     return album_photos
 
 
@@ -350,26 +353,18 @@ async def get_all_albums(
 
     all_albums = []
     for album in albums:
-        album_dir = album[3]
+        album_slug = album[2]
         album_name = album[1]
-        if not os.path.exists(album_dir):
-            raise HTTPException(status_code=404, detail="Album not found")
-
-        # get first 4 images in album
-        images = [
-            image
-            for image in os.listdir(album_dir + "/compressed")
-            if not image.startswith(".")
-        ][:4]
 
         # get file metadata
         cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
 
         file_metadata = cursor.fetchall()
 
-        album_photos = create_album_photos_json(
-            album[0], album_dir, album_name, images, file_metadata
-        )
+        # limit images to 4
+        file_metadata = file_metadata[:4]
+
+        album_photos = create_album_photos_json(album_slug, file_metadata)
 
         all_albums.append(
             {
@@ -409,25 +404,15 @@ async def get_all_photos(
     all_photos = []
     for album in albums:
         print(album)
-        album_dir = album[3]
+        album_slug = album[2]
         album_name = album[1]
-        if not os.path.exists(album_dir):
-            raise HTTPException(status_code=404, detail="Album not found")
-
-        images = [
-            image
-            for image in os.listdir(album_dir + "/compressed")
-            if not image.startswith(".")
-        ]
 
         # get file metadata
         cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
 
         file_metadata = cursor.fetchall()
 
-        album_photos = create_album_photos_json(
-            album[0], album_dir, album_name, images, file_metadata
-        )
+        album_photos = create_album_photos_json(album_slug, file_metadata)
         all_photos.extend(album_photos)
 
     # return all albums which userid has access to
@@ -438,7 +423,9 @@ async def get_all_photos(
         user_albums = cursor.fetchall()
         user_album_ids = [album[2] for album in user_albums]
         all_photos = [
-            photo for photo in all_photos if photo["album_id"] in user_album_ids
+            photo
+            for photo in all_photos
+            if photo["file_metadata"]["album_id"] in user_album_ids
         ]
 
     return all_photos
@@ -465,12 +452,23 @@ async def delete_album(user_name: str, album_name: str):
     cursor.execute("DELETE FROM album WHERE id=%s", (album_id,))
     db.commit()
 
-    # Delete album directory
-    album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
-    if os.path.exists(album_dir):
-        import shutil
+    # Attempt to delete the album directory from S3
+    try:
+        # List objects to be deleted
+        objects_to_delete = s3_client.list_objects_v2(
+            Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_name}/"
+        )
+        delete_keys = [
+            {"Key": obj["Key"]} for obj in objects_to_delete.get("Contents", [])
+        ]
 
-        shutil.rmtree(album_dir)
+        # Delete the objects
+        if delete_keys:
+            s3_client.delete_objects(Bucket=AWS_BUCKET, Delete={"Objects": delete_keys})
+    except ClientError as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete album from S3: {e}"
+        )
 
     return {"message": "Album deleted successfully."}
 

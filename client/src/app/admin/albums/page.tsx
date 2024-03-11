@@ -234,10 +234,10 @@ function Page() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
                   {album.album_photos.map((photo) => (
-                    <div key={photo.image}>
+                    <div key={photo.compressed_image}>
                       <AspectRatio ratio={1}>
                         <Image
-                          src={photo.image}
+                          src={photo.compressed_image}
                           width={500}
                           height={500}
                           className="h-full w-full rounded-md object-cover"
