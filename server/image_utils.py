@@ -3,6 +3,7 @@ import PIL.ExifTags
 import base64
 import io
 from pathlib import Path
+import os 
 
 def rotate_image_based_on_exif(img):
     try:
@@ -29,22 +30,26 @@ def rotate_image_based_on_exif(img):
     return img
 
 
-def compress_image(file_path, output_path, quality=50):
+def compress_image(file_path, output_path, max_size=50, quality=75):
+    # Ensure the output directory exists
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with Image.open(file_path) as img:
-        # Rotate image based on EXIF data
+        # Rotate image based on EXIF data (assuming the rotate_image_based_on_exif function is defined)
         img = rotate_image_based_on_exif(img)
 
-        # resize image to 1080p
-        img.thumbnail((1920, 1920))
-        
+        # Resize image to 720p if it's larger
+        if img.height > 720 or img.width > 1280:
+            img.thumbnail((1280, 720))
 
-        # Save with reduced quality
-        img.save(output_path, quality=quality, optimize=True)
-
-        # convert to webp
+        # Iteratively reduce quality and save until the file is under the desired size
+        while quality > 10:  # Prevents quality from becoming too low
+            img.save(output_path, quality=quality, optimize=True)
+            # Check the size of the output file
+            if os.path.getsize(output_path) <= max_size * 1024:  # Convert KB to bytes
+                break  # File size is under the desired limit, exit the loop
+            quality -= 5  # Reduce quality for the next iteration
 
 
 def generate_blur_data_url(image_path):
