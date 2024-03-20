@@ -1,3 +1,4 @@
+import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/photos/page';
 import SharedPage from '@/components/SharedPage';
 import { Metadata } from 'next';
 
@@ -24,7 +25,7 @@ export async function generateMetadata({
   const response = await fetch(
     `http://aura.reactiveshots.com/api/album/${params.user}/${params.album}/`,
   );
-  const result = await response.json();
+  const result: AlbumGrid = await response.json();
 
   return {
     title: `${result.album_name} | PhotoAura`,
@@ -32,7 +33,7 @@ export async function generateMetadata({
     openGraph: {
       images: [
         {
-          url: result.album_photos[0].image,
+          url: result.album_photos[0].compressed_image.split('?')[0],
         },
       ],
     },
