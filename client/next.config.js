@@ -4,7 +4,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'aura.reactiveshots.com',
+        hostname: '**.s3.amazonaws.com',
         port: '',
       },
     ],

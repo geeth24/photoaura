@@ -17,10 +17,13 @@ import {
   ExitFullScreenIcon,
 } from '@radix-ui/react-icons';
 import axios from 'axios';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export interface Album {
   album_name: string;
   image: string;
+  compressed_image: string;
   file_metadata: {
     content_type: string;
     size: number;
@@ -40,29 +43,32 @@ interface PhotoModalProps {
   onClose: () => void;
 }
 
-const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onClose }) => {
+export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onClose }) => {
   const [api, setApi] = React.useState<CarouselApi>();
   const [current, setCurrent] = React.useState(0);
   const [loaded, setLoaded] = React.useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  //zoom in and out of the image
+  const router = useRouter();
 
   useEffect(() => {
     if (!api) {
       return;
     }
     api.reInit({
-      // startIndex: selectedImageIndex,
       loop: true,
       align: 'center',
     });
     api.scrollTo(selectedImageIndex, true);
-    setCurrent(selectedImageIndex);
+    // setCurrent(selectedImageIndex);
+    api.on('select', () => {
+      console.log('selected', api.selectedScrollSnap());
+      setCurrent(Number(api.selectedScrollSnap()));
+      console.log('current', current);
+    });
 
-    // if esc key is pressed, close the modal
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        router.back();
       }
     };
 
@@ -71,26 +77,24 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
     if (isFullScreen) {
       document.documentElement.requestFullscreen();
     } else {
-      // if alreday in exited state do nothing
       if (document.fullscreenElement === null) return;
       document.exitFullscreen();
     }
 
-    // disable scrolling on the body when the modal is open
     document.body.style.overflowY = 'hidden';
     return () => {
       document.body.style.overflowY = 'auto';
     };
-  }, [selectedImageIndex, api, isFullScreen, onClose]);
+  }, [selectedImageIndex, api, isFullScreen, onClose, api?.selectedScrollSnap]);
+
   if (albums.length === 0) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-90 transition-all duration-500"
-      //if clicked outside of the modal, close the modal
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          router.back();
         }
       }}
     >
@@ -99,33 +103,26 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
           variant="ghost"
           size="icon"
           className="text-primary-foreground hover:text-secondary-foreground dark:text-secondary-foreground"
-          onClick={async () => {
-            //download the image
-            const handleDownload = async () => {
-              try {
-                const response = await axios.get(
-                  albums[current].image.replace('/compressed', ''),
-
-                  {
-                    responseType: 'blob',
-                  },
-                );
-
-                const blob = await response.data;
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = albums[current].image.split('/').pop() || 'image';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-
-                URL.revokeObjectURL(blobUrl); // Clean up
-              } catch (error) {
-                console.error('Error downloading the file:', error);
+          onClick={() => {
+            if (api && api.selectedScrollSnap) {
+              const url = albums[Number(api.selectedScrollSnap())].image;
+              const filename = url.split('/').pop()?.split('?')[0];
+              console.log(filename);
+              if (filename) {
+                axios({
+                  url,
+                  method: 'GET',
+                  responseType: 'blob', // important
+                }).then((response) => {
+                  const url = window.URL.createObjectURL(new Blob([response.data]));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', filename);
+                  document.body.appendChild(link);
+                  link.click();
+                });
               }
-            };
-            await handleDownload();
+            }
           }}
         >
           <DownloadIcon className="h-6 w-6" />
@@ -135,9 +132,7 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
           variant="ghost"
           size="icon"
           className="text-primary-foreground hover:text-secondary-foreground dark:text-secondary-foreground"
-          onClick={() => {
-            setIsFullScreen(!isFullScreen);
-          }}
+          onClick={() => setIsFullScreen(!isFullScreen)}
         >
           {isFullScreen ? (
             <ExitFullScreenIcon className="h-6 w-6" />
@@ -149,7 +144,9 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
           variant="ghost"
           size="icon"
           className="text-primary-foreground hover:text-secondary-foreground dark:text-secondary-foreground"
-          onClick={onClose}
+          onClick={() => {
+            router.back();
+          }}
         >
           <Cross1Icon className="h-6 w-6" />
         </Button>
@@ -159,36 +156,26 @@ const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onC
         <CarouselContent>
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
-              <img
-                src={album.image}
-                //1080p
+              <Image
+                src={album.compressed_image}
                 width={1920}
                 height={1080}
                 alt="Enlarged photo"
+                priority
                 className="h-full w-full rounded-md object-contain"
-                // placeholder="blur"
-                // blurDataURL={album.file_metadata.blur_data_url}
-                // priority
-                // onLoad={() => setLoaded(true)}
               />
             </CarouselItem>
           ))}
         </CarouselContent>
         <CarouselPrevious />
-
         <CarouselNext />
       </Carousel>
-      {/* <button onClick={onClose}>Close</button> */}
     </div>
   );
 };
 
-function PhotosGrid({ albums }: { albums: Album[] }) {
+function PhotosGrid({ albums, slug, share }: { albums: Album[]; slug?: string; share?: boolean }) {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-
-  const handleImageClick = (index: number) => {
-    setSelectedImageIndex(index);
-  };
 
   const handleCloseModal = () => {
     setSelectedImageIndex(null);
@@ -198,14 +185,13 @@ function PhotosGrid({ albums }: { albums: Album[] }) {
     <>
       <div className="mt-4 columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
         {albums.map((album, index) => (
-          // <FadeIn key={album.image}>
-          <div
-            onClick={() => handleImageClick(index)}
-            key={album.image}
+          <Link
+            href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
+            key={album.compressed_image}
             className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
           >
             <Image
-              src={album.image}
+              src={album.compressed_image}
               width={720}
               height={480}
               style={{ transform: 'translate3d(0, 0, 0)' }}
@@ -218,8 +204,7 @@ function PhotosGrid({ albums }: { albums: Album[] }) {
               placeholder="blur"
               blurDataURL={album.file_metadata.blur_data_url}
             />
-          </div>
-          // </FadeIn>
+          </Link>
         ))}
       </div>
       {selectedImageIndex !== null && (

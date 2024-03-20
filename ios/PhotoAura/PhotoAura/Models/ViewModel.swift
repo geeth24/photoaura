@@ -31,7 +31,7 @@ class ViewModel: NSObject, ObservableObject {
     @Published var loggedIn = false
     @Published var isLoading = true
     
-    @Published var photos: [AlbumModel] = []
+    @Published var photos: [PhotosModel] = []
     @Published var albums: [AlbumsModel] = []
     @Published var album: AlbumsModel = AlbumsModel()
     
@@ -279,7 +279,10 @@ class ViewModel: NSObject, ObservableObject {
     @MainActor
     func getPhotos() async throws {
         isLoading = true
+        
         let userData = getUserDetail()
+        print("https://\(photoAuraURL)/api/photos?user_id=\(userData?.id ?? 0)")
+
         guard let url = URL(string: "https://\(photoAuraURL)/api/photos?user_id=\(userData?.id ?? 0)") else {
             isLoading = false
             return
@@ -298,7 +301,7 @@ class ViewModel: NSObject, ObservableObject {
         
         do {
             // Decode the data to your struct
-            let photosResponse = try JSONDecoder().decode([AlbumModel].self, from: data)
+            let photosResponse = try JSONDecoder().decode([PhotosModel].self, from: data)
             self.photos = photosResponse
         } catch {
             isLoading = false

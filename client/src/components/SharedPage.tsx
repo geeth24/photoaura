@@ -20,7 +20,7 @@ import { Progress } from './ui/progress';
 import { MobileIcon, Share2Icon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from './ToastCooldown';
-import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/page';
+import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/photos/page';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 
 export const metadata = {
@@ -242,7 +242,11 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
             </AlertDescription>
           </Alert>
         )}
-        <PhotosGrid albums={albumGrid.album_photos} />
+        <PhotosGrid
+          albums={albumGrid.album_photos}
+          slug={`${params.user}/${params.album}/${params.secret}`}
+          share={true}
+        />
       </div>
     );
   } else if (!shared && !isLoading) {

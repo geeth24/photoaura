@@ -71,7 +71,7 @@ struct PhotosView: View {
 }
 
 struct PhotoView: View {
-    let photo: AlbumModel
+    let photo: PhotosModel
     @State var savedAlert: Bool = false
     @State var deleteAlert: Bool = false
 
@@ -144,7 +144,7 @@ struct PhotoView: View {
 }
 
 struct PhotoCarouselView: View {
-    var photos: [AlbumModel]
+    var photos: [PhotosModel]
     @Binding var selectedIndex: Int
     
     
