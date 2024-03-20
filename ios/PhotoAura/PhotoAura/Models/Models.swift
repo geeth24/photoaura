@@ -36,7 +36,17 @@ struct UserDetail: Decodable, Encodable {
     }
 }
 
+struct PhotosModel: Decodable, Hashable{
+    let image: String
+    let compressedImage: String
+    let fileMetadata: FileMetadata
 
+    enum CodingKeys: String, CodingKey {
+        case image
+        case compressedImage = "compressed_image"
+        case fileMetadata = "file_metadata"
+    }
+}
 // Define the main album model
 struct AlbumsModel: Decodable, Hashable{
     
@@ -45,7 +55,7 @@ struct AlbumsModel: Decodable, Hashable{
     let slug: String
     let upload: Bool
     let imageCount: Int
-    let albumPhotos: [AlbumModel]
+    let albumPhotos: [PhotosModel]
     
     enum CodingKeys: String, CodingKey {
         case albumId = "album_id"
