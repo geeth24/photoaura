@@ -1,39 +1,14 @@
+'use client';
 import SharedPage from '@/components/SharedPage';
 import { Metadata } from 'next';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { user: string; album: string, secret: string  };
-}): Promise<Metadata> {
-  const response = await fetch(
-    `http://aura.reactiveshots.com/api/album/${params.user}/${params.album}/`,
-  );
-  const result = await response.json();
-
-  return {
-    title: `${result.album_name} | PhotoAura`,
-    description: `View ${result.album_name} on PhotoAura`,
-    openGraph: {
-      images: [
-        {
-          url: result.album_photos[0].image,
-        },
-      ],
-    },
-  };
-}
-
-function Page({ params }: { params: { user: string; album: string, secret: string } }) {
-  return (
-    <>
-      <meta
-        name="apple-itunes-app"
-        content={`app-id=6477320360, app-argument=photoaura://?url=aura.reactiveshots.com&shareLink=${params.user}/${params.album}/${params.secret}`}
-      />
-      <SharedPage params={params} />
-    </>
-  );
+function Page({ params }: { params: { user: string; album: string; secret: string } }) {
+  const router = useRouter();
+  useEffect(() => {
+    router.push(`/share/${params.user}/${params.album}/${params.secret}/photos`);
+  }, []);
 }
 
 export default Page;
