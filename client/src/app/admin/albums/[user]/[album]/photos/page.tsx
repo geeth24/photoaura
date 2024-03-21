@@ -477,7 +477,10 @@ function Page() {
                       </AlertDescription>
                     </Alert>
                     <Button asChild>
-                      <Link href={`/share/${albumGrid.slug}/${albumGrid.secret}/photos`}>
+                      <Link
+                        href={`/share/${albumGrid.slug}/${albumGrid.secret}/photos`}
+                        target="_blank"
+                      >
                         Open Share Page
                       </Link>
                     </Button>
