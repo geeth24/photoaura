@@ -249,8 +249,8 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
           <RocketIcon className="h-6 w-6" />
           <AlertTitle>Preview Mode</AlertTitle>
           <AlertDescription>
-            You're viewing a compressed version of the image for quicker loading. Tap on the image
-            to see it in its full, high-quality glory.
+            You&apos;re viewing a compressed version of the image for quicker loading. Tap on the
+            image to see it in its full, high-quality glory.
           </AlertDescription>
         </Alert>
 
