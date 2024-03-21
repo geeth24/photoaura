@@ -17,7 +17,7 @@ import {
 } from './ui/drawer';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
-import { MobileIcon, Share2Icon } from '@radix-ui/react-icons';
+import { MobileIcon, RocketIcon, Share2Icon } from '@radix-ui/react-icons';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from './ToastCooldown';
 import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/photos/page';
@@ -147,7 +147,9 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
     return (
       <div className={`p-4`}>
         <div className="mt-4 flex  flex-row justify-between md:space-x-2 ">
-          <h1 className="text-xl font-bold md:text-3xl ">{albumGrid.album_name}</h1>
+          <h1 className="w-full text-[calc(2rem-10px)] font-bold md:text-3xl">
+            {albumGrid.album_name}
+          </h1>
           <div className="flex w-full items-center justify-end  space-x-2 ">
             {/* <Input
               type="text"
@@ -236,12 +238,22 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
         {isMobile && (
           <Alert className="mt-4">
             <MobileIcon className="h-6 w-6" />
-            <AlertTitle>Download the app</AlertTitle>
+            <AlertTitle>Enhance Your Experience</AlertTitle>
             <AlertDescription>
-              For the best experience, download the PhotoAura app on your device
+              Elevate your journey with PhotoAura by downloading our app. Enjoy seamless navigation,
+              exclusive features, and a personalized experience right at your fingertips!
             </AlertDescription>
           </Alert>
         )}
+        <Alert className="mt-4">
+          <RocketIcon className="h-6 w-6" />
+          <AlertTitle>Preview Mode</AlertTitle>
+          <AlertDescription>
+            You're viewing a compressed version of the image for quicker loading. Tap on the image
+            to see it in its full, high-quality glory.
+          </AlertDescription>
+        </Alert>
+
         <PhotosGrid
           albums={albumGrid.album_photos}
           slug={`${params.user}/${params.album}/${params.secret}`}

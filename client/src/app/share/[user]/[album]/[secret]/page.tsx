@@ -1,6 +1,4 @@
 'use client';
-import SharedPage from '@/components/SharedPage';
-import { Metadata } from 'next';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 

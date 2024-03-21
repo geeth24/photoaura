@@ -164,6 +164,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
                 alt="Enlarged photo"
                 priority
                 className="h-full w-full rounded-md object-contain"
+                blurDataURL={album.file_metadata.blur_data_url}
               />
             </CarouselItem>
           ))}

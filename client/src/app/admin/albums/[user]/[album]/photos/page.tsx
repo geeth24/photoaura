@@ -58,6 +58,7 @@ import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Progress } from '@/components/ui/progress';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 
 export interface AlbumGrid {
   album_name: string;
@@ -465,7 +466,7 @@ function Page() {
                     <Label>Share Link</Label>
                     <Input
                       type="text"
-                      value={`https://aura.reactiveshots.com/share/${albumGrid.slug}/${albumGrid.secret}`}
+                      value={`${process.env.NEXT_PUBLIC_API_URL?.includes('localhost') ? 'http://localhost:3000' : `${process.env.NEXT_PUBLIC_API_URL?.slice(0, -4)}`}/share/${albumGrid.slug}/${albumGrid.secret}/photos`}
                       readOnly
                     />
                     <Alert>
@@ -475,6 +476,11 @@ function Page() {
                         Anyone with this link can view this album.
                       </AlertDescription>
                     </Alert>
+                    <Button asChild>
+                      <Link href={`/share/${albumGrid.slug}/${albumGrid.secret}/photos`}>
+                        Open Share Page
+                      </Link>
+                    </Button>
                   </div>
                 )}
                 <div className="mt-4 flex flex-col space-y-2">
