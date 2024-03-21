@@ -19,6 +19,7 @@ import {
 import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { FadeIn, FadeInStagger } from './FadeIn';
 
 export interface Album {
   album_name: string;
@@ -183,28 +184,33 @@ function PhotosGrid({ albums, slug, share }: { albums: Album[]; slug?: string; s
 
   return (
     <>
-      <div className="mt-4 columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
+      <div
+        // faster
+        className="mt-4 columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4"
+      >
         {albums.map((album, index) => (
-          <Link
-            href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
-            key={album.compressed_image}
-            className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
-          >
-            <Image
-              src={album.compressed_image}
-              width={720}
-              height={480}
-              style={{ transform: 'translate3d(0, 0, 0)' }}
-              sizes="(max-width: 640px) 100vw,
+          <FadeIn key={album.compressed_image}>
+            <Link
+              href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
+              key={album.compressed_image}
+              className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
+            >
+              <Image
+                src={album.compressed_image}
+                width={720}
+                height={480}
+                style={{ transform: 'translate3d(0, 0, 0)' }}
+                sizes="(max-width: 640px) 100vw,
                   (max-width: 1280px) 50vw,
                   (max-width: 1536px) 33vw,
                   25vw"
-              alt="Photo"
-              className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
-              placeholder="blur"
-              blurDataURL={album.file_metadata.blur_data_url}
-            />
-          </Link>
+                alt="Photo"
+                className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
+                placeholder="blur"
+                blurDataURL={album.file_metadata.blur_data_url}
+              />
+            </Link>
+          </FadeIn>
         ))}
       </div>
       {selectedImageIndex !== null && (

@@ -28,6 +28,7 @@ import { ModeToggle } from './ui/mode-toggle';
 import { LoadingSpinner } from './ui/loading-spinner';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from './ToastCooldown';
+import { FadeIn, FadeInStagger } from './FadeIn';
 export type User = {
   id: number;
   user_name: string;
@@ -70,7 +71,6 @@ function UsersTable() {
         showToastWithCooldown('Error loading users', false);
       });
   };
-
 
   const createNewUser = () => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/create-user`, {
@@ -194,37 +194,39 @@ function UsersTable() {
             <Button variant="destructive">Delete</Button>
           </div>
         </SheetContent>
-        <Table className="mt-4">
-          <TableCaption>A list of users</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[100px]">ID</TableHead>
-              <TableHead>User Name</TableHead>
-              <TableHead>Full Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Albums</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.id}</TableCell>
-                <TableCell>{user.user_name}</TableCell>
-                <TableCell>{user.full_name}</TableCell>
-                <TableCell>{user.user_email}</TableCell>
-                <TableCell>{user?.albums.length}</TableCell>
-                <TableCell>
-                  <SheetTrigger asChild>
-                    <Button size="icon" onClick={() => setSelectedUser(user)}>
-                      <Pencil1Icon className="h-[1.2rem] w-[1.2rem]" />
-                    </Button>
-                  </SheetTrigger>
-                </TableCell>
+        <FadeIn>
+          <Table className="mt-4">
+            <TableCaption>A list of users</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">ID</TableHead>
+                <TableHead>User Name</TableHead>
+                <TableHead>Full Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Albums</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>{user.id}</TableCell>
+                  <TableCell>{user.user_name}</TableCell>
+                  <TableCell>{user.full_name}</TableCell>
+                  <TableCell>{user.user_email}</TableCell>
+                  <TableCell>{user?.albums.length}</TableCell>
+                  <TableCell>
+                    <SheetTrigger asChild>
+                      <Button size="icon" onClick={() => setSelectedUser(user)}>
+                        <Pencil1Icon className="h-[1.2rem] w-[1.2rem]" />
+                      </Button>
+                    </SheetTrigger>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </FadeIn>
       </Sheet>
     </div>
   );

@@ -23,6 +23,7 @@ import { ModeToggle } from '@/components/ui/mode-toggle';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
+import { FadeIn, FadeInStagger } from '@/components/FadeIn';
 
 interface AlbumGrid {
   album_name: string;
@@ -214,52 +215,54 @@ function Page() {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-      <div className="mt-4 grid w-full grid-cols-1  gap-4 p-4  md:grid-cols-2 lg:grid-cols-3">
+      <FadeInStagger className="mt-4 grid w-full grid-cols-1  gap-4 p-4  md:grid-cols-2 lg:grid-cols-3">
         {albums.map((album) => (
-          <Link
-            href={`/admin/albums/${album.slug}`}
-            key={album.album_name}
-            className="h-full w-full"
-          >
-            <Card className="h-full w-full p-4">
-              <CardHeader>
-                <CardTitle>{album.album_name}</CardTitle>
-                <CardDescription>{album.image_count} images</CardDescription>
-                {album.shared ? (
-                  <CardDescription className="text-primary">Shared</CardDescription>
-                ) : (
-                  <CardDescription className="text-primary">Private</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2">
-                  {album.album_photos.map((photo) => (
-                    <div key={photo.compressed_image}>
-                      <AspectRatio ratio={1}>
-                        <Image
-                          src={photo.compressed_image}
-                          width={500}
-                          height={500}
-                          className="h-full w-full rounded-md object-cover"
-                          alt={'image'}
-                          placeholder="blur"
-                          blurDataURL={photo.file_metadata.blur_data_url}
-                          priority
-                        />
-                      </AspectRatio>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-              {/* <CardFooter>
+          <FadeIn key={album.album_name}>
+            <Link
+              href={`/admin/albums/${album.slug}`}
+              key={album.album_name}
+              className="h-full w-full"
+            >
+              <Card className="h-full w-full p-4">
+                <CardHeader>
+                  <CardTitle>{album.album_name}</CardTitle>
+                  <CardDescription>{album.image_count} images</CardDescription>
+                  {album.shared ? (
+                    <CardDescription className="text-primary">Shared</CardDescription>
+                  ) : (
+                    <CardDescription className="text-primary">Private</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2">
+                    {album.album_photos.map((photo) => (
+                      <div key={photo.compressed_image}>
+                        <AspectRatio ratio={1}>
+                          <Image
+                            src={photo.compressed_image}
+                            width={500}
+                            height={500}
+                            className="h-full w-full rounded-md object-cover"
+                            alt={'image'}
+                            placeholder="blur"
+                            blurDataURL={photo.file_metadata.blur_data_url}
+                            priority
+                          />
+                        </AspectRatio>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+                {/* <CardFooter>
               <Button className="mt-4 w-full" onClick={() => deleteAlbum(album.album_name)}>
                 Delete
               </Button>
             </CardFooter> */}
-            </Card>
-          </Link>
+              </Card>
+            </Link>
+          </FadeIn>
         ))}
-      </div>
+      </FadeInStagger>
     </div>
   );
 }
