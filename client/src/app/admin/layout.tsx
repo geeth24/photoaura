@@ -13,13 +13,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div>
       <div className="flex">
         <div
-          className={`${sidebarOpened ? 'w-14' : 'w-1/2 md:w-1/4 lg:w-1/5'} fixed h-screen flex-col justify-between bg-primary-foreground transition-all duration-500`}
+          className={`${sidebarOpened ? 'w-14' : 'w-1/2 md:w-1/4 lg:w-1/5'} fixed h-screen flex-col justify-between bg-secondary transition-all duration-500`}
           style={{ zIndex: 10 }}
         >
           <div className="flex h-screen flex-col justify-between">
             <div>
               <div
-                className={`flex h-fit w-full items-start justify-between bg-secondary p-2 ${sidebarOpened ? '' : 'pl-4'} transition-all duration-500`}
+                className={`flex h-fit w-full items-start justify-between bg- p-2 ${sidebarOpened ? '' : 'pl-4'} transition-all duration-500`}
               >
                 <div className="flex items-center justify-center">
                   <Image

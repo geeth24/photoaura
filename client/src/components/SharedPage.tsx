@@ -256,6 +256,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
 
         <PhotosGrid
           albums={albumGrid.album_photos}
+          albumName={albumGrid.album_name}
           slug={`${params.user}/${params.album}/${params.secret}`}
           share={true}
         />
