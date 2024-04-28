@@ -4,7 +4,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'cdn.reactiveshots.com',
+        hostname: '**.reactiveshots.com',
         port: '',
       },
     ],
