@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import SidebarNavButton from '@/components/SidebarNavButton';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -9,6 +9,25 @@ import { useAuth } from '@/context/AuthContext';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathName = usePathname();
   const { sidebarOpened, setSidebarOpened, logout, user } = useAuth();
+
+  //if command s is pressed, toggle sidebar
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 's' && e.metaKey) {
+        //if open, close, if closed, open
+        if (sidebarOpened) {
+          setSidebarOpened(false);
+        } else {
+          setSidebarOpened(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [sidebarOpened, setSidebarOpened]);
+
   return (
     <div>
       <div className="flex">
@@ -19,7 +38,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex h-screen flex-col justify-between">
             <div>
               <div
-                className={`flex h-fit w-full items-start justify-between bg- p-2 ${sidebarOpened ? '' : 'pl-4'} transition-all duration-500`}
+                className={`bg- flex h-fit w-full items-start justify-between p-2 ${sidebarOpened ? '' : 'pl-4'} transition-all duration-500`}
               >
                 <div className="flex items-center justify-center">
                   <Image
