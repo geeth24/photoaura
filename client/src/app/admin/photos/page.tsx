@@ -34,7 +34,7 @@ function Page() {
           <LoadingSpinner size={48} />
         </div>
       )}
-      <PhotosGrid albums={photos} />
+      {!isLoading && <PhotosGrid albums={photos} />}
     </div>
   );
 }

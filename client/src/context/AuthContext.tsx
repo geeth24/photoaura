@@ -111,14 +111,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkTokenExpiration = () => {
+    const checkTokenExpiration = async () => {
       const token = getCookie('token');
       if (token) {
         const decodedToken = JSON.parse(atob(token.split('.')[1])) as CustomJwt;
         const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
         const currentTime = new Date().getTime();
         if (expirationTime < currentTime) {
-          // console.log('Token expired');
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           deleteCookie('token');
@@ -126,26 +125,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           toast.error('Session expired. Please log in again.');
           router.push('/login');
         } else {
-          // console.log('Token still valid not loggin out');
           const storedUser = getCookie('user');
+          //verify if the user is stored in the cookie
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
+            const token = getCookie('token');
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/verify-token`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }).then((response) => {
+              if (response.status === 401) {
+                toast.error('Session expired. Please log in again.');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                deleteCookie('token');
+                deleteCookie('user');
+                router.push('/login');
+              } else {
+                setUser(parsedUser);
+              }
+            });
           }
         }
       }
       setIsLoading(false);
     };
 
-    // Check token expiration on initial load
     checkTokenExpiration();
+    //every 5 seconds check if the token has expired
+    const intervalId = setInterval(() => {
+      checkTokenExpiration();
+    }, 10000);
 
-    // Set an interval to check token expiration periodically, e.g., every 5 min
-    const intervalId = setInterval(checkTokenExpiration, 300000); // 5 min
-
-    // Clear the interval when the component unmounts
     return () => clearInterval(intervalId);
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     //set sidebar state

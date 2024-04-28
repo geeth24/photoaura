@@ -544,11 +544,13 @@ function Page() {
           </SheetContent>
         </Sheet>
       )}
-      <PhotosGrid
-        albums={albumGrid.album_photos}
-        albumName={albumGrid.album_name}
-        slug={`${userSlug}/${albumSlug}`}
-      />
+      {!isLoading && (
+        <PhotosGrid
+          albums={albumGrid.album_photos}
+          albumName={albumGrid.album_name}
+          slug={`${userSlug}/${albumSlug}`}
+        />
+      )}
     </div>
   );
 }
