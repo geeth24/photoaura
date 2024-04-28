@@ -25,6 +25,7 @@ from botocore.exceptions import ClientError
 
 router = APIRouter()
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
+AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -316,25 +317,12 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
 def create_album_photos_json(album_slug, file_metadata):
     album_photos = []
     for meta in file_metadata:
-        object_key_compressed = (
-            f"{album_slug}/compressed/{meta[2]}"  # meta[2] should be the filename
-        )
-        compressed_presigned_url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": AWS_BUCKET, "Key": object_key_compressed},
-            ExpiresIn=3600,
-        )
-
-        object_key = f"{album_slug}/{meta[2]}"  # meta[2] should be the filename
-        presigned_url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": AWS_BUCKET, "Key": object_key},
-            ExpiresIn=3600,
-        )
+        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/compressed/{meta[2]}"  # meta[2] should be the filename
+        image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/{meta[2]}"  # meta[2] should be the filename
         album_photos.append(
             {
-                "image": presigned_url,
-                "compressed_image": compressed_presigned_url,
+                "image": image_url,
+                "compressed_image": compressed_image_url,
                 "file_metadata": {
                     "album_id": meta[1],
                     "filename": meta[2],
