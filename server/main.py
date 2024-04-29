@@ -34,6 +34,12 @@ create_table()
 os.makedirs(data_dir, exist_ok=True)
 
 
-@app.get("/api")
+@app.get("/")
 async def root():
+    return {"message": "PhotoAura API Root"}
+
+
+
+@app.get("/api")
+async def api_root():
     return {"message": "PhotoAura API"}
