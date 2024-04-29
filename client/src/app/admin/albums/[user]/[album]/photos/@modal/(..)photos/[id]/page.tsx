@@ -22,7 +22,7 @@ export default function PhotoModalPage({ params: { id } }: { params: { id: strin
   React.useEffect(() => {
     const fetchAlbum = async () => {
       setIsLoading(true);
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/album/${urlParams.user}/${urlParams.album}`)
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/album/${urlParams.user}/${urlParams.album}/`)
         .then((response) => response.json())
         .then((data) => {
           setAlbumGrid(data);
