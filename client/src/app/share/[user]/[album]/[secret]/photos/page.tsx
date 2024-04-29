@@ -15,7 +15,7 @@ export async function generateMetadata({
       openGraph: {
         images: [
           {
-            url: 'https://aura.reactiveshots.com/images/Logo-Banner.png',
+            url: 'https://aura-api.reactiveshots.com/images/Logo-Banner.png',
           },
         ],
       },
@@ -45,7 +45,7 @@ function Page({ params }: { params: { user: string; album: string; secret: strin
     <>
       <meta
         name="apple-itunes-app"
-        content={`app-id=6477320360, app-argument=photoaura://?url=aura.reactiveshots.com&shareLink=${params.user}/${params.album}/${params.secret}`}
+        content={`app-id=6477320360, app-argument=photoaura://?url=aura-api.reactiveshots.com&shareLink=${params.user}/${params.album}/${params.secret}`}
       />
       <SharedPage params={params} />
     </>
