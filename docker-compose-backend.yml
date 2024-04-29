@@ -24,7 +24,7 @@ services:
       - postgres
     networks:
       - app-network
-    command: uvicorn main:app --host 0.0.0.0 --reload --port 8000
+    command: uvicorn main:app --host 0.0.0.0 --reload --port 443
     env_file:
       - .env.production
 
