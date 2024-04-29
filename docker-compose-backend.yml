@@ -31,9 +31,9 @@ services:
   nginx:
     image: nginx:alpine
     volumes:
-      - ./nginx:/etc/nginx/conf.d
-      - /etc/letsencrypt:/etc/letsencrypt
-      - ./data/letsencrypt:/data/letsencrypt
+      - ./nginx:/etc/nginx/conf.d:ro  # Make sure this is the directory where nginx.conf is located
+      - /etc/letsencrypt:/etc/nginx/ssl:ro  # SSL certificates
+      - ./data/letsencrypt:/data/letsencrypt  # Webroot path for ACME challenge
     ports:
       - "80:80"
       - "443:443"
