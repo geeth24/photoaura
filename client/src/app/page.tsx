@@ -10,7 +10,7 @@ export default function Home() {
   }, [router]);
   return (
     <div>
-      <h1>PhotoAura</h1>
+      <h1 className="text-center text-4xl font-bold text-primary">PhotoAura</h1>
     </div>
   );
 }
