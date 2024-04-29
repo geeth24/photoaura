@@ -466,7 +466,7 @@ function Page() {
                     <Label>Share Link</Label>
                     <Input
                       type="text"
-                      value={`${process.env.NEXT_PUBLIC_API_URL?.includes('localhost') ? 'http://localhost:3000' : `${process.env.NEXT_PUBLIC_API_URL?.slice(0, -4)}`}/share/${albumGrid.slug}/${albumGrid.secret}/photos`}
+                      value={`${process.env.NEXT_PUBLIC_API_URL?.includes('localhost') ? 'http://localhost:3000' : `${process.env.NEXT_PUBLIC_CLIENT_URL}`}/share/${albumGrid.slug}/${albumGrid.secret}/photos`}
                       readOnly
                     />
                     <Alert>

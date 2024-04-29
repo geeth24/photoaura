@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env.production
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    volumes:
+      - ./server:/app
+      - aura-data:/var/aura/data
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    ports:
+      - "8000:8000" 
+
+    command: uvicorn main:app --host 0.0.0.0 --reload --port 8000
+    env_file:
+      - .env.production
+
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  aura-data:
+    driver: local
+  postgres-data:
+    driver: local
