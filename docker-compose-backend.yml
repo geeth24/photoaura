@@ -28,28 +28,6 @@ services:
     env_file:
       - .env.production
 
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./nginx:/etc/nginx/conf.d:ro  # Make sure this is the directory where nginx.conf is located
-      - /etc/letsencrypt:/etc/nginx/ssl:ro  # SSL certificates
-      - ./data/letsencrypt:/data/letsencrypt  # Webroot path for ACME challenge
-    ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      - backend
-    networks:
-      - app-network
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
-      - ./data/letsencrypt:/data/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-    depends_on:
-      - nginx
 
 networks:
   app-network:
