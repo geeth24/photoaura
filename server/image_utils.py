@@ -42,14 +42,8 @@ def compress_image(file_path, output_path, max_size=50, quality=75):
         # Resize image to 720p if it's larger
         if img.height > 720 or img.width > 1280:
             img.thumbnail((1280, 720))
-
-        # Iteratively reduce quality and save until the file is under the desired size
-        while quality > 10:  # Prevents quality from becoming too low
-            img.save(output_path, quality=quality, optimize=True)
-            # Check the size of the output file
-            if os.path.getsize(output_path) <= max_size * 1024:  # Convert KB to bytes
-                break  # File size is under the desired limit, exit the loop
-            quality -= 5  # Reduce quality for the next iteration
+            
+        img.save(output_path, quality=quality, optimize=True)
 
 
 def generate_blur_data_url(image_path):
