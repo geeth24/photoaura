@@ -23,7 +23,7 @@ export async function generateMetadata({
   }
 
   const response = await fetch(
-    `http://aura.reactiveshots.com/api/album/${params.user}/${params.album}/`,
+    `http://aura-api.reactiveshots.com/api/album/${params.user}/${params.album}/`,
   );
   const result: AlbumGrid = await response.json();
 
