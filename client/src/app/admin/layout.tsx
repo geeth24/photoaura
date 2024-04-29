@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import SidebarNavButton from '@/components/SidebarNavButton';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -10,23 +10,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathName = usePathname();
   const { sidebarOpened, setSidebarOpened, logout, user } = useAuth();
 
-  //if command s is pressed, toggle sidebar
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 's' && e.metaKey) {
-        //if open, close, if closed, open
-        if (sidebarOpened) {
-          setSidebarOpened(false);
-        } else {
-          setSidebarOpened(true);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyPress);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, [sidebarOpened, setSidebarOpened]);
+  // //if command s is pressed, toggle sidebar
+  // useEffect(() => {
+  //   const handleKeyPress = (e: KeyboardEvent) => {
+  //     if (e.key === 's' && e.metaKey) {
+  //       //if open, close, if closed, open
+  //       if (sidebarOpened) {
+  //         setSidebarOpened(false);
+  //       } else {
+  //         setSidebarOpened(true);
+  //       }
+  //     }
+  //   };
+  //   window.addEventListener('keydown', handleKeyPress);
+  //   return () => {
+  //     window.removeEventListener('keydown', handleKeyPress);
+  //   };
+  // }, [sidebarOpened, setSidebarOpened]);
 
   return (
     <div>
