@@ -33,7 +33,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       target: frontend
     volumes:
       - ./client:/app/client
