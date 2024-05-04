@@ -20,6 +20,12 @@ import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FadeIn, FadeInStagger } from './FadeIn';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 export interface Album {
   album_name: string;
@@ -228,26 +234,45 @@ function PhotosGrid({
         </div>
         {albums.map((album, index) => (
           <FadeIn key={album.compressed_image}>
-            <Link
-              href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
-              key={album.compressed_image}
-              className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
-            >
-              <Image
-                src={album.compressed_image}
-                width={720}
-                height={480}
-                style={{ transform: 'translate3d(0, 0, 0)' }}
-                sizes="(max-width: 640px) 100vw,
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <Link
+                  href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
+                  key={album.compressed_image}
+                  className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
+                >
+                  <Image
+                    src={album.compressed_image}
+                    width={720}
+                    height={480}
+                    style={{ transform: 'translate3d(0, 0, 0)' }}
+                    sizes="(max-width: 640px) 100vw,
                   (max-width: 1280px) 50vw,
                   (max-width: 1536px) 33vw,
                   25vw"
-                alt="Photo"
-                className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
-                placeholder="blur"
-                blurDataURL={album.file_metadata.blur_data_url}
-              />
-            </Link>
+                    alt="Photo"
+                    className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
+                    placeholder="blur"
+                    blurDataURL={album.file_metadata.blur_data_url}
+                  />
+                </Link>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem
+                  onClick={() => {
+                    //copy link
+                    navigator.clipboard.writeText(album.image);
+                  }}
+                >
+                  Copy Link
+                </ContextMenuItem>
+                <ContextMenuItem asChild>
+                  <Link href={album.image} target="_blank">
+                    Open in new tab
+                  </Link>
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           </FadeIn>
         ))}
       </div>
