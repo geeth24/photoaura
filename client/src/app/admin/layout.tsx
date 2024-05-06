@@ -29,7 +29,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // }, [sidebarOpened, setSidebarOpened]);
 
   return (
-    <div>
+    <div className='relative h-full'>
+      <div className="absolute h-full w-full bg-gradient-to-t from-transparent via-primary/30 to-transparent" />
       <div className="flex">
         <div
           className={`${sidebarOpened ? '' : 'w-[45%] md:w-[23.5%] lg:w-1/5'} fixed h-screen min-w-14 flex-col justify-between bg-secondary transition-all duration-500`}

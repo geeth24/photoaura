@@ -7,18 +7,11 @@ import React from 'react';
 function Page() {
   return (
     <div className="h-screen overflow-hidden md:grid md:grid-cols-2">
-      <div className="absolute right-0 top-0 m-4">
+      <div className="absolute right-0 top-0 m-4 z-20">
         <ModeToggle />
       </div>
       <FadeIn className="pointer-events-none relative -z-20 h-1/2 w-full md:h-full">
-        {/* <Image
-          src="/images/login.png"
-          alt="Login"
-          width={1440}
-          height={1024}
-          className="h-full w-full object-cover blur-2xl"
-        /> */}
-        <div className="absolute bg-gradient-to-r from-transparent via-primary/10 to-transparent h-full w-full" />
+        <div className="absolute bg-gradient-to-t from-transparent via-primary to-transparent h-full w-full" />
         <Image
           src="/images/logo.png"
           alt="Login"

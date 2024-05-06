@@ -27,6 +27,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from 'next-themes';
 
 export interface Album {
   album_name: string;
@@ -212,6 +213,8 @@ function PhotosGrid({
     router.push(`/admin/albums/${slug}`);
   };
 
+  const { theme } = useTheme();
+
   return (
     <>
       <div
@@ -222,14 +225,14 @@ function PhotosGrid({
           <div className="absolute inset-0 flex items-center justify-center opacity-20">
             <span className="flex max-h-full max-w-full items-center justify-center">
               <Image
-                src="/images/logo.png"
+                src={`${theme === 'dark' ? '/images/logo.png' : '/images/logo-blue.png'}`}
                 width={200}
                 height={200}
                 alt="Photos"
                 className="h-full w-full"
               />
             </span>
-            <span className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-b from-primary/0 via-primary to-primary"></span>
+            <span className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-b from-primary/10 via-primary to-primary"></span>
           </div>
           <h1 className="mb-4 mt-8 text-base font-bold uppercase tracking-widest">
             {slug == undefined ? 'Photos' : `${albumName}`}
