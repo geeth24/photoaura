@@ -295,15 +295,17 @@ function PhotosGrid({
                     Open in new tab
                   </Link>
                 </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => {
-                    //delete photo
-                    deletePhoto(album.image.split('/').pop() || '');
-                  }}
-                  className="text-destructive"
-                >
-                  Delete
-                </ContextMenuItem>
+                {!share && (
+                  <ContextMenuItem
+                    onClick={() => {
+                      //delete photo
+                      deletePhoto(album.image.split('/').pop() || '');
+                    }}
+                    className="text-destructive"
+                  >
+                    Delete
+                  </ContextMenuItem>
+                )}
               </ContextMenuContent>
             </ContextMenu>
           </FadeIn>
