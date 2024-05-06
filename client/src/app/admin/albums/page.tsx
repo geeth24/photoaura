@@ -144,11 +144,11 @@ function Page() {
     <div
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}
     >
-      {isLoading && (
+      {/* {isLoading && (
         <div className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transform`}>
           <LoadingSpinner size={48} />
         </div>
-      )}
+      )} */}
       <Drawer>
         <div className="mt-4 flex w-full items-center justify-between">
           <h1 className="text-2xl font-bold">Albums</h1>
