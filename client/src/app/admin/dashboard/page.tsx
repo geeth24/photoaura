@@ -43,11 +43,11 @@ function Page() {
 
   return (
     <div className={`relative flex flex-col ${sidebarOpened ? 'pl-4' : ''} pr-4`}>
-      {isLoading && (
+      {/* {isLoading && (
         <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform`}>
           <LoadingSpinner size={48} />
         </div>
-      )}
+      )} */}
 
       <div className="mt-4 flex w-full items-center justify-between">
         <h1 className="text-2xl font-bold">Dashboard</h1>
