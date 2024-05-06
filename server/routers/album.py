@@ -99,7 +99,7 @@ async def create_upload_files(
     update: bool = False,
 ):
     db, cursor = get_db()
-    uploaded_image_count = len(files)
+    print("Uploading files")
 
     user_name = None
     if user_id:
@@ -114,6 +114,7 @@ async def create_upload_files(
     cursor.execute("SELECT * FROM album WHERE slug = %s", (album_slug,))
     album = cursor.fetchone()  # or cursor.fetchall() if expecting multiple rows
 
+    print("Upload complete")
     if not album:
         # Insert new album into DB if not exists
         cursor.execute(
@@ -219,6 +220,7 @@ async def create_upload_files(
         db.commit()
 
         message = f"File {file.filename} uploaded successfully!"
+        print(message)
         for connection in manager.active_connections:
             await manager.send_message(message, connection)
 
