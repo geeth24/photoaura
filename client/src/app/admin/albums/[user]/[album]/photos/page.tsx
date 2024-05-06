@@ -255,7 +255,7 @@ function Page() {
       )} */}
       {parseInt(user?.id ?? '') === 1 && (
         <Sheet>
-          <div className="mt-4 flex w-full justify-between">
+          <div className="z-20 mt-4 flex w-full justify-between">
             <h1 className="text-3xl font-bold">{albumGrid.album_name}</h1>
 
             <div className="flex space-x-2">

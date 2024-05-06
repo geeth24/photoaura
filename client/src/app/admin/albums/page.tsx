@@ -150,7 +150,7 @@ function Page() {
         </div>
       )} */}
       <Drawer>
-        <div className="mt-4 flex w-full items-center justify-between">
+        <div className="z-20 mt-4 flex w-full items-center justify-between">
           <h1 className="text-2xl font-bold">Albums</h1>
 
           <div className="flex space-x-2">
@@ -215,7 +215,7 @@ function Page() {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-      <div className="mt-4 z-10 grid w-full grid-cols-1  gap-4 p-4  md:grid-cols-2 lg:grid-cols-3">
+      <div className="z-10 mt-4 grid w-full grid-cols-1  gap-4 p-4  md:grid-cols-2 lg:grid-cols-3">
         {albums.map((album) => (
           <FadeIn key={album.album_name}>
             <Link
