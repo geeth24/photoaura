@@ -622,7 +622,6 @@ async def delete_photo(slug: str, photo_name: str):
     if os.path.exists(os.path.join(album_compressed_dir, photo_name)):
         os.remove(os.path.join(album_compressed_dir, photo_name))
 
-
     # update album image count
     cursor.execute(
         "UPDATE album SET image_count=%s WHERE slug=%s",
@@ -632,3 +631,23 @@ async def delete_photo(slug: str, photo_name: str):
     db.commit()
 
     return {"message": "Photo deleted successfully."}
+
+
+@router.get("/api/dashboard/")
+async def get_dashboard():
+    db, cursor = get_db()
+    cursor.execute("SELECT * FROM album")
+    albums = cursor.fetchall()
+
+    cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
+
+    # return number of photos
+    cursor.execute("SELECT * FROM file_metadata")
+    photos = cursor.fetchall()
+
+    return {
+        "albums": len(albums),
+        "users": len(users),
+        "photos": len(photos),
+    }

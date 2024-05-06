@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       // Redirect the user to the home page after successful login
-      router.push('/admin/photos');
+      router.push('/admin/dashboard');
     } catch (error) {
       console.error('Login error:', error);
       // Use a more generic error message if the error is not from the response
