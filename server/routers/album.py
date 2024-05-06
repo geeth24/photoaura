@@ -111,8 +111,8 @@ async def create_upload_files(
 
     # Check for album existence or create new one
     album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
-    cursor.execute("SELECT id FROM album WHERE slug = %s", (album_slug,))
-    album = cursor.fetchone()
+    cursor.execute("SELECT * FROM album WHERE slug = %s", (album_slug,))
+    album = cursor.fetchone()  # or cursor.fetchall() if expecting multiple rows
 
     if not album:
         # Insert new album into DB if not exists
@@ -135,6 +135,10 @@ async def create_upload_files(
         # Get the album ID
         cursor.execute("SELECT id FROM album WHERE slug = %s", (album_slug,))
         album = cursor.fetchone()
+    else:
+        # Update the image count if the album already exists
+        print("album exists")
+        print(album)
 
     for file in files:
         # Read file content
@@ -202,7 +206,7 @@ async def create_upload_files(
         os.remove(album_dir + "/compressed/" + file.filename)
 
         if update:
-            images_count = len(file_metadata)
+            images_count = len(files) + album[5]
             if album[5] != images_count:
                 cursor.execute(
                     "UPDATE album SET image_count=%s WHERE name=%s",
