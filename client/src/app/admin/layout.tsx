@@ -42,13 +42,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <div className="flex items-center justify-center">
                   <Image
-                    src="/images/logo-color.png"
+                    src="/images/logo.png"
                     alt="PhotoAura Logo"
-                    width={150}
-                    height={150}
-                    className={`${sidebarOpened ? 'ml-[0.13rem]' : ''} h-9 w-9 cursor-pointer`}
+                    width={500}
+                    height={500}
+                    className={`${sidebarOpened ? 'ml-[0.13rem]' : ''} h-10 w-10 cursor-pointer rounded-full  bg-primary p-1`}
                     onClick={() => setSidebarOpened(!sidebarOpened)}
                   />
+
                   <h1
                     className={`${sidebarOpened ? 'hidden' : 'flex'} ml-2 text-xl font-bold transition-all duration-500`}
                   >

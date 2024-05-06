@@ -11,13 +11,14 @@ function Page() {
         <ModeToggle />
       </div>
       <FadeIn className="pointer-events-none relative -z-20 h-1/2 w-full md:h-full">
-        <Image
+        {/* <Image
           src="/images/login.png"
           alt="Login"
           width={1440}
           height={1024}
           className="h-full w-full object-cover blur-2xl"
-        />
+        /> */}
+        <div className="absolute bg-gradient-to-r from-transparent via-primary/10 to-transparent h-full w-full" />
         <Image
           src="/images/logo.png"
           alt="Login"
