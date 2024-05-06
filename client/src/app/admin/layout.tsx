@@ -32,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div>
       <div className="flex">
         <div
-          className={`${sidebarOpened ? 'w-14' : 'w-[45%] md:w-[23.5%] lg:w-1/5'} fixed h-screen flex-col justify-between bg-secondary transition-all duration-500`}
+          className={`${sidebarOpened ? '' : 'w-[45%] md:w-[23.5%] lg:w-1/5'} fixed h-screen min-w-14 flex-col justify-between bg-secondary transition-all duration-500`}
           style={{ zIndex: 10 }}
         >
           <div className="flex h-screen flex-col justify-between">
