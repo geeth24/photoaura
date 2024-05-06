@@ -22,12 +22,12 @@ function SidebarNavButton({ icon, label, href, active, open, onClick }: SidebarN
         viewBox="0 0 24 24"
         strokeWidth="1.5"
         stroke="currentColor"
-        className={`h-6 w-6 ${active ? 'text-secondary-foreground' : 'text-primary'}`}
+        className={`h-6 w-6 ${active ? 'text-secondary' : 'text-primary'}`}
       >
         {icon}
       </svg>
       <h1
-        className={`${open ? 'hidden' : 'flex'} ${active ? 'text-secondary-foreground' : 'text-primary'} ml-[0.90rem] text-base font-semibold `}
+        className={`${open ? 'hidden' : 'flex'} ${active ? 'text-secondary' : 'text-primary'} ml-[0.90rem] text-base font-semibold `}
       >
         {label}
       </h1>
