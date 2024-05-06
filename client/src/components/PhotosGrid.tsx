@@ -26,6 +26,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { useAuth } from '@/context/AuthContext';
 
 export interface Album {
   album_name: string;
@@ -198,6 +199,18 @@ function PhotosGrid({
   const handleCloseModal = () => {
     setSelectedImageIndex(null);
   };
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const deletePhoto = async (photo_name: string) => {
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/photo/delete/?slug=${slug}&photo_name=${photo_name}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    router.push(`/admin/albums/${slug}`);
+  };
 
   return (
     <>
@@ -255,16 +268,41 @@ function PhotosGrid({
               <ContextMenuContent>
                 <ContextMenuItem
                   onClick={() => {
+                    //copy link file name
+                    navigator.clipboard.writeText(album.image.split('/').pop() || '');
+                  }}
+                >
+                  Copy File Name
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    //copy link
+                    navigator.clipboard.writeText(album.compressed_image);
+                  }}
+                >
+                  Copy Compressed Link
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
                     //copy link
                     navigator.clipboard.writeText(album.image);
                   }}
                 >
-                  Copy Link
+                  Copy Full Quality Link
                 </ContextMenuItem>
                 <ContextMenuItem asChild>
                   <Link href={album.image} target="_blank">
                     Open in new tab
                   </Link>
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    //delete photo
+                    deletePhoto(album.image.split('/').pop() || '');
+                  }}
+                  className="text-destructive"
+                >
+                  Delete
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
