@@ -15,7 +15,7 @@ export async function generateMetadata({
       openGraph: {
         images: [
           {
-            url: 'https://aura-api.reactiveshots.com/images/Logo-Banner.png',
+            url: 'https://aura.reactiveshots.com/images/Logo-Banner.png',
           },
         ],
       },
