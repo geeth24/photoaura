@@ -32,6 +32,20 @@ async def create_category(name: str):
     return {"message": "Category created successfully"}
 
 
+# delete a category
+@router.delete("/api/categories/{category_id}")
+async def delete_category(category_id: int):
+    db, cursor = get_db()
+    cursor.execute("DELETE FROM categories WHERE id = %s", (category_id,))
+    db.commit()
+    # delete the category from the album_categories table
+    cursor.execute(
+        "DELETE FROM album_categories WHERE category_id = %s", (category_id,)
+    )
+    db.commit()
+    return {"message": "Category deleted successfully"}
+
+
 # route linking an album to a category
 @router.post("/api/album-categories")
 async def link_album_to_category(album_id: int, category_id: int):
@@ -103,42 +117,48 @@ async def get_albums_by_category():
     db, cursor = get_db()
     cursor.execute(
         """
-        SELECT album_categories.category_id, album.id, album.name, album.slug, album.location,
-               album.date, album.image_count, album.shared, album.upload, album.secret
-        FROM album
-        JOIN album_categories ON album.id = album_categories.album_id
+        SELECT ac.category_id, c.name as category_name, c.slug as category_slug, a.id, a.name, 
+               a.slug, a.location, a.date, a.image_count, a.shared, a.upload, a.secret
+        FROM album a
+        JOIN album_categories ac ON a.id = ac.album_id
+        JOIN categories c ON c.id = ac.category_id
         """
     )
     albums = cursor.fetchall()
 
-    # Dictionary to group albums by category
+    # Dictionary to group albums by category with category details
     albums_by_category = {}
     for album in albums:
         category_id = album[0]
-
-        file_metadata = cursor.execute(
-            "SELECT * FROM file_metadata WHERE album_id=%s", (album[1],)
-        )
-        album_photos = cursor.fetchall()
-        album_photos = create_album_photos_json(album[3], album_photos)
+        category_name = album[1]
+        category_slug = album[2]
         album_details = {
-            "id": album[1],
-            "name": album[2],
-            "slug": album[3],
-            "location": album[4],
-            "date": album[5],
-            "image_count": album[6],
-            "shared": album[7],
-            "upload": album[8],
-            "secret": album[9],
-            "album_photos": album_photos,
+            "id": album[3],
+            "name": album[4],
+            "slug": album[5],
+            "location": album[6],
+            "date": album[7],
+            "image_count": album[8],
+            "shared": album[9],
+            "upload": album[10],
+            "secret": album[11],
+            "album_photos": [],  # Placeholder for photos
         }
 
-        # Since each category has exactly one album, we append directly to 'albums'
-        albums_by_category[category_id] = {
-            "category_id": category_id,
-            "album": album_details,  # Changed 'albums' list to a single 'album' object
-        }
+        # Fetch album photos using a defined function
+        cursor.execute("SELECT * FROM file_metadata WHERE album_id = %s", (album[3],))
+        album_photos = cursor.fetchall()
+        album_photos = create_album_photos_json(album[5], album_photos)
+        album_details["album_photos"] = album_photos
 
-    # Convert the dictionary to a list
+        # Add category details along with the album to the dictionary
+        if category_id not in albums_by_category:
+            albums_by_category[category_id] = {
+                "category_id": category_id,
+                "category_name": category_name,
+                "category_slug": category_slug,
+                "album": album_details,  # Single 'album' object per category
+            }
+
+    # Convert the dictionary to a list to return an array structure
     return list(albums_by_category.values())
