@@ -52,6 +52,22 @@ def create_table():
         );
         """
     )
+    # create a new table for categories save name, slug
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, name VARCHAR(255), slug VARCHAR(255))"
+    )
+    # create a new table for album categories save album_id, category_id
+    cursor.execute(
+        """
+    CREATE TABLE IF NOT EXISTS album_categories (
+        id SERIAL PRIMARY KEY,
+        album_id INT UNIQUE,  
+        category_id INT UNIQUE, 
+        FOREIGN KEY (album_id) REFERENCES album(id),
+        FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+    """
+    )
     db.commit()
 
     cursor.execute("SELECT * FROM users WHERE user_name = %s", (root_user,))
