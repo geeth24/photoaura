@@ -33,8 +33,17 @@ interface AlbumGrid {
   album_photos: Album[];
 }
 
+type SocketMessage = {
+  upload_bytes: number;
+  total_bytes: number;
+};
+
 function Page() {
-  const [socketMessages, setSocketMessages] = useState<string[]>([]);
+  const [socketMessages, setSocketMessages] = useState<SocketMessage>({
+    upload_bytes: 0,
+    total_bytes: 0,
+  });
+
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
   const [albumName, setAlbumName] = useState<string>('test'); // Replace 'test' with the variable holding the actual album name if necessary
@@ -85,8 +94,8 @@ function Page() {
     const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
 
     newSocket.onmessage = (event) => {
-      // console.log('Message from server:', event.data);
-      setSocketMessages((prevMessages) => [...prevMessages, event.data]);
+      console.log('Message from server:', event.data);
+      setSocketMessages(JSON.parse(event.data));
     };
 
     const formData = new FormData();
@@ -120,25 +129,6 @@ function Page() {
       showToastWithCooldown(`Error uploading files`, false);
     }
   };
-
-  // Assuming we know the current phase based on the number of socket messages received
-  const totalFiles = selectedFiles?.length ?? 0;
-  const totalExpectedMessages = totalFiles * 2; // Total messages for both uploading and processing
-
-  // Determine the phase
-  const isUploading = socketMessages.length <= totalFiles;
-  const isProcessing =
-    socketMessages.length > totalFiles && socketMessages.length <= totalExpectedMessages;
-
-  // Calculate progress for each phase
-  let progress = 0;
-  if (isUploading) {
-    // Upload progress: 100% when socketMessages.length equals totalFiles
-    progress = (socketMessages.length / totalFiles) * 100;
-  } else if (isProcessing) {
-    // Processing progress: Starts from 0% after uploading is done
-    progress = ((socketMessages.length - totalFiles) / totalFiles) * 100;
-  }
 
   return (
     <div
@@ -177,7 +167,7 @@ function Page() {
               />
             </div>
             <div className="mt-2">
-              {socketMessages.length === 0 ? (
+              {!uploading ? (
                 <>
                   <Label>Album Name</Label>
                   <Input value={albumName} onChange={(e) => setAlbumName(e.target.value)} />
@@ -187,18 +177,21 @@ function Page() {
               )}
               {uploading && (
                 <div>
-                  {socketMessages.length <= totalFiles && (
+                  {socketMessages.upload_bytes <= socketMessages.total_bytes && (
                     <>
                       <Label>Uploading...</Label>
-                      <Progress value={Math.min(progress, 100)} />
-                      {/* Ensure value does not exceed 100% */}
+                      <Progress
+                        value={Math.min(
+                          (socketMessages.upload_bytes / socketMessages.total_bytes) * 100,
+                          100,
+                        )}
+                      />
                     </>
                   )}
-                  {socketMessages.length > totalFiles && (
+                  {(socketMessages.upload_bytes !== 0 ||
+                    socketMessages.upload_bytes === socketMessages.total_bytes) && (
                     <div>
                       <Label>Processing...</Label>
-                      <Progress value={Math.min(progress, 100)} />
-                      {/* Ensure value does not exceed 100% */}
                     </div>
                   )}
                 </div>

@@ -98,6 +98,25 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
 ):
+    # Send upload progress to client
+    websocket = manager.active_connections[0]
+    total_bytes = 0
+    for file in files:
+        content = await file.read()
+        total_bytes += len(content)
+        # Rewind the file pointer if you plan to read the file again later
+        file.file.seek(0)  # Reset the file pointer to the beginning after reading
+    uploaded_bytes = 0
+    for file in files:
+        content = await file.read()
+        uploaded_bytes += len(content)
+        # Send progress update to the WebSocket connection
+        await websocket.send_text(
+            json.dumps({"uploaded_bytes": uploaded_bytes, "total_bytes": total_bytes})
+        )
+        # Reset file pointer if necessary
+        file.file.seek(0)
+
     db, cursor = get_db()
     print("Uploading files")
 
@@ -140,6 +159,7 @@ async def create_upload_files(
         # Update the image count if the album already exists
         print("album exists")
         print(album)
+        update = True
 
     for file in files:
         # Read file content
@@ -219,10 +239,10 @@ async def create_upload_files(
 
         db.commit()
 
-        message = f"File {file.filename} uploaded successfully!"
-        print(message)
-        for connection in manager.active_connections:
-            await manager.send_message(message, connection)
+        # message = f"File {file.filename} uploaded successfully!"
+        # print(message)
+        # for connection in manager.active_connections:
+        #     await manager.send_message(message, connection)
 
     # add album to user
     if user_id:
