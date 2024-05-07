@@ -516,19 +516,31 @@ async def update_album(
         raise HTTPException(status_code=500, detail="Database update failed")
 
     if album_name != album_new_name:
-        album_dir = os.path.join(data_dir, user_name + "/" + album_name.lower())
-        album_new_dir = os.path.join(data_dir, user_name + "/" + album_new_name.lower())
 
-        if os.path.exists(album_dir):
-            try:
-                import shutil
+        # Rename the album directory in s3
+        try:
+            objects_to_rename = s3_client.list_objects_v2(
+                Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_name.replace(' ', '-')}"
+            )
+            rename_keys = [
+                {"Key": obj["Key"]} for obj in objects_to_rename.get("Contents", [])
+            ]
 
-                shutil.move(album_dir.lower(), album_new_dir.lower())
-            except Exception as e:
-                logging.error(f"File operation error: {e}")
-                raise HTTPException(
-                    status_code=500, detail="Failed to move album directory"
-                )
+            if rename_keys:
+                for key in rename_keys:
+                    new_key = key["Key"].replace(
+                        album_name.replace(" ", "-"), album_new_name.replace(" ", "-")
+                    )
+                    s3_client.copy_object(
+                        Bucket=AWS_BUCKET,
+                        CopySource=f"{AWS_BUCKET}/{key['Key']}",
+                        Key=new_key,
+                    )
+                    s3_client.delete_object(Bucket=AWS_BUCKET, Key=key["Key"])
+        except ClientError as e:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to rename album in S3: {e}"
+            )
 
     if user_id is not None:
         # cursor.execute("SELECT * FROM album WHERE name=%s", (album_new_name,))

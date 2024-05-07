@@ -6,13 +6,14 @@ RUN pip install --no-cache-dir --upgrade -r requirements.txt
 COPY server /app/
 
 # Stage 2: Next.js Frontend Setup
+# Stage: Next.js Frontend Setup for Development
 FROM node:20 AS frontend
 WORKDIR /app/client
-COPY client/package.json client/pnpm-lock.yaml ./
+ADD client/package.json client/pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install
 COPY .env* ./
 COPY client/ ./
-RUN pnpm run build
+# No build step here, just set up for `pnpm run dev`
 
 # Final Stage
 FROM python:3.9-slim

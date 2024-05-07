@@ -9,6 +9,7 @@ from db_config import create_table, data_dir
 from auth import router as auth_router
 from routers.user import router as user_router
 from routers.album import router as album_router
+from routers.category import router as category_router
 import time
 
 app = FastAPI()
@@ -25,6 +26,7 @@ app.add_middleware(
 app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(album_router)
+app.include_router(category_router)
 app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
 
 # wait for db to start for 10 seconds
