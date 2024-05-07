@@ -212,7 +212,7 @@ function Page() {
         {albums.map((album) => (
           <FadeIn key={album.album_name}>
             <Link
-              href={`/admin/albums/${album.slug}`}
+              href={`/admin/albums/${album.slug}/photos`}
               key={album.album_name}
               className="h-full w-full"
             >
