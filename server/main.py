@@ -10,6 +10,7 @@ from auth import router as auth_router
 from routers.user import router as user_router
 from routers.album import router as album_router
 from routers.category import router as category_router
+from routers.face import router as face_router
 import time
 
 app = FastAPI()
@@ -27,6 +28,7 @@ app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(album_router)
 app.include_router(category_router)
+app.include_router(face_router)
 app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
 
 # wait for db to start for 10 seconds
@@ -39,7 +41,6 @@ os.makedirs(data_dir, exist_ok=True)
 @app.get("/")
 async def root():
     return {"message": "PhotoAura API Root"}
-
 
 
 @app.get("/api")

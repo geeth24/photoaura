@@ -69,6 +69,29 @@ def create_table():
     """
     )
     db.commit()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS face_data (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) DEFAULT NULL,
+            external_id VARCHAR(255) UNIQUE 
+        );
+        """
+    )
+    cursor.execute(
+        """
+    CREATE TABLE IF NOT EXISTS photo_face_link (
+        id SERIAL PRIMARY KEY,
+        photo_id INT,
+        face_id VARCHAR(255),
+        album_id INT,
+        FOREIGN KEY (photo_id) REFERENCES file_metadata(id),
+        FOREIGN KEY (face_id) REFERENCES face_data(external_id), -- Linking to the external_id
+        FOREIGN KEY (album_id) REFERENCES album(id)
+    );
+        """
+    )
+    db.commit()
 
     cursor.execute("SELECT * FROM users WHERE user_name = %s", (root_user,))
     if cursor.rowcount == 0:

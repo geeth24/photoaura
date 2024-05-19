@@ -18,10 +18,12 @@ import logging
 import random
 from db_config import get_db, data_dir
 from image_utils import compress_image, generate_blur_data_url
-from s3 import s3_client
+from aws import s3_client, rekognition_client
 from uuid import uuid4
 from io import BytesIO
 from botocore.exceptions import ClientError
+from face_recog import detect_and_store_faces
+from psycopg import connect, errors
 
 router = APIRouter()
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
@@ -158,7 +160,7 @@ async def create_upload_files(
     else:
         # Update the image count if the album already exists
         print("album exists")
-        print(album)
+        # print(album)
         update = True
 
     for file in files:
@@ -204,7 +206,7 @@ async def create_upload_files(
         )
 
         file_metadata["blur_data_url"] = generate_blur_data_url(
-            album_dir + "/compressed/" + file.filename
+            album_dir + "/" + file.filename
         )
         # Save file metadata to DB, including EXIF
         cursor.execute(
@@ -221,23 +223,37 @@ async def create_upload_files(
                 file_metadata["blur_data_url"],
             ),
         )
+        db.commit()
+
+        # get file metadata
+        cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
+        file_metadata = cursor.fetchall()
+        # get id for the file just uploaded
+        file_metadata = file_metadata[-1]
+
+        # Detect and store faces
+        detect_and_store_faces(
+            s3_filename,
+            file_metadata[0],
+            album[0],
+            AWS_BUCKET,
+        )
 
         # delete all files from disk
         os.remove(album_dir + "/" + file.filename)
         os.remove(album_dir + "/compressed/" + file.filename)
 
         if update:
-            print(len(files) + album[5])
+            # print(len(files) + album[5])
             images_count = len(files) + album[5]
             if album[5] != images_count:
                 cursor.execute(
                     "UPDATE album SET image_count=%s WHERE name=%s",
                     (images_count, album_name),
                 )
+                db.commit()
 
         # compress image and save it
-
-        db.commit()
 
         # message = f"File {file.filename} uploaded successfully!"
         # print(message)
@@ -374,7 +390,7 @@ async def get_all_albums(
     db, cursor = get_db()
     cursor.execute("SELECT * FROM album")
     albums = cursor.fetchall()
-    print(albums)
+    # print(albums)
 
     all_albums = []
     for album in albums:
@@ -428,7 +444,7 @@ async def get_all_photos(
 
     all_photos = []
     for album in albums:
-        print(album)
+        # print(album)
         album_slug = album[2]
         album_name = album[1]
 
@@ -458,44 +474,73 @@ async def get_all_photos(
 
 @router.delete("/api/album/delete/{user_name}/{album_name}/")
 async def delete_album(user_name: str, album_name: str):
-    # album_name = album_name.lower().replace(" ", "-")
     db, cursor = get_db()
 
-    # First, find the album ID
-    cursor.execute("SELECT id FROM album WHERE name=%s", (album_name,))
-    album = cursor.fetchone()
-    if not album:
-        raise HTTPException(status_code=404, detail="Album not found")
-    album_id = album[0]
-
-    # Delete references from user_album_permissions
-    cursor.execute("DELETE FROM user_album_permissions WHERE album_id=%s", (album_id,))
-
-    # Then, delete related file metadata records
-    cursor.execute("DELETE FROM file_metadata WHERE album_id=%s", (album_id,))
-
-    # Now, delete the album itself
-    cursor.execute("DELETE FROM album WHERE id=%s", (album_id,))
-    db.commit()
-
-    # Attempt to delete the album directory from S3
     try:
-        # List objects to be deleted
-        objects_to_delete = s3_client.list_objects_v2(
-            Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_name.replace(' ', '-')}"
-        )
-        delete_keys = [
-            {"Key": obj["Key"]} for obj in objects_to_delete.get("Contents", [])
-        ]
+        # Find the album ID
+        cursor.execute("SELECT id FROM album WHERE name = %s", (album_name,))
+        album = cursor.fetchone()
+        if not album:
+            raise HTTPException(status_code=404, detail="Album not found")
+        album_id = album[0]
 
-        # Delete the objects
-        if delete_keys:
-            s3_client.delete_objects(Bucket=AWS_BUCKET, Delete={"Objects": delete_keys})
-        print("Deleted album from S3")
-    except ClientError as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to delete album from S3: {e}"
+        # Delete any photo_face_link entries
+        cursor.execute(
+            "SELECT face_id FROM photo_face_link WHERE album_id = %s", (album_id,)
         )
+        face_ids = cursor.fetchall()
+        cursor.execute("DELETE FROM photo_face_link WHERE album_id = %s", (album_id,))
+
+        # Delete faces from Rekognition if no longer referenced
+        for (face_id,) in face_ids:
+            cursor.execute(
+                "SELECT COUNT(*) FROM photo_face_link WHERE face_id = %s", (face_id,)
+            )
+            if cursor.fetchone()[0] == 0:  # No other links to this face_id
+                rekognition_client.delete_faces(
+                    CollectionId=AWS_BUCKET, FaceIds=[face_id]
+                )
+                cursor.execute(
+                    "DELETE FROM face_data WHERE external_id = %s", (face_id,)
+                )
+
+        # Delete permissions associated with the album
+        cursor.execute(
+            "DELETE FROM user_album_permissions WHERE album_id = %s", (album_id,)
+        )
+
+        # Delete related file metadata records and S3 files
+        cursor.execute(
+            "SELECT filename FROM file_metadata WHERE album_id = %s", (album_id,)
+        )
+        files = cursor.fetchall()
+        for (filename,) in files:
+            s3_client.delete_object(
+                Bucket=AWS_BUCKET, Key=f"{user_name}/{album_name}/{filename}"
+            )
+            s3_client.delete_object(
+                Bucket=AWS_BUCKET, Key=f"{user_name}/{album_name}/compressed/{filename}"
+            )
+        cursor.execute("DELETE FROM file_metadata WHERE album_id = %s", (album_id,))
+
+        # Delete the album
+        cursor.execute("DELETE FROM album WHERE id = %s", (album_id,))
+
+        db.commit()
+
+    except errors.ForeignKeyViolation as e:
+        db.rollback()
+        print(e)
+        raise HTTPException(
+            status_code=400, detail="Cannot delete data that is still referenced."
+        )
+    except Exception as e:
+        print(e)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        db.close()
 
     return {"message": "Album deleted successfully."}
 
@@ -510,14 +555,14 @@ async def update_album(
     user_id: int = None,
     action: str = None,
 ):
-    print(album_name, album_new_name, shared)
+    # print(album_name, album_new_name, shared)
     db, cursor = get_db()
 
     user_name = slug.split("/")[0]
 
     try:
         newSlug = user_name + "/" + album_new_name.lower().replace(" ", "-")
-        print("slug", slug)
+        # print("slug", slug)
         cursor.execute(
             "UPDATE album SET name=%s, shared=%s, upload=%s, location=%s, slug=%s WHERE slug=%s",
             (

@@ -81,7 +81,7 @@ def verify_token(token: str, credentials_exception):
 
 @router.post("/api/verify-token")
 def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
-    print(token)
+    # print(token)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid credentials",
