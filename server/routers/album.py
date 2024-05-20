@@ -458,7 +458,7 @@ async def get_all_photos(
 
 @router.delete("/api/album/delete/{user_name}/{album_name}/")
 async def delete_album(user_name: str, album_name: str):
-    # album_name = album_name.lower().replace(" ", "-")
+    album_name = album_name.lower().replace(" ", "-")
     db, cursor = get_db()
 
     # First, find the album ID
@@ -482,7 +482,7 @@ async def delete_album(user_name: str, album_name: str):
     try:
         # List objects to be deleted
         objects_to_delete = s3_client.list_objects_v2(
-            Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_name.replace(' ', '-')}"
+            Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_name}"
         )
         delete_keys = [
             {"Key": obj["Key"]} for obj in objects_to_delete.get("Contents", [])
