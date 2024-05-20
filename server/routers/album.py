@@ -459,7 +459,7 @@ async def get_all_photos(
 @router.delete("/api/album/delete/{user_name}/{album_name}/")
 async def delete_album(user_name: str, album_name: str):
     # album_name_ = album_name.lower().replace(" ", "-")
-    album_slug = f"{user_name}/{album_name}"
+    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
     db, cursor = get_db()
 
     # First, find the album ID
