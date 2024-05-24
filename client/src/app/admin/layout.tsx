@@ -5,6 +5,7 @@ import SidebarNavButton from '@/components/SidebarNavButton';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { ScanFace } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathName = usePathname();
@@ -29,7 +30,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // }, [sidebarOpened, setSidebarOpened]);
 
   return (
-    <div className='relative h-full'>
+    <div className="relative h-full">
       <div className="absolute h-full w-full bg-gradient-to-t from-transparent via-primary/30 to-transparent" />
       <div className="flex">
         <div
@@ -97,6 +98,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href="/admin/albums"
                   open={sidebarOpened}
                   active={pathName.startsWith('/admin/albums')}
+                />
+                <SidebarNavButton
+                  icon={
+                   <ScanFace />
+                  }
+                  label="Faces"
+                  href="/admin/faces"
+                  open={sidebarOpened}
+                  active={pathName.startsWith('/admin/faces')}
                 />
                 {parseInt(user?.id ?? '') === 1 && (
                   <SidebarNavButton

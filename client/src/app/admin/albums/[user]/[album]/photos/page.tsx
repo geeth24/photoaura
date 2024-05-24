@@ -213,7 +213,7 @@ function Page() {
     }
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}&user_id=${user?.id}&update=true`,
+      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}&user_id=${user?.id}&update=true&face_detection=${albumGrid.face_detection}`,
       {
         method: 'POST',
         body: formData,

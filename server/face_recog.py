@@ -62,7 +62,7 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         face_image = img.crop((left, top, right, bottom))
 
         # Generate a unique name for the cropped face image
-        face_image_path = "faces/{}_{}_{}.jpg".format(photo_id, album_id, face_id)
+        face_image_path = "faces/{}.jpg".format(face_id)
 
         # Save the cropped face image to a byte stream
         img_byte_arr = io.BytesIO()

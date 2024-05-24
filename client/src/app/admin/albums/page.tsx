@@ -24,6 +24,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { toast } from 'sonner';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
 import { FadeIn, FadeInStagger } from '@/components/FadeIn';
+import { Switch } from '@/components/ui/switch';
 
 interface AlbumGrid {
   album_name: string;
@@ -105,7 +106,7 @@ function Page() {
     }
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumName)}&user_id=${user?.id}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumName)}&user_id=${user?.id}&face_detection=${faceDetection}`,
       {
         method: 'POST',
         body: formData,
@@ -129,6 +130,8 @@ function Page() {
       showToastWithCooldown(`Error uploading files`, false);
     }
   };
+
+  const [faceDetection, setFaceDetection] = useState<boolean>(false);
 
   return (
     <div
@@ -171,6 +174,11 @@ function Page() {
                 <>
                   <Label>Album Name</Label>
                   <Input value={albumName} onChange={(e) => setAlbumName(e.target.value)} />
+
+                  <div className="mt-4 flex space-x-2">
+                    <Label>Face Detection</Label>
+                    <Switch checked={faceDetection} onCheckedChange={setFaceDetection} />
+                  </div>
                 </>
               ) : (
                 <></>

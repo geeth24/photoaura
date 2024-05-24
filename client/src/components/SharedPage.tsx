@@ -38,6 +38,7 @@ function SharedPage({ params }: { params: { user: string; album: string; secret:
     shared: false,
     upload: false,
     secret: '',
+    face_detection: false,
     album_photos: [],
     slug: '',
     album_permissions: [],

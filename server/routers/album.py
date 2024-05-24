@@ -140,7 +140,7 @@ async def create_upload_files(
     if not album:
         # Insert new album into DB if not exists
         cursor.execute(
-            "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret, face_detection) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 album_name,
                 album_slug,
@@ -150,6 +150,7 @@ async def create_upload_files(
                 False,
                 False,
                 str(uuid4()),
+                face_detection,
             ),
         )
 
