@@ -513,8 +513,9 @@ async def delete_album(user_name: str, album_name: str):
         # Delete related file metadata records and S3 files
         cursor.execute(
             "SELECT filename FROM file_metadata WHERE album_id = %s", (album_id,)
-    # Attempt to delete the album directory from S3
-    try:
+        )
+        # Attempt to delete the album directory from S3
+
         # List objects to be deleted
         objects_to_delete = s3_client.list_objects_v2(
             Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_slug}"
