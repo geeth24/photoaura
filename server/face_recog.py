@@ -1,10 +1,15 @@
-from db_config import get_db
-from aws import s3_client, rekognition_client as rekognition
-from PIL import Image
 import io
 import os
+from PIL import Image
+from aws import s3_client, rekognition_client as rekognition
+from db_config import get_db
 
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
+
+
+def ensure_directory_exists(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
@@ -22,62 +27,76 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
     face_details = response["FaceDetails"]
     print(f"Detected {len(face_details)} faces in the new image.")
 
-    for face in face_details:
-        # Attempt to search for the face in the collection
+    temp_dir = "temp_faces"
+    ensure_directory_exists(temp_dir)  # Ensure the directory exists before saving files
+
+    for index, face in enumerate(face_details):
+        # Crop the image to just the face
+        box = face["BoundingBox"]
+        padding_factor = 1  # New padding factor to expand the crop area
+
+        # Calculate coordinates with padding
+        left = int((box["Left"] - box["Width"] * padding_factor / 2) * img.width)
+        top = int((box["Top"] - box["Height"] * padding_factor / 2) * img.height)
+        right = int((box["Left"] + box["Width"] * (1 + padding_factor / 2)) * img.width)
+        bottom = int(
+            (box["Top"] + box["Height"] * (1 + padding_factor / 2)) * img.height
+        )
+
+        # Ensure the coordinates do not go out of image boundaries
+        left = max(0, left)
+        top = max(0, top)
+        right = min(img.width, right)
+        bottom = min(img.height, bottom)
+
+        # Crop the image using the new coordinates
+        face_image = img.crop((left, top, right, bottom))
+        temp_face_image_path = os.path.join(temp_dir, f"face_{photo_id}_{index}.jpg")
+        face_image.save(temp_face_image_path)
+
+        # Upload the cropped face image to S3 for searching
+        s3_client.upload_file(
+            Filename=temp_face_image_path,
+            Bucket=bucket,
+            Key=temp_face_image_path,
+            ExtraArgs={"ContentType": "image/jpeg"},
+        )
+        # Now search using the individual face image
         search_response = rekognition.search_faces_by_image(
             CollectionId=AWS_BUCKET,
-            Image={"S3Object": {"Bucket": bucket, "Name": file_path}},
+            Image={"S3Object": {"Bucket": bucket, "Name": temp_face_image_path}},
             MaxFaces=1,
             FaceMatchThreshold=90,
         )
 
         if search_response["FaceMatches"]:
             face_id = search_response["FaceMatches"][0]["Face"]["FaceId"]
+            print(f"Face {index+1} matched with ID {face_id}")
         else:
-            # If the face is not found, index it
+            print("Face not found in the collection. Indexing...")
             index_response = rekognition.index_faces(
                 CollectionId=AWS_BUCKET,
-                Image={"S3Object": {"Bucket": bucket, "Name": file_path}},
-                ExternalImageId=f"{photo_id}_{album_id}",
+                Image={"S3Object": {"Bucket": bucket, "Name": temp_face_image_path}},
+                ExternalImageId=f"{photo_id}_{index}",
             )
             face_id = index_response["FaceRecords"][0]["Face"]["FaceId"]
+            print(f"New face indexed with ID {face_id}")
 
-       # Crop the face based on bounding box, with extra padding for a headshot-like crop
-        box = face["BoundingBox"]
-        padding_factor = 1  # Increase this value to give more space around the face
-
-        # Calculate dimensions with added padding
-        left = img.width * (box["Left"] - box["Width"] * padding_factor / 2)
-        top = img.height * (box["Top"] - box["Height"] * padding_factor / 2)
-        width = img.width * (box["Width"] * (1 + padding_factor))
-        height = img.height * (box["Height"] * (1 + padding_factor))
-
-        # Ensure that the new coordinates are within the image bounds
-        left = max(0, left)
-        top = max(0, top)
-        right = min(img.width, left + width)
-        bottom = min(img.height, top + height)
-
-        # Crop the image using the new dimensions
-        face_image = img.crop((left, top, right, bottom))
-
-        # Generate a unique name for the cropped face image
-        face_image_path = "faces/{}.jpg".format(face_id)
-
-        # Save the cropped face image to a byte stream
-        img_byte_arr = io.BytesIO()
-        face_image.save(img_byte_arr, format="JPEG")
-        img_byte_arr = img_byte_arr.getvalue()
-
-        # Upload the cropped face image to S3
-        s3_client.put_object(
-            Body=img_byte_arr,
+        # Update permanent file path to use face_id as filename
+        permanent_face_image_path = f"faces/{face_id}.jpg"
+        s3_client.upload_file(
+            Filename=temp_face_image_path,
             Bucket=bucket,
-            Key=face_image_path,
-            ContentType="image/jpeg",
+            Key=permanent_face_image_path,
+            ExtraArgs={"ContentType": "image/jpeg"},
         )
+        # Delete the temporary image from S3 after processing
+        s3_client.delete_object(Bucket=bucket, Key=temp_face_image_path)
 
-        # Database updates for each face
+        # delete the temporary image from the local directory
+        os.remove(temp_face_image_path)
+
+        # Update database records
         cursor.execute(
             "INSERT INTO face_data (external_id) VALUES (%s) ON CONFLICT (external_id) DO NOTHING",
             (face_id,),
@@ -89,5 +108,4 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
 
     db.commit()
     cursor.close()
-
     return "Faces processed and stored."
