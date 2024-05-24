@@ -79,7 +79,7 @@ struct PhotoView: View {
     @State var slug: String?
 
     var body: some View {
-        CachedAsyncImage(url: URL(string: photo.image)) { image in
+        CachedAsyncImage(url: URL(string: photo.compressedImage)) { image in
             image
                 .resizable()
                 .scaledToFit()
