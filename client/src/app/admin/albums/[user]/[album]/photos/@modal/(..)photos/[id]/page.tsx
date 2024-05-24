@@ -12,6 +12,7 @@ export default function PhotoModalPage({ params: { id } }: { params: { id: strin
     shared: false,
     upload: false,
     secret: '',
+    face_detection: false,
     album_photos: [],
     slug: '',
     album_permissions: [],
