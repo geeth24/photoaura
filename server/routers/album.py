@@ -354,6 +354,7 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
         "shared": album[6],
         "upload": album[7],
         "secret": album[8],
+        "face_detection": album[9],
         "album_permissions": permissions_list,
         "album_photos": album_photos,
     }

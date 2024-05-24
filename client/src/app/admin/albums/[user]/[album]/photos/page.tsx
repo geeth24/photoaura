@@ -67,6 +67,7 @@ export interface AlbumGrid {
   shared: boolean;
   upload: boolean;
   secret: string;
+  face_detection: boolean;
   album_permissions: User[];
   album_photos: Album[];
 }
@@ -104,6 +105,7 @@ function Page() {
     shared: false,
     upload: false,
     secret: '',
+    face_detection: false,
     album_permissions: [],
     album_photos: [],
   });
@@ -496,6 +498,19 @@ function Page() {
                       }}
                     />
                     <Label htmlFor="album_name"> {albumGrid.upload ? 'Enabled' : 'Disabled'}</Label>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-col space-y-2">
+                  <Label htmlFor="album_name">Face Detection</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Cannot be changed once {albumGrid.face_detection ? 'enabled' : 'disabled'}
+                  </p>
+
+                  <div className="mt-2 flex items-center space-x-2">
+                    <Switch checked={albumGrid.face_detection} disabled />
+                    <Label htmlFor="album_name">
+                      {albumGrid.face_detection ? 'Enabled' : 'Disabled'}
+                    </Label>
                   </div>
                 </div>
                 <Button

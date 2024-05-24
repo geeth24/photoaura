@@ -29,9 +29,9 @@ def create_table():
         "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, user_name VARCHAR(255), user_password VARCHAR(255), full_name VARCHAR(255), user_email VARCHAR(255))"
     )
 
-    # create an album table, incldues name, slug, location, date, image_count, shared, upload
+    # create an album table, incldues name, slug, location, date, image_count, shared, upload, face_detection
     cursor.execute(
-        "CREATE TABLE IF NOT EXISTS album (id SERIAL PRIMARY KEY, name VARCHAR(255), slug VARCHAR(255), location VARCHAR(255), date VARCHAR(255), image_count INT, shared BOOLEAN, upload BOOLEAN, secret VARCHAR(255))"
+        "CREATE TABLE IF NOT EXISTS album (id SERIAL PRIMARY KEY, name VARCHAR(255), slug VARCHAR(255), location VARCHAR(255), date VARCHAR(255), image_count INT, shared BOOLEAN, upload BOOLEAN, secret VARCHAR(255), face_detection BOOLEAN);"
     )
 
     # cursor.execute(
