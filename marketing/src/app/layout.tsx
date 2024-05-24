@@ -1,9 +1,16 @@
 import type { Metadata } from 'next';
 import { Lato } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
+import localFont from 'next/font/local';
 
 import './globals.css';
 import Navbar from '@/components/Navbar';
+
+const blackMud = localFont({
+  src: './Blackmud-VGoOx.ttf',
+  display: 'swap',
+  variable: '--font-blackmud',
+});
 
 const lato = Lato({
   subsets: ['latin'],
@@ -31,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <link rel="icon" href="/logo-color.png" />
-      <body className={lato.className}>
+      <body className={`${blackMud.variable} ${lato.className}`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

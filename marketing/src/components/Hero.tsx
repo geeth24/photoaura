@@ -71,13 +71,15 @@ export default function Hero() {
             </Link>
           </div>
           <h1 className="mt-10 text-4xl font-bold tracking-tight sm:text-6xl">
-            PhotoAura: Your Self-Hosted Photo Gallery
+            PhotoAura: Your Cloud-Hosted Photo Gallery
           </h1>
-          <p className="mt-6 text-lg leading-8 text-secondary-foreground">
-            Discover the simplicity of PhotoAura, where managing, and sharing your photos faster
-            than ever and happens in one secure place—your server. This open-source platform offers
-            you the privacy and freedom to control your photo collection without compromises. With
-            PhotoAura, take charge of your memories.
+          <p className="mt-6 text-base leading-8 text-secondary-foreground">
+            <span className="font-bold">Discover the simplicity and speed of PhotoAura</span>—manage
+            and share your photos securely from one centralized cloud location. This open-source
+            platform ensures full privacy and control over your photo collection, letting you take
+            charge of your memories with ease. Powered by advanced face recognition and robust AWS
+            cloud storage, PhotoAura redefines your photographic experience. Embrace freedom and
+            security in every snapshot!
           </p>
           <div className="mt-10 flex items-center gap-x-6">
             <Button asChild>

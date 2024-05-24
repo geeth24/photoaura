@@ -17,7 +17,7 @@ function Navbar() {
               height={100}
               className="h-11 w-11"
             />
-            <span className="text-2xl font-bold">PhotoAura</span>
+            <span className="font-blackmud text-2xl font-bold">PhotoAura</span>
           </Link>
           <div className="flex space-x-4">
             <Button asChild variant="ghost">
