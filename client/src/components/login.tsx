@@ -27,7 +27,7 @@ function Login() {
       <div className="w-80">
         <p className="flex flex-col text-center text-base">
           Log in to
-          <span className="text-3xl font-bold">PhotoAura</span>
+          <span className="font-blackmud mt-4 text-3xl font-bold">PhotoAura</span>
         </p>
         <hr className="mt-4 h-1 rounded-full bg-gradient-to-r from-transparent via-black/10 to-transparent" />
         <div className="mt-6 flex flex-col space-y-4">

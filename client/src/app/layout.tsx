@@ -1,9 +1,16 @@
 import type { Metadata } from 'next';
 import { Lato } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/components/theme-provider';
+
+const blackMud = localFont({
+  src: './Blackmud-VGoOx.ttf',
+  display: 'swap',
+  variable: '--font-blackmud',
+});
 
 const lato = Lato({
   subsets: ['latin'],
@@ -30,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       {/* <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests"></meta>  */}
       <link rel="icon" href="/images/logo-color.png" />
 
-      <body className={lato.className}>
+      <body className={`${blackMud.variable} ${lato.className}`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

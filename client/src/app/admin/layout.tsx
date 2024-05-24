@@ -52,7 +52,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   />
 
                   <h1
-                    className={`${sidebarOpened ? 'hidden' : 'flex'} ml-2 text-xl font-bold transition-all duration-500`}
+                    className={`${sidebarOpened ? 'hidden' : 'flex'} font-blackmud ml-2 text-xl font-bold transition-all duration-500`}
                   >
                     PhotoAura
                   </h1>
