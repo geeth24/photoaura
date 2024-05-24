@@ -99,6 +99,7 @@ async def create_upload_files(
     user_id: int = None,
     slug: str = None,
     update: bool = False,
+    face_detection: bool = False,
 ):
     # Send upload progress to client
     websocket = manager.active_connections[0]
@@ -231,13 +232,14 @@ async def create_upload_files(
         # get id for the file just uploaded
         file_metadata = file_metadata[-1]
 
-        # Detect and store faces
-        detect_and_store_faces(
-            s3_filename,
-            file_metadata[0],
-            album[0],
-            AWS_BUCKET,
-        )
+        if face_detection:
+            # Detect and store faces
+            detect_and_store_faces(
+                s3_filename,
+                file_metadata[0],
+                album[0],
+                AWS_BUCKET,
+            )
 
         # delete all files from disk
         os.remove(album_dir + "/" + file.filename)
@@ -504,6 +506,20 @@ async def delete_album(user_name: str, album_name: str):
                 cursor.execute(
                     "DELETE FROM face_data WHERE external_id = %s", (face_id,)
                 )
+
+                # delete face image from S3
+                objects_to_delete = s3_client.list_objects_v2(
+                    Bucket=AWS_BUCKET, Prefix="faces"
+                )
+
+                # Assuming objects_to_delete is fetched from s3_client.list_objects_v2() call
+                for obj in objects_to_delete.get("Contents", []):
+                    # The key will include the face_id if the file is associated with that specific face
+                    if str(face_id) in obj["Key"] and obj["Key"].startswith("faces/"):
+                        try:
+                            s3_client.delete_object(Bucket=AWS_BUCKET, Key=obj["Key"])
+                        except Exception as e:
+                            print(f"Failed to delete {obj['Key']} from S3: {e}")
 
         # Delete permissions associated with the album
         cursor.execute(

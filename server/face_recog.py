@@ -42,13 +42,24 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             )
             face_id = index_response["FaceRecords"][0]["Face"]["FaceId"]
 
-        # Crop the face based on bounding box
+       # Crop the face based on bounding box, with extra padding for a headshot-like crop
         box = face["BoundingBox"]
-        left = img.width * box["Left"]
-        top = img.height * box["Top"]
-        width = img.width * box["Width"]
-        height = img.height * box["Height"]
-        face_image = img.crop((left, top, left + width, top + height))
+        padding_factor = 1  # Increase this value to give more space around the face
+
+        # Calculate dimensions with added padding
+        left = img.width * (box["Left"] - box["Width"] * padding_factor / 2)
+        top = img.height * (box["Top"] - box["Height"] * padding_factor / 2)
+        width = img.width * (box["Width"] * (1 + padding_factor))
+        height = img.height * (box["Height"] * (1 + padding_factor))
+
+        # Ensure that the new coordinates are within the image bounds
+        left = max(0, left)
+        top = max(0, top)
+        right = min(img.width, left + width)
+        bottom = min(img.height, top + height)
+
+        # Crop the image using the new dimensions
+        face_image = img.crop((left, top, right, bottom))
 
         # Generate a unique name for the cropped face image
         face_image_path = "faces/{}_{}_{}.jpg".format(photo_id, album_id, face_id)
@@ -59,7 +70,12 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         img_byte_arr = img_byte_arr.getvalue()
 
         # Upload the cropped face image to S3
-        s3_client.put_object(Body=img_byte_arr, Bucket=bucket, Key=face_image_path, ContentType="image/jpeg")
+        s3_client.put_object(
+            Body=img_byte_arr,
+            Bucket=bucket,
+            Key=face_image_path,
+            ContentType="image/jpeg",
+        )
 
         # Database updates for each face
         cursor.execute(
