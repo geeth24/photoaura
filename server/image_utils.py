@@ -30,7 +30,7 @@ def rotate_image_based_on_exif(img):
     return img
 
 
-def compress_image(file_path, output_path, max_size=50, quality=75):
+def compress_image(file_path, output_path, max_size=50, quality=100):
     # Ensure the output directory exists
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
