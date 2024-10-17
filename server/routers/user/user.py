@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from models.user import User, UpdateUserForm
-from db_config import get_db
+from services.database import get_db
 from fastapi import HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from auth import (
+from routers.auth.auth_router import (
     oauth2_scheme,
     verify_token,
     create_token,

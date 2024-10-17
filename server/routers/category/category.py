@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from db_config import get_db
-from routers.album import create_album_photos_json
-from typing import List, Dict
+from services.database import get_db
+from utils.utils import create_album_photos_json
 
 router = APIRouter()
 

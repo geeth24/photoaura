@@ -1,8 +1,8 @@
 import io
 import os
 from PIL import Image
-from aws import s3_client, rekognition_client as rekognition
-from db_config import get_db
+from services.aws_service import s3_client, rekognition_client as rekognition
+from services.database import get_db
 
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
 
@@ -10,6 +10,18 @@ AWS_BUCKET = os.environ.get("AWS_BUCKET")
 def ensure_directory_exists(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+
+def is_face_forward(
+    yaw, pitch, width, height, yaw_threshold=30, pitch_threshold=30, ratio_threshold=0.6
+):
+    """Returns True if the face is within yaw, pitch, and bounding box width/height ratio thresholds."""
+    face_ratio = width / height  # Ratio of bounding box width to height
+    return (
+        abs(yaw) <= yaw_threshold
+        and abs(pitch) <= pitch_threshold
+        and face_ratio > ratio_threshold
+    )
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
@@ -24,16 +36,32 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         Image={"S3Object": {"Bucket": bucket, "Name": file_path}}, Attributes=["ALL"]
     )
 
-    face_details = response["FaceDetails"]
+    face_details = response.get("FaceDetails", [])
+    if not face_details:
+        print("No faces detected in the image.")
+        return "No faces detected."
+
     print(f"Detected {len(face_details)} faces in the new image.")
 
     temp_dir = "temp_faces"
     ensure_directory_exists(temp_dir)  # Ensure the directory exists before saving files
 
     for index, face in enumerate(face_details):
-        # Crop the image to just the face
+        yaw = face["Pose"]["Yaw"]
+        pitch = face["Pose"]["Pitch"]
+        width = face["BoundingBox"]["Width"]
+        height = face["BoundingBox"]["Height"]
+
+        # Skip the face if it is not facing forward enough or doesn't meet bounding box ratio
+        if not is_face_forward(yaw, pitch, width, height):
+            print(
+                f"Skipping face {index + 1} due to extreme angle or small width ratio: Yaw={yaw}, Pitch={pitch}, Ratio={width/height}"
+            )
+            continue
+
+        # Crop and save the face locally
         box = face["BoundingBox"]
-        padding_factor = 1  # New padding factor to expand the crop area
+        padding_factor = 1.2  # Adjust padding for better recognition of side faces
 
         # Calculate coordinates with padding
         left = int((box["Left"] - box["Width"] * padding_factor / 2) * img.width)
@@ -49,7 +77,7 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         right = min(img.width, right)
         bottom = min(img.height, bottom)
 
-        # Crop the image using the new coordinates
+        # Crop the face and save locally
         face_image = img.crop((left, top, right, bottom))
         temp_face_image_path = os.path.join(temp_dir, f"face_{photo_id}_{index}.jpg")
         face_image.save(temp_face_image_path)
@@ -61,28 +89,38 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             Key=temp_face_image_path,
             ExtraArgs={"ContentType": "image/jpeg"},
         )
-        # Now search using the individual face image
-        search_response = rekognition.search_faces_by_image(
-            CollectionId=AWS_BUCKET,
-            Image={"S3Object": {"Bucket": bucket, "Name": temp_face_image_path}},
-            MaxFaces=1,
-            FaceMatchThreshold=90,
-        )
 
-        if search_response["FaceMatches"]:
-            face_id = search_response["FaceMatches"][0]["Face"]["FaceId"]
-            print(f"Face {index+1} matched with ID {face_id}")
-        else:
-            print("Face not found in the collection. Indexing...")
-            index_response = rekognition.index_faces(
+        # Try to search for the face in the collection
+        try:
+            search_response = rekognition.search_faces_by_image(
                 CollectionId=AWS_BUCKET,
                 Image={"S3Object": {"Bucket": bucket, "Name": temp_face_image_path}},
-                ExternalImageId=f"{photo_id}_{index}",
+                MaxFaces=1,
+                FaceMatchThreshold=70,  # Lower threshold for better matching
             )
-            face_id = index_response["FaceRecords"][0]["Face"]["FaceId"]
-            print(f"New face indexed with ID {face_id}")
 
-        # Update permanent file path to use face_id as filename
+            if search_response["FaceMatches"]:
+                face_id = search_response["FaceMatches"][0]["Face"]["FaceId"]
+                print(f"Face {index + 1} matched with ID {face_id}")
+            else:
+                print(f"Face {index + 1} not found in the collection. Indexing...")
+
+                # Index the face
+                index_response = rekognition.index_faces(
+                    CollectionId=AWS_BUCKET,
+                    Image={
+                        "S3Object": {"Bucket": bucket, "Name": temp_face_image_path}
+                    },
+                    ExternalImageId=f"{photo_id}_{index}",
+                )
+                face_id = index_response["FaceRecords"][0]["Face"]["FaceId"]
+                print(f"New face indexed with ID {face_id}")
+
+        except rekognition.exceptions.InvalidParameterException as e:
+            print(f"Error processing face {index + 1}: {e}")
+            continue  # Skip to the next face if there's an issue
+
+        # Update the permanent file path
         permanent_face_image_path = f"faces/{face_id}.jpg"
         s3_client.upload_file(
             Filename=temp_face_image_path,
@@ -90,10 +128,8 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             Key=permanent_face_image_path,
             ExtraArgs={"ContentType": "image/jpeg"},
         )
-        # Delete the temporary image from S3 after processing
-        s3_client.delete_object(Bucket=bucket, Key=temp_face_image_path)
 
-        # delete the temporary image from the local directory
+        # Clean up
         os.remove(temp_face_image_path)
 
         # Update database records

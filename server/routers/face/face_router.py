@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from db_config import get_db
-from routers.album import create_album_photos_json
+from services.database import get_db
+from utils.utils import create_album_photos_json
 import os
 
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
 AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
 
 router = APIRouter()
+
 
 @router.get("/api/face")
 async def get_faces():
