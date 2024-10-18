@@ -1,5 +1,5 @@
 'use client';
-import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/photos/page';
+import { AlbumGrid } from '@/components/AlbumPage';
 import { Album, PhotoModal } from '@/components/PhotosGrid';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
 import { useAuth } from '@/context/AuthContext';

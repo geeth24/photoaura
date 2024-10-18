@@ -1,4 +1,4 @@
-import { AlbumGrid } from '@/app/admin/albums/[user]/[album]/photos/page';
+import { AlbumGrid } from '@/components/AlbumPage';
 import SharedPage from '@/components/SharedPage';
 import { Metadata } from 'next';
 
@@ -40,16 +40,33 @@ export async function generateMetadata({
   };
 }
 
-function Page({ params }: { params: { user: string; album: string; secret: string } }) {
+async function Page({ params }: { params: { user: string; album: string; secret: string } }) {
+  const albumData: AlbumGrid = await getAlbum(params.user, params.album, params.secret);
   return (
     <>
       <meta
         name="apple-itunes-app"
         content={`app-id=6477320360, app-argument=photoaura://?url=aura-api.reactiveshots.com&shareLink=${params.user}/${params.album}/${params.secret}`}
       />
-      <SharedPage params={params} />
+      <SharedPage params={params} albumData={albumData} />
     </>
   );
 }
 
 export default Page;
+
+// Server-side fetching functions with token parameter
+async function getAlbum(userSlug: string, albumSlug: string, secret: string): Promise<AlbumGrid> {
+  const response = await fetch(
+    `${process.env.API_URL}/album/${userSlug}/${albumSlug}/?secret=${secret}`,
+    {
+      cache: 'no-cache',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch album data');
+  }
+
+  return response.json();
+}
