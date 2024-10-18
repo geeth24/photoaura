@@ -3,7 +3,7 @@ import PhotosGrid, { Album } from '@/components/PhotosGrid';
 import { cookies } from 'next/headers';
 import PhotosPage from '@/components/PhotosPage';
 
-type CookieUser = {
+export type CookieUser = {
   id: number;
   user_name: string;
   full_name: string;
