@@ -1,42 +1,53 @@
-'use client';
 import React from 'react';
-import axios from 'axios';
 import PhotosGrid, { Album } from '@/components/PhotosGrid';
-import { useAuth } from '@/context/AuthContext';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { toast } from 'sonner';
-import { showToastWithCooldown } from '@/components/ToastCooldown';
-function Page() {
-  const [photos, setPhotos] = React.useState<Album[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const { user, sidebarOpened } = useAuth();
+import { cookies } from 'next/headers';
+import PhotosPage from '@/components/PhotosPage';
 
-  React.useEffect(() => {
-    setIsLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos/?user_id=${user?.id}`)
-      .then((response) => response.json())
-      .then((data) => {
-        setPhotos(data);
-        setIsLoading(false);
-        showToastWithCooldown('Photos loaded', true);
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-        setIsLoading(false);
-        showToastWithCooldown('Error loading photos', false);
-      });
-  }, []);
+export type CookieUser = {
+  id: number;
+  user_name: string;
+  full_name: string;
+  user_email: string;
+};
 
+export default async function Page() {
+  const cookieStore = cookies();
+  const encodedUser = cookieStore.get('user')?.value;
+
+  var id = '';
+
+  if (encodedUser) {
+    try {
+      // Decode and parse the user cookie
+      const decodedUser = decodeURIComponent(encodedUser);
+      const user: CookieUser = JSON.parse(decodedUser);
+
+      id = user.id.toString();
+    } catch (error) {
+      console.error('Error parsing user or fetching photos:', error);
+    }
+  } else {
+    console.error('User cookie not found');
+  }
+
+  const photosData: Album[] = await getPhotos(Number(id));
+
+  // If no photos data, handle appropriately
   return (
-    <div className={`w-full ${sidebarOpened ? 'pl-4' : ''} pr-4`}>
-      {/* {isLoading && (
-        <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform`}>
-          <LoadingSpinner size={48} />
-        </div>
-      )} */}
-      {!isLoading && <PhotosGrid albums={photos} />}
-    </div>
+    <>
+      <PhotosPage albums={photosData} />
+    </>
   );
 }
 
-export default Page;
+async function getPhotos(userId: number): Promise<Album[]> {
+  const response = await fetch(`${process.env.API_URL}/photos/?user_id=${userId}`, {
+    cache: 'no-cache',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch album data');
+  }
+
+  return response.json();
+}

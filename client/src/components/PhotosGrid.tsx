@@ -244,7 +244,7 @@ function PhotosGrid({
           </p>
         </div>
         {albums.map((album, index) => (
-          <FadeIn key={album.compressed_image}>
+          <div key={album.compressed_image}>
             <ContextMenu>
               <ContextMenuTrigger asChild>
                 <Link
@@ -311,7 +311,7 @@ function PhotosGrid({
                 )}
               </ContextMenuContent>
             </ContextMenu>
-          </FadeIn>
+          </div>
         ))}
       </div>
       {selectedImageIndex !== null && (

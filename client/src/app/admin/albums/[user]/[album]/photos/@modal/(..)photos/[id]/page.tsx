@@ -3,7 +3,7 @@ import { PhotoModal } from '@/components/PhotosGrid';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
 import { useParams } from 'next/navigation';
 import React from 'react';
-import { AlbumGrid } from '../../../page';
+import { AlbumGrid } from '@/components/AlbumPage';
 
 export default function PhotoModalPage({ params: { id } }: { params: { id: string } }) {
   const [albumGrid, setAlbumGrid] = React.useState<AlbumGrid>({

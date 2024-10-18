@@ -36,9 +36,12 @@ export type User = {
   user_email: string;
   albums: Album[];
 };
-function UsersTable() {
+type UsersTableProps = {
+  usersData : User[];
+};
+function UsersTable({ usersData }: UsersTableProps) {
   const { sidebarOpened } = useAuth();
-  const [users, setUsers] = React.useState<User[]>([]);
+  const [users, setUsers] = React.useState<User[]>(usersData);
   const [selectedUser, setSelectedUser] = React.useState<User>({} as User);
   const [newUser, setNewUser] = React.useState<User>({} as User);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -50,7 +53,6 @@ function UsersTable() {
     if (!storedToken) {
       return;
     }
-    fetchUsers();
   }, []);
 
   const fetchUsers = async () => {
