@@ -25,6 +25,7 @@ async function Page() {
 
   const albums: AlbumSmall[] = await getAlbums(Number(id));
   const categoriesLinkedData: CategoryLinked[] = await getLinkedCategories();
+  console.log(categoriesLinkedData);
   const categoriesData: Category[] = await getCategories();
 
   return (
@@ -39,7 +40,7 @@ async function Page() {
 }
 
 async function getLinkedCategories(): Promise<CategoryLinked[]> {
-  const response = await fetch(`${process.env.API_URL}/categories`, {
+  const response = await fetch(`${process.env.API_URL}/category-albums`, {
     cache: 'no-cache',
   });
 
@@ -51,7 +52,7 @@ async function getLinkedCategories(): Promise<CategoryLinked[]> {
 }
 
 async function getCategories(): Promise<Category[]> {
-  const response = await fetch(`${process.env.API_URL}/category-albums`, {
+  const response = await fetch(`${process.env.API_URL}/categories`, {
     cache: 'no-cache',
   });
 
