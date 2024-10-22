@@ -14,14 +14,16 @@ type DashboardResponse = {
 };
 
 function Page() {
-  const { sidebarOpened } = useAuth();
+  const { sidebarOpened, accessToken } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardResponse>({ albums: 0, users: 0, photos: 0 });
 
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/`, {});
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const data = await response.json();
         setIsLoading(false);
         animateValue(0, data.photos, 500, (value) =>
@@ -39,7 +41,7 @@ function Page() {
       }
     };
     fetchDashboard();
-  }, []);
+  }, [accessToken]);
 
   return (
     <div className={`relative flex flex-col ${sidebarOpened ? 'pl-4' : ''} pr-4`}>

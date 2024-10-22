@@ -1,5 +1,8 @@
 from fastapi import (
     FastAPI,
+    Depends,
+    HTTPException,
+    status,
 )
 import os
 from starlette.middleware.cors import CORSMiddleware
@@ -15,7 +18,8 @@ from routers.face.face_router import router as face_router
 from routers.websocket.websocket_router import router as websocket_router
 from routers.danger.danger_router import router as danger_router
 from services.database import get_db
-
+from fastapi.security import OAuth2PasswordBearer
+from routers.auth.auth_router import verify_token
 
 app = FastAPI()
 # origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
@@ -55,8 +59,16 @@ async def api_root():
     return {"message": "PhotoAura API"}
 
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 @app.get("/api/dashboard/")
-async def get_dashboard():
+async def get_dashboard(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute("SELECT * FROM album")
     albums = cursor.fetchall()

@@ -7,11 +7,13 @@ import React from 'react';
 export default function PhotoModalPage({ params: { id } }: { params: { id: string } }) {
   const [photos, setPhotos] = React.useState<Album[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const { user, sidebarOpened } = useAuth();
+  const { user, sidebarOpened, accessToken } = useAuth();
 
   React.useEffect(() => {
     setIsLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos/?user_id=${user?.id}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/photos/?user_id=${user?.id}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
       .then((response) => response.json())
       .then((data) => {
         setPhotos(data);
