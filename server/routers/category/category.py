@@ -1,13 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from services.database import get_db
 from utils.utils import create_album_photos_json
+from fastapi.security import OAuth2PasswordBearer
+from routers.auth.auth_router import verify_token
 
 router = APIRouter()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 # route for getting all categories
 @router.get("/api/categories")
-async def get_categories():
+async def get_categories(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute("SELECT * FROM categories")
     categories = cursor.fetchall()
@@ -21,7 +30,13 @@ async def get_categories():
 
 # route for making a new category
 @router.post("/api/categories")
-async def create_category(name: str):
+async def create_category(name: str, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     slug = name.lower().replace(" ", "-")
     cursor.execute(
@@ -33,7 +48,13 @@ async def create_category(name: str):
 
 # delete a category
 @router.delete("/api/categories/{category_id}")
-async def delete_category(category_id: int):
+async def delete_category(category_id: int, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute("DELETE FROM categories WHERE id = %s", (category_id,))
     db.commit()
@@ -47,7 +68,13 @@ async def delete_category(category_id: int):
 
 # route linking an album to a category
 @router.post("/api/album-categories")
-async def link_album_to_category(album_id: int, category_id: int):
+async def link_album_to_category(album_id: int, category_id: int, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute(
         "INSERT INTO album_categories (album_id, category_id) VALUES (%s, %s)",
@@ -59,7 +86,13 @@ async def link_album_to_category(album_id: int, category_id: int):
 
 # route for deleting a link between an album and a category
 @router.delete("/api/album-categories")
-async def unlink_album_from_category(album_id: int, category_id: int):
+async def unlink_album_from_category(album_id: int, category_id: int, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute(
         "DELETE FROM album_categories WHERE album_id = %s AND category_id = %s",
@@ -71,7 +104,13 @@ async def unlink_album_from_category(album_id: int, category_id: int):
 
 # route for the category albums get the one album linked to it
 @router.get("/api/category-albums/{category_id}")
-async def get_album_by_category(category_id: int):
+async def get_album_by_category(category_id: int, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     # Query to select the album linked to the specified category ID.
     cursor.execute(
@@ -112,7 +151,13 @@ async def get_album_by_category(category_id: int):
 
 # route for getting all albums linked each category
 @router.get("/api/category-albums")
-async def get_albums_by_category():
+async def get_albums_by_category(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute(
         """
