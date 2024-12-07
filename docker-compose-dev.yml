@@ -7,6 +7,7 @@ services:
       - postgres-data:/var/lib/postgresql/data  # Persist database data
     networks:
       - app-network
+    restart: always
     ports:
       - "5432:5432"
     env_file:
@@ -24,6 +25,7 @@ services:
       - postgres  # Ensure the backend waits for PostgreSQL to be ready
     ports:
       - "8000:8000"
+    restart: always
     networks:
       - app-network
     command: uvicorn main:app --host 0.0.0.0 --reload --port 8000  # or any other command to start your FastAPI backend
@@ -40,6 +42,7 @@ services:
       - /app/client/node_modules
     ports:
       - "3000:3000"
+    restart: always
     networks:
       - app-network
     command: pnpm run dev  # or any other command to start your Next.js frontend

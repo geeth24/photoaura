@@ -13,18 +13,20 @@ type Face = {
 
 function Page() {
   const [faces, setFaces] = useState<Face[]>([]);
+  const { accessToken, sidebarOpened } = useAuth();
 
   const getFaces = async () => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/faces`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/faces`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     const data = await response.json();
     setFaces(data);
   };
 
   React.useEffect(() => {
     getFaces();
-  }, []);
+  }, [accessToken]);
 
-  const { sidebarOpened } = useAuth();
   return (
     <div
       className={`flex flex-col items-center justify-center ${sidebarOpened ? 'pl-4' : ''} pr-4`}

@@ -6,6 +6,7 @@ import { CookieUser } from '../photos/page';
 async function Page() {
   const cookieStore = cookies();
   const encodedUser = cookieStore.get('user')?.value;
+  const token = cookieStore.get('token')?.value;
 
   var id = '';
 
@@ -23,10 +24,10 @@ async function Page() {
     console.error('User cookie not found');
   }
 
-  const albums: AlbumSmall[] = await getAlbums(Number(id));
-  const categoriesLinkedData: CategoryLinked[] = await getLinkedCategories();
+  const albums: AlbumSmall[] = await getAlbums(Number(id), token);
+  const categoriesLinkedData: CategoryLinked[] = await getLinkedCategories(token);
   console.log(categoriesLinkedData);
-  const categoriesData: Category[] = await getCategories();
+  const categoriesData: Category[] = await getCategories(token);
 
   return (
     <div>
@@ -39,9 +40,10 @@ async function Page() {
   );
 }
 
-async function getLinkedCategories(): Promise<CategoryLinked[]> {
+async function getLinkedCategories(token: string | undefined): Promise<CategoryLinked[]> {
   const response = await fetch(`${process.env.API_URL}/category-albums`, {
     cache: 'no-cache',
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!response.ok) {
@@ -51,9 +53,10 @@ async function getLinkedCategories(): Promise<CategoryLinked[]> {
   return response.json();
 }
 
-async function getCategories(): Promise<Category[]> {
+async function getCategories(token: string | undefined): Promise<Category[]> {
   const response = await fetch(`${process.env.API_URL}/categories`, {
     cache: 'no-cache',
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!response.ok) {
@@ -62,9 +65,10 @@ async function getCategories(): Promise<Category[]> {
 
   return response.json();
 }
-async function getAlbums(userId: number): Promise<AlbumSmall[]> {
+async function getAlbums(userId: number, token: string | undefined): Promise<AlbumSmall[]> {
   const response = await fetch(`${process.env.API_URL}/albums/?user_id=${userId}`, {
     cache: 'no-cache',
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!response.ok) {
