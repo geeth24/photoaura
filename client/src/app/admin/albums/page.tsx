@@ -13,6 +13,7 @@ type CookieUser = {
 async function Page() {
   const cookieStore = cookies();
   const encodedUser = cookieStore.get('user')?.value;
+  const token = cookieStore.get('token')?.value;
 
   var id = '';
 
@@ -30,14 +31,15 @@ async function Page() {
     console.error('User cookie not found');
   }
 
-  const albumsData: AlbumGrid[] = await getAlbums(Number(id));
+  const albumsData: AlbumGrid[] = await getAlbums(Number(id), token);
 
   return <AlbumsPage albumsData={albumsData} />;
 }
 
-async function getAlbums(userId: number): Promise<AlbumGrid[]> {
+async function getAlbums(userId: number, token: string | undefined): Promise<AlbumGrid[]> {
   const response = await fetch(`${process.env.API_URL}/albums/?user_id=${userId}`, {
     cache: 'no-cache',
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!response.ok) {

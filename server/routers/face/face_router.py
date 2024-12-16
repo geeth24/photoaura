@@ -1,16 +1,25 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from services.database import get_db
 from utils.utils import create_album_photos_json
+from fastapi.security import OAuth2PasswordBearer
+from routers.auth.auth_router import verify_token
 import os
 
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
 AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
 
 router = APIRouter()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 @router.get("/api/face")
-async def get_faces():
+async def get_faces(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute("SELECT * FROM photo_face_link")
     faces = cursor.fetchall()
@@ -29,7 +38,13 @@ async def get_faces():
 
 
 @router.get("/api/face/{face_id}/photo")
-async def get_face_photo(face_id: str):
+async def get_face_photo(face_id: str, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute(
         "SELECT photo_id FROM photo_face_link WHERE face_id = %s", (face_id,)
@@ -43,7 +58,13 @@ async def get_face_photo(face_id: str):
 
 
 @router.get("/api/faces")
-async def get_faces():
+async def get_faces(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute("SELECT * FROM face_data")
     faces = cursor.fetchall()
@@ -85,7 +106,13 @@ async def get_faces():
 
 
 @router.get("/api/face/{face_id}")
-async def get_face(face_id: str):
+async def get_face(face_id: str, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute("SELECT * FROM face_data WHERE external_id = %s", (face_id,))
     face = cursor.fetchone()
@@ -154,7 +181,13 @@ async def get_face(face_id: str):
 
 
 @router.put("/api/face/{face_id}")
-async def update_face(face_id: str, face: dict):
+async def update_face(face_id: str, face: dict, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
     db, cursor = get_db()
     cursor.execute(
         "UPDATE face_data SET name = %s WHERE external_id = %s", (face["name"], face_id)
