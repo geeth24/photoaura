@@ -167,8 +167,8 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
                 src={album.image}
-                width={1920}
-                height={1080}
+                width={720}
+                height={480}
                 alt="Enlarged photo"
                 priority
                 className="h-full w-full rounded-md object-contain"
