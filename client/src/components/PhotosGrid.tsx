@@ -166,7 +166,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
-                src={album.compressed_image}
+                src={album.image}
                 width={1920}
                 height={1080}
                 alt="Enlarged photo"
