@@ -13,6 +13,7 @@ export type CookieUser = {
 export default async function Page() {
   const cookieStore = cookies();
   const encodedUser = cookieStore.get('user')?.value;
+  const token = cookieStore.get('token')?.value;
 
   var id = '';
 
@@ -30,7 +31,7 @@ export default async function Page() {
     console.error('User cookie not found');
   }
 
-  const photosData: Album[] = await getPhotos(Number(id));
+  const photosData: Album[] = await getPhotos(Number(id), token);
 
   // If no photos data, handle appropriately
   return (
@@ -40,9 +41,10 @@ export default async function Page() {
   );
 }
 
-async function getPhotos(userId: number): Promise<Album[]> {
+async function getPhotos(userId: number, token: string | undefined): Promise<Album[]> {
   const response = await fetch(`${process.env.API_URL}/photos/?user_id=${userId}`, {
     cache: 'no-cache',
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!response.ok) {

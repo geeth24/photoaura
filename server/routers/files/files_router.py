@@ -3,6 +3,9 @@ from fastapi import (
     File,
     Query,
     APIRouter,
+    Depends,
+    HTTPException,
+    status,
 )
 from datetime import datetime
 import os
@@ -15,11 +18,13 @@ from uuid import uuid4
 from utils.face_recog import detect_and_store_faces
 from utils.utils import get_file_metadata, add_album_to_user
 from routers.websocket.websocket_router import manager
+from fastapi.security import OAuth2PasswordBearer
+from routers.auth.auth_router import verify_token
 
 router = APIRouter()
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
 AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Upload files and handle DB logic
 @router.post("/api/upload-files/")
@@ -30,7 +35,15 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
     face_detection: bool = False,
+    token: str = Depends(oauth2_scheme),
 ):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    verify_token(token, credentials_exception)
+    
     # Send upload progress to client
     websocket = manager.active_connections[0]
     total_bytes = 0
