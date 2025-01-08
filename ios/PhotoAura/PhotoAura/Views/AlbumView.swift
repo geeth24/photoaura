@@ -103,10 +103,10 @@ struct AlbumView: View {
 
             }
             .photosPicker(isPresented: $isPresentingPhotoPicker, selection: $selectedItems, maxSelectionCount: 0, matching: .images, photoLibrary: .shared()) // 0 for unlimited selection
-            .onChange(of: selectedItems) { newItems in
+            .onChange(of: selectedItems) { oldValue, newItems in
                 processSelectedItems(newItems)
             }
-            .onChange(of: webSocketManager.count){ newValue in
+            .onChange(of: webSocketManager.count){ oldValue, newValue in
                 print("value chnaged")
                 uploadProgress = Float((webSocketManager.count / selectedItemsCount * 2 ) * 100)
                 print(uploadProgress)

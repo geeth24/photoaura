@@ -35,7 +35,7 @@ class ViewModel: NSObject, ObservableObject {
     @Published var albums: [AlbumsModel] = []
     @Published var album: AlbumsModel = AlbumsModel()
     
-    @Published var currentTab: Tab = .photos
+    @Published var currentTab: Tab = .home
     @Published var showLogoutAlert: Bool = false
     @Published var showDeleteAlert: Bool = false
     
@@ -44,6 +44,10 @@ class ViewModel: NSObject, ObservableObject {
     
     @Published var changeURL: Bool = false
     
+    @Published var currentPage = 1
+    @Published var hasMoreData = true
+    private let pageSize = 20 // Number of items per page
+
     
     private let defaults = UserDefaults.standard
     
@@ -313,15 +317,17 @@ class ViewModel: NSObject, ObservableObject {
     
     @MainActor
     func getAlbums() async throws {
+        guard hasMoreData, !isLoading else { return }
         isLoading = true
+        defer { isLoading = false }
+        
         let userData = getUserDetail()
-        guard let url = URL(string: "https://\(photoAuraURL)/api/albums?user_id=\(userData?.id ?? 0)") else {
+        guard let url = URL(string: "https://\(photoAuraURL)/api/albums?user_id=\(userData?.id ?? 0)&page=\(currentPage)&size=\(pageSize)") else {
             isLoading = false
             return
         }
         
         let urlRequest = URLRequest(url: url)
-        
         
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
@@ -332,16 +338,19 @@ class ViewModel: NSObject, ObservableObject {
         }
         
         do {
-            // Decode the data to your struct
             let albumsResponse = try JSONDecoder().decode([AlbumsModel].self, from: data)
-            self.albums = albumsResponse
+            
+            if albumsResponse.count < pageSize {
+                hasMoreData = false // No more data to load
+            }
+            
+            self.albums.append(contentsOf: albumsResponse)
+            self.currentPage += 1
         } catch {
-            isLoading = false
             print("Error decoding the response: \(error)")
         }
-        
-        isLoading = false
     }
+
     
     
     @MainActor

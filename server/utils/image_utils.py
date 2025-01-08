@@ -39,9 +39,9 @@ def compress_image(file_path, output_path, max_size=50, quality=100):
         # Rotate image based on EXIF data (assuming the rotate_image_based_on_exif function is defined)
         img = rotate_image_based_on_exif(img)
 
-        # Resize image to 720p if it's larger
-        if img.height > 720 or img.width > 1280:
-            img.thumbnail((1280, 720))
+        # Resize image to 1080p if it's larger
+        if img.width > 1920 or img.height > 1080:
+            img.thumbnail((1920, 1080))
             
         img.save(output_path, quality=quality, optimize=True)
 

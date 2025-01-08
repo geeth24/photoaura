@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct SidebarView<Content: View>: View {
-    
     let content: Content // Define a property to hold the custom content
     
     // Add an initializer to accept the custom content
@@ -18,38 +17,59 @@ struct SidebarView<Content: View>: View {
     
     @EnvironmentObject var vm: ViewModel
     
-    
-    
     var body: some View {
-        ZStack{
+        ZStack {
+            // Main content view with a tap gesture to close the sidebar
             content
-                .padding(.leading, vm.sidebarOpened ? UIScreen.main.bounds.width/2 : 50)
                 .gesture(
                     DragGesture()
-                        .onEnded { value in
-                            // Detect left to right swipe to open sidebar
-                            if value.translation.width > 100 && abs(value.translation.height) < 100 {
+                        .onChanged { value in
+                            if value.translation.width > 0 {
                                 withAnimation {
                                     vm.sidebarOpened = true
                                 }
+                            } else if value.translation.width < 0 {
+                                withAnimation {
+                                    vm.sidebarOpened = false
+                                }
                             }
                         }
-                    
+                )
+                .overlay(
+                    // Add a transparent overlay when the sidebar is open
+                    Color.black.opacity(vm.sidebarOpened ? 0.3 : 0)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation {
+                                vm.sidebarOpened = false
+                            }
+                        }
                 )
             
-            HStack{
-                
+            // Sidebar container
+            HStack {
+                // Sidebar view
                 Rectangle()
                     .ignoresSafeArea()
-                    .foregroundStyle(.sidebarDefault)
-                    .frame(width: vm.sidebarOpened ? UIScreen.main.bounds.width/2 : 50)
+                    .foregroundStyle(.ultraThickMaterial)
+                    .frame(width: vm.sidebarOpened ? UIScreen.main.bounds.width / 2 : 50)
                     .gesture(
                         DragGesture()
+                            .onChanged { value in
+                                withAnimation {
+                                    if value.translation.width > 0 {
+                                        vm.sidebarOpened = true
+                                    } else if value.translation.width < 0 {
+                                        vm.sidebarOpened = false
+                                    }
+                                }
+                            }
                             .onEnded { value in
-                                // Check for left to right swipe
-                                if value.translation.width > 100 && abs(value.translation.height) < 100 {
-                                    withAnimation {
-                                        vm.sidebarOpened.toggle()
+                                withAnimation {
+                                    if value.translation.width > 100 {
+                                        vm.sidebarOpened = true
+                                    } else if value.translation.width < -100 {
+                                        vm.sidebarOpened = false
                                     }
                                 }
                             }
@@ -60,8 +80,8 @@ struct SidebarView<Content: View>: View {
                         }
                     }
                     .overlay(alignment: vm.sidebarOpened ? .topLeading : .top) {
-                        VStack(alignment: vm.sidebarOpened ? .leading : .center){
-                            HStack{
+                        VStack(alignment: vm.sidebarOpened ? .leading : .center) {
+                            HStack {
                                 Image("logo-color")
                                     .resizable()
                                     .frame(width: 36, height: 36)
@@ -73,44 +93,37 @@ struct SidebarView<Content: View>: View {
                                         .fontWeight(.bold)
                                 }
                             }
-                            
-                            
                             .onTapGesture {
                                 withAnimation {
                                     vm.sidebarOpened.toggle()
                                 }
                             }
-                            
                             .padding(.bottom)
                             
-                            SidebarNavButton(tab: .photos, tabText: "Photos")
+                            SidebarNavButton(tab: .home, tabText: "Home")
                             
-                            SidebarNavButton(tab: .albums, tabText: "Albums")
-                            
+//                            SidebarNavButton(tab: .photos, tabText: "Photos")
+//                            SidebarNavButton(tab: .albums, tabText: "Albums")
                             Spacer()
                             SidebarNavButton(tab: .settings, tabText: "Settings")
                             SidebarNavButton(tab: .logout, tabText: "Logout")
-                            
-                            
-                            
-                            
-                        }   .padding(.horizontal)
+                        }
+                        .padding(.horizontal)
                     }
-                    .sheet(isPresented: $vm.showLogoutAlert, content: {
+                    .sheet(isPresented: $vm.showLogoutAlert) {
                         ActionSheet(action: "logout", icon: "rectangle.portrait.and.arrow.forward", actionText: "Are you sure you want to logout?")
                             .presentationDetents([.height(200)])
-                    })
-                
-                
-                
-                
+                    }
                 
                 Spacer()
-                
             }
+            .offset(x: vm.sidebarOpened ? 0 : -UIScreen.main.bounds.width / 2)
+            .animation(.easeInOut, value: vm.sidebarOpened) // Explicit animation binding
         }
     }
 }
+
+
 
 #Preview {
     ContentView()
@@ -133,6 +146,7 @@ struct SidebarNavButton : View {
             }else {
                 vm.showLogoutAlert = true
             }
+            vm.sidebarOpened = false
         } label: {
             HStack{
                 Image(systemName: tab.rawValue)

@@ -10,11 +10,9 @@ import CachedAsyncImage
 
 struct AlbumsView: View {
     @EnvironmentObject var vm: ViewModel
+    
     init() {
-        
-        UINavigationBar.appearance().largeTitleTextAttributes = [.font : UIFont(name: "Lato-Bold", size: 36)!]
-        
-        
+        UINavigationBar.appearance().largeTitleTextAttributes = [.font: UIFont(name: "Lato-Bold", size: 36)!]
     }
     
     let columns = [
@@ -22,87 +20,131 @@ struct AlbumsView: View {
         GridItem(.flexible())
     ]
     
-    
     var body: some View {
-        NavigationStack{
-            ScrollView {
-                VStack {
-                    
+        
+        VStack(alignment: .leading, spacing: 10) {
+            
+            HStack {
+                Spacer()
+                Capsule()
+                    .frame(width: 48, height: 8)
+                    .foregroundColor(.textDefault.opacity(0.5))
+                    .padding(.horizontal)
+                
+                Spacer()
+                   
+            }
+            
+            Text("Albums")
+                .font(.custom(Lato, size: 24))
+                .lineSpacing(28)
+                .fontWeight(.bold)
+            
+            ScrollView(.horizontal) {
+                LazyHStack {
                     ForEach(vm.albums, id: \.self) { album in
-                        
-                        NavigationLink{
+                        NavigationLink {
                             AlbumView(slug: album.slug)
-                            //                                .navigationBarBackButtonHidden(true)
                         } label: {
-                            ZStack{
-                                VStack(alignment: .leading){
-                                    
-                                    Text(album.albumName)
-                                        .font(.custom(Lato, size: 16))
-                                        .lineSpacing(24)
-                                        .fontWeight(.medium)
-                                        .tracking(-0.025)
-                                        .foregroundStyle(.textDefault)
-                                    
-                                    Text("\(album.imageCount) images")
-                                        .font(.custom(Lato, size: 16))
-                                        .lineSpacing(24)
-                                        .fontWeight(.medium)
-                                        .tracking(-0.025)
-                                        .foregroundStyle(.textDefault.opacity(0.5))
+                            
+                            ZStack {
                                     
                                     
-                                        .foregroundStyle(.textDefault)
                                     
-                                    LazyVGrid(columns: columns, spacing: 10) {
+                                    if let firstPhoto = album.albumPhotos.first {
                                         
-                                        ForEach(album.albumPhotos, id: \.self) { photo in
-                                            
-                                            CachedAsyncImage(url: URL(string: photo.image)) { image in
-                                                image
-                                                    .resizable()
-                                                    .aspectRatio(1.0, contentMode: .fill)
-                                                    .cornerRadius(4.0)
+                                        CachedAsyncImage(url: URL(string: firstPhoto.compressedImage)) { image in
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 220, height: 150)
+                                                .clipped()
+                                                .cornerRadius(8.0)
+                                        } placeholder: {
+                                            ProgressView()
+                                                .frame(width: 220, height: 150)
+                                                .foregroundStyle(.ultraThickMaterial) // Placeholder style
+                                                .cornerRadius(8.0)
+                                        }
+                                        .overlay(alignment: .bottom){
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .fill(.clear)
+                                                .background(
+                                                    .ultraThinMaterial
+                                                )
+                                                .clipShape(
+                                                    .rect(
+                                                            topLeadingRadius: 0,
+                                                            bottomLeadingRadius: 8,
+                                                            bottomTrailingRadius: 8,
+                                                            topTrailingRadius: 0
+                                                        )
+                                                            )
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 30)
+                                                .clipped()
+                                                .scaledToFill()
+                                        }
+                                        .overlay(alignment: .bottomLeading){
+                                            Text(album.albumName)
+                                                .font(.custom("Lato", size: 20))
+                                                .lineSpacing(24)
+                                                .fontWeight(.medium)
+                                                .tracking(-0.025)
+                                                .foregroundStyle(.textDefault)
+                                                .padding(.leading, 5)
+                                                .padding(.bottom, 5)
                                                 
-                                                
-                                                
-                                            } placeholder: {
-                                                ProgressView()
-                                            }
-                                            
-                                            
+
                                             
                                             
                                         }
+                                        
+                                        
+                                            
+                                            
+                                        
                                     }
-                                }
-                                .padding()
+                                    
+                                
+                                
                                 
                             }
-                            .background(.sidebarDefault)
-                            .cornerRadius(4.0)
-                            .padding()
+
+                            
                         }
                     }
                     
-                    
-                    
-                    
-                    
+                    if vm.isLoading {
+                        ProgressView()
+                            .onAppear {
+                                Task {
+                                    try? await vm.getAlbums()
+                                }
+                            }
+                    }
                 }
-                .navigationTitle("Albums")
-                .onAppear {
-                    Task {
-                        do {
-                            try await vm.getAlbums()
-                        } catch {
-                            print("Error loading photos")
-                        }
-                        
-                    }
+                
+
+            }
+            .scrollIndicators(.hidden)
+            .cornerRadius(8.0)
+            
+        }
+        .padding([.vertical, .leading])
+        .onAppear {
+            Task {
+                do {
+                    try await vm.getAlbums()
+                } catch {
+                    print("Error loading albums")
                 }
             }
         }
+        .cornerRadius(8.0)
+
+        
+        
     }
 }
 

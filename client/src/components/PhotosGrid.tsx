@@ -166,9 +166,9 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
-                src={album.image}
-                width={720}
-                height={480}
+                src={album.compressed_image}
+                width={1920}
+                height={1080}
                 alt="Enlarged photo"
                 priority
                 className="h-full w-full rounded-md object-contain"
@@ -254,13 +254,13 @@ function PhotosGrid({
                 >
                   <Image
                     src={album.compressed_image}
-                    width={720}
-                    height={480}
+                    width={1920}
+                    height={1080}
                     style={{ transform: 'translate3d(0, 0, 0)' }}
                     sizes="(max-width: 640px) 100vw,
-                  (max-width: 1280px) 50vw,
-                  (max-width: 1536px) 33vw,
-                  25vw"
+         (max-width: 1280px) 75vw,
+         (max-width: 1536px) 50vw,
+         33vw"
                     alt="Photo"
                     className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
                     placeholder="blur"

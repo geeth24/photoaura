@@ -11,7 +11,6 @@
 		6F30D3A52B6B9A2F0098D86C /* MasonryStack in Frameworks */ = {isa = PBXBuildFile; productRef = 6F30D3A42B6B9A2F0098D86C /* MasonryStack */; };
 		6F30D3A72B6C0B340098D86C /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F30D3A62B6C0B340098D86C /* SidebarView.swift */; };
 		6F30D3A92B6C31FA0098D86C /* AlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F30D3A82B6C31FA0098D86C /* AlbumsView.swift */; };
-		6F768F912B796592007525A9 /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 6F768F902B796592007525A9 /* Icon.png */; };
 		6FB01B932B6AEC1C00106352 /* PhotoAuraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FB01B922B6AEC1C00106352 /* PhotoAuraApp.swift */; };
 		6FB01B952B6AEC1C00106352 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FB01B942B6AEC1C00106352 /* ContentView.swift */; };
 		6FB01B972B6AEC1D00106352 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6FB01B962B6AEC1D00106352 /* Assets.xcassets */; };
@@ -36,7 +35,7 @@
 /* Begin PBXFileReference section */
 		6F30D3A62B6C0B340098D86C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		6F30D3A82B6C31FA0098D86C /* AlbumsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumsView.swift; sourceTree = "<group>"; };
-		6F768F902B796592007525A9 /* Icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Icon.png; sourceTree = "<group>"; };
+		6FA0FFCD2D2EA5C9008D054E /* WhatToTest.en-US.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "WhatToTest.en-US.txt"; sourceTree = "<group>"; };
 		6FB01B8F2B6AEC1C00106352 /* PhotoAura.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoAura.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6FB01B922B6AEC1C00106352 /* PhotoAuraApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAuraApp.swift; sourceTree = "<group>"; };
 		6FB01B942B6AEC1C00106352 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -73,9 +72,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		6FA0FFCE2D2EA5C9008D054E /* TestFlight */ = {
+			isa = PBXGroup;
+			children = (
+				6FA0FFCD2D2EA5C9008D054E /* WhatToTest.en-US.txt */,
+			);
+			path = TestFlight;
+			sourceTree = "<group>";
+		};
 		6FB01B862B6AEC1C00106352 = {
 			isa = PBXGroup;
 			children = (
+				6FA0FFCE2D2EA5C9008D054E /* TestFlight */,
 				6FB01B912B6AEC1C00106352 /* PhotoAura */,
 				6FB01B902B6AEC1C00106352 /* Products */,
 			);
@@ -92,7 +100,6 @@
 		6FB01B912B6AEC1C00106352 /* PhotoAura */ = {
 			isa = PBXGroup;
 			children = (
-				6F768F902B796592007525A9 /* Icon.png */,
 				6FB01BAD2B6B4A8900106352 /* Info.plist */,
 				6FB01BA22B6B4A4F00106352 /* Fonts */,
 				6FB01B922B6AEC1C00106352 /* PhotoAuraApp.swift */,
@@ -227,7 +234,6 @@
 			files = (
 				6FB01BAC2B6B4A7300106352 /* Lato-Bold.ttf in Resources */,
 				6FB01BAA2B6B4A7300106352 /* Lato-Light.ttf in Resources */,
-				6F768F912B796592007525A9 /* Icon.png in Resources */,
 				6FB01B9A2B6AEC1D00106352 /* Preview Assets.xcassets in Resources */,
 				6FB01BA82B6B4A7300106352 /* Lato-Thin.ttf in Resources */,
 				6FB01B972B6AEC1D00106352 /* Assets.xcassets in Resources */,
@@ -402,12 +408,12 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.radsoftinc.PhotoAura;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -440,12 +446,12 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.radsoftinc.PhotoAura;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
