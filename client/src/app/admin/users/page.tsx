@@ -2,7 +2,7 @@ import UsersTable, { User } from '@/components/UsersTable';
 import { cookies } from 'next/headers';
 import React from 'react';
 async function Page() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const userToken = cookieStore.get('token')?.value;
 
   const users: User[] = await getUsers(userToken);

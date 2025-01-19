@@ -11,7 +11,7 @@ export type CookieUser = {
 };
 
 export default async function Page() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const encodedUser = cookieStore.get('user')?.value;
   const token = cookieStore.get('token')?.value;
 

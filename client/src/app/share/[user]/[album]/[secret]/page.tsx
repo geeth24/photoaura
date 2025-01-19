@@ -1,12 +1,14 @@
 'use client';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
-function Page({ params }: { params: { user: string; album: string; secret: string } }) {
-  const router = useRouter();
-  useEffect(() => {
-    router.push(`/share/${params.user}/${params.album}/${params.secret}/photos`);
-  }, []);
+import { redirect } from 'next/navigation';
+
+async function Page({
+  params,
+}: {
+  params: Promise<{ user: string; album: string; secret: string }>;
+}) {
+  const { user, album, secret } = await params;
+  redirect(`/share/${user}/${album}/${secret}/photos`);
 }
 
 export default Page;

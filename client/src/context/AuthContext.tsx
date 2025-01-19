@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkTokenExpiration = async () => {
       const token = getCookie('token');
       if (token) {
-        const decodedToken = JSON.parse(atob(token.split('.')[1])) as CustomJwt;
+        const decodedToken = JSON.parse(atob((token as string).split('.')[1])) as CustomJwt;
         const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
         const currentTime = new Date().getTime();
         if (expirationTime < currentTime) {
@@ -125,7 +125,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           toast.error('Session expired. Please log in again.');
           router.push('/login');
         } else {
-          const storedUser = getCookie('user');
+          const storedUser = getCookie('user') as string;
+          //verify if the user is stored in the cookie
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            const token = getCookie('token');
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/verify-token`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }).then((response) => {
+              if (response.status === 401) {
+                toast.error('Session expired. Please log in again.');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                deleteCookie('token');
+                deleteCookie('user');
+                router.push('/login');
+              } else {
+                setUser(parsedUser);
+              }
+            });
+          }
+        }
+        if (expirationTime < currentTime) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          deleteCookie('token');
+          deleteCookie('user');
+          toast.error('Session expired. Please log in again.');
+          router.push('/login');
+        } else {
+          const storedUser = getCookie('user') as string;
           //verify if the user is stored in the cookie
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);

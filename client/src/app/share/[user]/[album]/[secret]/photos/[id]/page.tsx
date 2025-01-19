@@ -1,12 +1,13 @@
-'use client';
-import { useParams, useRouter } from 'next/navigation';
-import React from 'react';
+import { redirect } from 'next/navigation';
 
-export default function PhotoPage({ params: { id } }: { params: { id: string } }) {
-  const router = useRouter();
-  const urlParams = useParams();
+async function Page({
+  params,
+}: {
+  params: Promise<{ user: string; album: string; secret: string }>;
+}) {
+  const { user, album, secret } = await params;
 
-  React.useEffect(() => {
-    router.push(`/share/${urlParams.user}/${urlParams.album}/${urlParams.secret}/photos`);
-  }, []);
+  redirect(`/share/${user}/${album}/${secret}/photos`);
 }
+
+export default Page;

@@ -1,10 +1,7 @@
-'use client';
-import { useRouter } from 'next/navigation';
-import React from 'react';
+import { redirect } from 'next/navigation';
 
-export default function PhotoPage({ params: { id } }: { params: { id: string } }) {
-  const router = useRouter();
-  React.useEffect(() => {
-    router.push('/admin/photos');
-  }, []);
+function Page() {
+  redirect(`/admin/photos`);
 }
+
+export default Page;

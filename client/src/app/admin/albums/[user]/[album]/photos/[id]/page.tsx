@@ -1,12 +1,7 @@
-'use client';
-import { useParams, useRouter } from 'next/navigation';
-import React from 'react';
+import AlbumRootPage from '@/components/AlbumRootPage';
 
-export default function PhotoPage({ params: { id } }: { params: { id: string } }) {
-  const router = useRouter();
-  const urlParams = useParams();
-
-  React.useEffect(() => {
-    router.push(`/admin/albums/${urlParams.user}/${urlParams.album}/photos`);
-  }, []);
+async function Page({ params }: { params: Promise<{ user: string; album: string; id: string }> }) {
+  return <AlbumRootPage params={await params} />;
 }
+
+export default Page;

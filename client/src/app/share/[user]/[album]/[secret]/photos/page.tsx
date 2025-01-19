@@ -5,13 +5,15 @@ import { Metadata } from 'next';
 export async function generateMetadata({
   params,
 }: {
-  params: { user: string; album: string; secret: string };
+  params: Promise<{ user: string; album: string; secret: string }>;
 }): Promise<Metadata> {
+  const { user, album, secret } = await params;
   const dev = process.env.NEXT_PUBLIC_API_URL?.includes('localhost');
+
   if (dev) {
     return {
-      title: `${params.album} | PhotoAura`,
-      description: `View ${params.album} on PhotoAura`,
+      title: `${album} | PhotoAura`,
+      description: `View ${album} on PhotoAura`,
       openGraph: {
         images: [
           {
@@ -22,9 +24,7 @@ export async function generateMetadata({
     };
   }
 
-  const response = await fetch(
-    `http://aura-api.reactiveshots.com/api/album/${params.user}/${params.album}/`,
-  );
+  const response = await fetch(`http://aura-api.reactiveshots.com/api/album/${user}/${album}/`);
   const result: AlbumGrid = await response.json();
 
   return {
@@ -40,15 +40,20 @@ export async function generateMetadata({
   };
 }
 
-async function Page({ params }: { params: { user: string; album: string; secret: string } }) {
-  const albumData: AlbumGrid = await getAlbum(params.user, params.album, params.secret);
+async function Page({
+  params,
+}: {
+  params: Promise<{ user: string; album: string; secret: string }>;
+}) {
+  const { user, album, secret } = await params;
+  const albumData: AlbumGrid = await getAlbum(user, album, secret);
   return (
     <>
       <meta
         name="apple-itunes-app"
-        content={`app-id=6477320360, app-argument=photoaura://?url=aura-api.reactiveshots.com&shareLink=${params.user}/${params.album}/${params.secret}`}
+        content={`app-id=6477320360, app-argument=photoaura://?url=aura-api.reactiveshots.com&shareLink=${user}/${album}/${secret}`}
       />
-      <SharedPage params={params} albumData={albumData} />
+      <SharedPage params={{ user, album, secret }} albumData={albumData} />
     </>
   );
 }

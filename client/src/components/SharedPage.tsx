@@ -32,13 +32,13 @@ type SocketMessage = {
   total_bytes: number;
 };
 
-function SharedPage({
-  params,
-  albumData,
-}: {
-  params: { user: string; album: string; secret: string };
-  albumData: AlbumGrid;
-}) {
+type Params = {
+  user: string;
+  album: string;
+  secret: string;
+};
+
+function SharedPage({ params, albumData }: { params: Params; albumData: AlbumGrid }) {
   const [albumGrid, setAlbumGrid] = useState<AlbumGrid>(albumData);
   const [upload, setUpload] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -128,11 +128,11 @@ function SharedPage({
   if (albumGrid.shared) {
     return (
       <div className={`p-4`}>
-        <div className="mt-4 flex  flex-row justify-between md:space-x-2 ">
+        <div className="mt-4 flex flex-row justify-between md:space-x-2">
           <h1 className="w-full text-[calc(2rem-10px)] font-bold md:text-3xl">
             {albumGrid.album_name}
           </h1>
-          <div className="flex w-full items-center justify-end  space-x-2 ">
+          <div className="flex w-full items-center justify-end space-x-2">
             {/* <Input
               type="text"
               value={`aura.reactiveshots.com/share/${albumGrid.slug}`}
@@ -145,7 +145,7 @@ function SharedPage({
                   <Button className="">Upload Photos</Button>
                 </DrawerTrigger>
 
-                <DrawerContent className="ml-auto w-full  transition-all duration-500">
+                <DrawerContent className="ml-auto w-full transition-all duration-500">
                   <DrawerHeader>
                     <DrawerTitle>Upload Photos</DrawerTitle>
                     <div className="mt-4">
