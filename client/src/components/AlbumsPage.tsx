@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { showToastWithCooldown } from '@/components/ToastCooldown';
 import { FadeIn, FadeInStagger } from '@/components/FadeIn';
 import { Switch } from '@/components/ui/switch';
+import { getCookie } from 'cookies-next';
 
 interface AlbumGrid {
   album_name: string;
@@ -58,7 +59,11 @@ function AlbumsPage({ albumsData }: AlbumPageProps) {
   const getAlbums = async () => {
     setIsLoading(true);
     // console.log('Getting albums');
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`, {
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
+    });
     const data = await response.json();
 
     if (data.length === 0) {
@@ -109,6 +114,9 @@ function AlbumsPage({ albumsData }: AlbumPageProps) {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumName)}&user_id=${user?.id}&face_detection=${faceDetection}`,
       {
+        headers: {
+          Authorization: `Bearer ${getCookie('token')}`,
+        },
         method: 'POST',
         body: formData,
       },
@@ -217,7 +225,7 @@ function AlbumsPage({ albumsData }: AlbumPageProps) {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-      <div className="z-10 mt-4 grid w-full grid-cols-1  gap-4 p-4  md:grid-cols-2 lg:grid-cols-3">
+      <div className="z-10 mt-4 grid w-full grid-cols-1 gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
         {albums.map((album) => (
           <FadeIn key={album.album_name}>
             <Link
