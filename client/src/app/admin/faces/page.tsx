@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { AspectRatio } from '@radix-ui/react-aspect-ratio';
 import Link from 'next/link';
+import { getCookie } from 'cookies-next';
 type Face = {
   id: string;
   name: string;
@@ -17,7 +18,9 @@ function Page() {
 
   const getFaces = async () => {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/faces`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
     });
     const data = await response.json();
     setFaces(data);
