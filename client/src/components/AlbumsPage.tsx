@@ -99,6 +99,9 @@ function AlbumsPage({ albumsData }: AlbumPageProps) {
     setUploading(true);
     // Connect to WebSocket
     const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/`);
+    newSocket.onopen = () => {
+      newSocket.send(JSON.stringify({ type: 'auth', token: getCookie('token') }));
+    };
 
     newSocket.onmessage = (event) => {
       console.log('Message from server:', event.data);

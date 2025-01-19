@@ -1,20 +1,15 @@
 from fastapi import (
     WebSocket,
-    WebSocketDisconnect,
     APIRouter,
-    Depends,
-    HTTPException,
-    status,
+    WebSocketDisconnect,
 )
 import os
 from typing import List
-from fastapi.security import OAuth2PasswordBearer
-from routers.auth.auth_router import verify_token
+
 
 router = APIRouter()
 AWS_BUCKET = os.environ.get("AWS_BUCKET")
 AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 # WebSocket connection manager
@@ -38,13 +33,7 @@ manager = ConnectionManager()
 
 
 @router.websocket("/api/ws/")
-async def websocket_endpoint(websocket: WebSocket, token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
+async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     # print if connection is established
     print("connection established")
