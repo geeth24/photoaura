@@ -18,7 +18,7 @@ import {
 } from '@radix-ui/react-icons';
 import axios from 'axios';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { FadeIn, FadeInStagger } from './FadeIn';
 import {
   ContextMenu,
@@ -54,10 +54,11 @@ interface PhotoModalProps {
 
 export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onClose }) => {
   const [api, setApi] = React.useState<CarouselApi>();
-  const [current, setCurrent] = React.useState(0);
+  const [current, setCurrent] = React.useState(selectedImageIndex);
   const [loaded, setLoaded] = React.useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const router = useRouter();
+  const pathName = usePathname();
 
   useEffect(() => {
     if (!api) {
@@ -177,8 +178,32 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious />
-        <CarouselNext />
+        <Link
+          href={`${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`}
+          onClick={(event) => {
+            event.preventDefault();
+            window.history.pushState(
+              {},
+              '',
+              `${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`,
+            );
+          }}
+        >
+          <CarouselPrevious />
+        </Link>
+        <Link
+          href={`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`}
+          onClick={(event) => {
+            event.preventDefault();
+            window.history.pushState(
+              {},
+              '',
+              `${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`,
+            );
+          }}
+        >
+          <CarouselNext />
+        </Link>
       </Carousel>
     </div>
   );
