@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { animateValue } from '@/lib/utils';
 import { FadeIn } from '@/components/FadeIn';
 import { ModeToggle } from '@/components/ui/mode-toggle';
+import { getCookie } from 'cookies-next';
 
 type DashboardResponse = {
   albums: number;
@@ -22,7 +23,9 @@ function Page() {
     const fetchDashboard = async () => {
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: {
+            Authorization: `Bearer ${getCookie('token')}`,
+          },
         });
         const data = await response.json();
         setIsLoading(false);
