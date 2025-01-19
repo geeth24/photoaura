@@ -29,33 +29,9 @@ def rotate_image_based_on_exif(img):
 
     return img
 
-
-def compress_image(file_path, output_path, max_size=50, quality=100):
-    # Ensure the output directory exists
-    output_dir = Path(output_path).parent
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    with Image.open(file_path) as img:
-        # Rotate image based on EXIF data (assuming the rotate_image_based_on_exif function is defined)
-        img = rotate_image_based_on_exif(img)
-
-        # Resize image to 1080p if it's larger
-        if img.width > 1920 or img.height > 1080:
-            img.thumbnail((1920, 1080))
-            
-        img.save(output_path, quality=quality, optimize=True)
-
-
-def generate_blur_data_url(image_path):
-    with Image.open(image_path) as img:
-        img = img.resize((5, 5))
-        img = img.convert("RGB")
-
-        buffer = io.BytesIO()
-        img.save(buffer, format="JPEG")
-        img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-        # Create blur data URL
-        data_url = f"data:image/jpeg;base64,{img_str}"
-
-        return data_url
+def generate_blur_data_url(image_content):
+    image = Image.open(io.BytesIO(image_content))
+    image = image.resize((10, 10), Image.ANTIALIAS)
+    buffered = io.BytesIO()
+    image.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
