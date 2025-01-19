@@ -249,11 +249,11 @@ function PhotosGrid({
               <ContextMenuTrigger asChild>
                 <Link
                   href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
-                  key={album.image}
+                  key={album.compressed_image}
                   className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
                 >
                   <Image
-                    src={album.image}
+                    src={album.compressed_image}
                     width={1920}
                     height={1080}
                     style={{ transform: 'translate3d(0, 0, 0)' }}
