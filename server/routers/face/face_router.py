@@ -149,11 +149,13 @@ async def get_face(face_id: str, token: str = Depends(oauth2_scheme)):
         if not photo:
             continue
 
-        compressed_image_url = (
-            f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/compressed/{photo[2]}"
-        )
-        image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/{photo[2]}"
+        # compressed_image_url = (
+        #     f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/compressed/{photo[2]}"
+        # )
+        # image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/{photo[2]}"
 
+        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{photo[2]}"  # Grid thumbnail
+        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{photo[2]}"  # Detailed view
         face_photos.append(
             {
                 "image": image_url,

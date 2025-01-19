@@ -123,10 +123,10 @@ async def create_upload_files(
         with open(album_dir + "/" + file.filename, "wb") as f:
             f.write(content)
 
-        compress_image(
-            album_dir + "/" + file.filename,
-            album_dir + "/compressed/" + file.filename,
-        )
+        # compress_image(
+        #     album_dir + "/" + file.filename,
+        #     album_dir + "/compressed/" + file.filename,
+        # )
 
         # Generate unique filename for S3
         s3_filename = f"{album_slug}/{file.filename}"
@@ -137,15 +137,15 @@ async def create_upload_files(
             ContentType=file.content_type,
         )
 
-        # upload cpmpressed image to s3
-        s3_compressed_filename = f"{album_slug}/compressed/{file.filename}"
-        with open(album_dir + "/compressed/" + file.filename, "rb") as f:
-            s3_client.put_object(
-                Bucket=AWS_BUCKET,
-                Key=s3_compressed_filename,
-                Body=f,
-                ContentType=file.content_type,
-            )
+        # # upload cpmpressed image to s3
+        # s3_compressed_filename = f"{album_slug}/compressed/{file.filename}"
+        # with open(album_dir + "/compressed/" + file.filename, "rb") as f:
+        #     s3_client.put_object(
+        #         Bucket=AWS_BUCKET,
+        #         Key=s3_compressed_filename,
+        #         Body=f,
+        #         ContentType=file.content_type,
+        #     )
 
         # get file metadata
         album_dir = os.path.join(data_dir, album_slug)
@@ -190,7 +190,7 @@ async def create_upload_files(
 
         # delete all files from disk
         os.remove(album_dir + "/" + file.filename)
-        os.remove(album_dir + "/compressed/" + file.filename)
+        # os.remove(album_dir + "/compressed/" + file.filename)
 
         if update:
             # print(len(files) + album[5])

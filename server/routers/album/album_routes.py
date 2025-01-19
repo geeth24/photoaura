@@ -225,9 +225,9 @@ async def delete_album(user_name: str, album_name: str):
             s3_client.delete_object(
                 Bucket=AWS_BUCKET, Key=f"{user_name}/{album_name}/{filename}"
             )
-            s3_client.delete_object(
-                Bucket=AWS_BUCKET, Key=f"{user_name}/{album_name}/compressed/{filename}"
-            )
+            # s3_client.delete_object(
+            #     Bucket=AWS_BUCKET, Key=f"{user_name}/{album_name}/compressed/{filename}"
+            # )
         cursor.execute("DELETE FROM file_metadata WHERE album_id = %s", (album_id,))
 
         # Delete the album
