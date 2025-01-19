@@ -53,7 +53,7 @@ def create_album_photos_json(album_slug, file_metadata):
     album_photos = []
     for meta in file_metadata:
         compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/compressed/{meta[2]}"  # meta[2] should be the filename
-        image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/{meta[2]}"  # meta[2] should be the filename
+        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta[2]}"  # meta[2] should be the filename
         album_photos.append(
             {
                 "image": image_url,
