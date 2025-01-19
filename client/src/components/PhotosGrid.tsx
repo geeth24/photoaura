@@ -166,7 +166,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
-                src={album.compressed_image}
+                src={album.image}
                 width={1920}
                 height={1080}
                 alt="Enlarged photo"
@@ -221,7 +221,7 @@ function PhotosGrid({
         // faster
         className="mt-4 columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4"
       >
-        <div className="after:content shadow-highlight after:shadow-highlight relative mb-5 flex h-[350px]  flex-col items-center justify-end gap-4 overflow-hidden rounded-lg bg-primary/10 px-6 pb-16 pt-64 text-center text-primary after:pointer-events-none after:absolute after:inset-0 after:rounded-lg lg:pt-0">
+        <div className="after:content shadow-highlight after:shadow-highlight relative mb-5 flex h-[350px] flex-col items-center justify-end gap-4 overflow-hidden rounded-lg bg-primary/10 px-6 pb-16 pt-64 text-center text-primary after:pointer-events-none after:absolute after:inset-0 after:rounded-lg lg:pt-0">
           <div className="absolute inset-0 flex items-center justify-center opacity-20">
             <span className="flex max-h-full max-w-full items-center justify-center">
               <Image
@@ -244,16 +244,16 @@ function PhotosGrid({
           </p>
         </div>
         {albums.map((album, index) => (
-          <div key={album.compressed_image}>
+          <div key={album.image}>
             <ContextMenu>
               <ContextMenuTrigger asChild>
                 <Link
                   href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
-                  key={album.compressed_image}
+                  key={album.image}
                   className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
                 >
                   <Image
-                    src={album.compressed_image}
+                    src={album.image}
                     width={1920}
                     height={1080}
                     style={{ transform: 'translate3d(0, 0, 0)' }}
