@@ -151,13 +151,7 @@ async def get_album_by_category(category_id: int, token: str = Depends(oauth2_sc
 
 # route for getting all albums linked each category
 @router.get("/api/category-albums")
-async def get_albums_by_category(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
+async def get_albums_by_category():
     db, cursor = get_db()
     cursor.execute(
         """
