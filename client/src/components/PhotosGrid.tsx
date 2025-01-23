@@ -181,6 +181,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
         <Link
           href={`${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`}
           onClick={(event) => {
+            console.log(`${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`);
             event.preventDefault();
             window.history.pushState(
               {},
@@ -194,6 +195,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
         <Link
           href={`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`}
           onClick={(event) => {
+            console.log(`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`);
             event.preventDefault();
             window.history.pushState(
               {},
