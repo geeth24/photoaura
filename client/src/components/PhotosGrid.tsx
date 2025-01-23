@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/context-menu';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from 'next-themes';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export interface Album {
   album_name: string;
@@ -53,159 +54,64 @@ interface PhotoModalProps {
 }
 
 export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onClose }) => {
-  const [api, setApi] = React.useState<CarouselApi>();
   const [current, setCurrent] = React.useState(selectedImageIndex);
-  const [loaded, setLoaded] = React.useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const router = useRouter();
-  const pathName = usePathname();
+
+  const handleNext = () => setCurrent((prev) => (prev + 1) % albums.length);
+  const handlePrev = () => setCurrent((prev) => (prev - 1 + albums.length) % albums.length);
 
   useEffect(() => {
-    if (!api) {
-      return;
-    }
-    api.reInit({
-      loop: true,
-      align: 'center',
-    });
-    api.scrollTo(selectedImageIndex, true);
-    // setCurrent(selectedImageIndex);
-    api.on('select', () => {
-      console.log('selected', api.selectedScrollSnap());
-      setCurrent(Number(api.selectedScrollSnap()));
-      console.log('current', current);
-    });
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        router.back();
-      }
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') handleNext();
+      if (e.key === 'ArrowLeft') handlePrev();
     };
 
     window.addEventListener('keydown', handleKeyDown);
-
-    if (isFullScreen) {
-      document.documentElement.requestFullscreen();
-    } else {
-      if (document.fullscreenElement === null) return;
-      document.exitFullscreen();
-    }
-
-    document.body.style.overflowY = 'hidden';
-    return () => {
-      document.body.style.overflowY = 'auto';
-    };
-  }, [selectedImageIndex, api, isFullScreen, onClose, api?.selectedScrollSnap]);
-
-  if (albums.length === 0) return null;
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-90 transition-all duration-500"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          router.back();
-        }
-      }}
-    >
-      <div className="absolute right-0 top-0 m-4 flex">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-primary-foreground hover:text-secondary-foreground dark:text-secondary-foreground"
-          onClick={() => {
-            if (api && api.selectedScrollSnap) {
-              const url = albums[Number(api.selectedScrollSnap())].image;
-              const filename = url.split('/').pop()?.split('?')[0];
-              console.log(filename);
-              if (filename) {
-                axios({
-                  url,
-                  method: 'GET',
-                  responseType: 'blob', // important
-                }).then((response) => {
-                  const url = window.URL.createObjectURL(new Blob([response.data]));
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.setAttribute('download', filename);
-                  document.body.appendChild(link);
-                  link.click();
-                });
-              }
-            }
-          }}
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.8, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="relative h-full max-h-[90vh] w-full max-w-4xl"
+          onClick={(e) => e.stopPropagation()}
         >
-          <DownloadIcon className="h-6 w-6" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-primary-foreground hover:text-secondary-foreground dark:text-secondary-foreground"
-          onClick={() => setIsFullScreen(!isFullScreen)}
-        >
-          {isFullScreen ? (
-            <ExitFullScreenIcon className="h-6 w-6" />
-          ) : (
-            <EnterFullScreenIcon className="h-6 w-6" />
-          )}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-primary-foreground hover:text-secondary-foreground dark:text-secondary-foreground"
-          onClick={() => {
-            router.back();
-          }}
-        >
-          <Cross1Icon className="h-6 w-6" />
-        </Button>
-      </div>
-
-      <Carousel className="max-w-[20rem] sm:max-w-lg md:max-w-5xl" setApi={setApi}>
-        <CarouselContent>
-          {albums.map((album, index) => (
-            <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
-              <Image
-                src={album.image}
-                width={1920}
-                height={1080}
-                alt="Enlarged photo"
-                priority
-                className="h-full w-full rounded-md object-contain"
-                blurDataURL={album.file_metadata.blur_data_url}
-              />
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        <Link
-          href={`${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`}
-          onClick={(event) => {
-            event.preventDefault();
-            window.history.pushState(
-              {},
-              '',
-              `${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`,
-            );
-          }}
-        >
-          <CarouselPrevious />
-        </Link>
-        <Link
-          href={`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`}
-          onClick={(event) => {
-            event.preventDefault();
-            window.history.pushState(
-              {},
-              '',
-              `${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`,
-            );
-          }}
-        >
-          <CarouselNext />
-        </Link>
-      </Carousel>
-    </div>
+          <Image
+            src={albums[current].image || '/placeholder.svg'}
+            alt="Enlarged photo"
+            layout="fill"
+            objectFit="contain"
+            priority
+          />
+          <button className="absolute right-4 top-4 text-white" onClick={onClose}>
+            Close
+          </button>
+          <button
+            className="absolute left-4 top-1/2 -translate-y-1/2 transform text-white"
+            onClick={handlePrev}
+          >
+            Prev
+          </button>
+          <button
+            className="absolute right-4 top-1/2 -translate-y-1/2 transform text-white"
+            onClick={handleNext}
+          >
+            Next
+          </button>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 
