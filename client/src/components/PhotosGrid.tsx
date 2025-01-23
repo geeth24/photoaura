@@ -187,9 +187,10 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
               '',
               `${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`,
             );
+            api?.scrollTo(current - 1, true);
           }}
         >
-          <CarouselPrevious />
+          Back
         </Link>
         <Link
           href={`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`}
@@ -200,9 +201,10 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
               '',
               `${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`,
             );
+            api?.scrollTo(current + 1, true);
           }}
         >
-          <CarouselNext />
+          Next
         </Link>
       </Carousel>
     </div>
