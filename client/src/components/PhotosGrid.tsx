@@ -8,7 +8,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
-import { type CarouselApi } from '@/components/ui/carousel';
+import type { CarouselApi } from '@/components/ui/carousel';
 import { Button } from './ui/button';
 import {
   Cross1Icon,
@@ -167,7 +167,7 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
           {albums.map((album, index) => (
             <CarouselItem key={index} className="h-[calc(100vh-20rem)] md:h-[calc(100vh-5rem)]">
               <Image
-                src={album.image}
+                src={album.image || '/placeholder.svg'}
                 width={1920}
                 height={1080}
                 alt="Enlarged photo"
@@ -220,22 +220,29 @@ function PhotosGrid({
   slug?: string;
   share?: boolean;
 }) {
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null); //Removed in update 1
 
   const handleCloseModal = () => {
+    //Removed in update 1
     setSelectedImageIndex(null);
   };
   const router = useRouter();
   const { user } = useAuth();
 
   const deletePhoto = async (photo_name: string) => {
-    await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/photo/delete/?slug=${slug}&photo_name=${photo_name}`,
-      {
-        method: 'DELETE',
-      },
-    );
-    router.push(`/admin/albums/${slug}`);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/photo/delete/?slug=${slug}&photo_name=${photo_name}`,
+        {
+          method: 'DELETE',
+        },
+      );
+      if (!response.ok) throw new Error('Failed to delete photo');
+      router.push(`/admin/albums/${slug}`);
+    } catch (error) {
+      console.error('Error deleting photo:', error);
+      // Handle error (e.g., show a toast notification)
+    }
   };
 
   const { theme } = useTheme();
@@ -278,16 +285,11 @@ function PhotosGrid({
                   className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
                 >
                   <Image
-                    src={album.compressed_image}
-                    width={1920}
-                    height={1080}
-                    style={{ transform: 'translate3d(0, 0, 0)' }}
-                    sizes="(max-width: 640px) 100vw,
-         (max-width: 1280px) 75vw,
-         (max-width: 1536px) 50vw,
-         33vw"
-                    alt="Photo"
-                    className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
+                    src={album.compressed_image || '/placeholder.svg'}
+                    alt={`Photo in ${albumName || 'album'}`}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                    className="rounded-lg object-cover transition group-hover:brightness-110"
                     placeholder="blur"
                     blurDataURL={album.file_metadata.blur_data_url}
                   />
@@ -339,13 +341,6 @@ function PhotosGrid({
           </div>
         ))}
       </div>
-      {selectedImageIndex !== null && (
-        <PhotoModal
-          albums={albums}
-          selectedImageIndex={selectedImageIndex}
-          onClose={handleCloseModal}
-        />
-      )}
     </>
   );
 }
