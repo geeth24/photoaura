@@ -72,9 +72,12 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
     // setCurrent(selectedImageIndex);
     api.on('select', () => {
       console.log('selected', api.selectedScrollSnap());
-      setCurrent(Number(api.selectedScrollSnap()));
+      setCurrent(api.selectedScrollSnap());
       console.log('current', current);
     });
+
+    console.log('selected', api.selectedScrollSnap());
+    console.log('current', current);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -179,28 +182,34 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
           ))}
         </CarouselContent>
         <Link
-          href={`${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`}
+          href={`${pathName.split('/').slice(0, -1).join('/')}/${(api?.selectedScrollSnap() ?? 0) - 1}`}
           onClick={(event) => {
-            console.log(`${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`);
             event.preventDefault();
+            if (!api) return;
+            const newIndex = (api.selectedScrollSnap() ?? 0) - 1;
+            api.scrollTo(newIndex, true);
+
             window.history.pushState(
               {},
               '',
-              `${pathName.split('/').slice(0, -1).join('/')}/${current - 1}`,
+              `${pathName.split('/').slice(0, -1).join('/')}/${newIndex}`,
             );
           }}
         >
           <CarouselPrevious />
         </Link>
         <Link
-          href={`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`}
+          href={`${pathName.split('/').slice(0, -1).join('/')}/${(api?.selectedScrollSnap() ?? 0) + 1}`}
           onClick={(event) => {
-            console.log(`${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`);
             event.preventDefault();
+            if (!api) return;
+            const newIndex = (api.selectedScrollSnap() ?? 0) + 1;
+            api.scrollTo(newIndex, true);
+
             window.history.pushState(
               {},
               '',
-              `${pathName.split('/').slice(0, -1).join('/')}/${current + 1}`,
+              `${pathName.split('/').slice(0, -1).join('/')}/${newIndex}`,
             );
           }}
         >
@@ -341,13 +350,13 @@ function PhotosGrid({
           </div>
         ))}
       </div>
-      {selectedImageIndex !== null && (
+      {/* {selectedImageIndex !== null && (
         <PhotoModal
           albums={albums}
           selectedImageIndex={selectedImageIndex}
           onClose={handleCloseModal}
         />
-      )}
+      )} */}
     </>
   );
 }

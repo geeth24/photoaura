@@ -53,7 +53,7 @@ async function Page({
         name="apple-itunes-app"
         content={`app-id=6477320360, app-argument=photoaura://?url=aura-api.reactiveshots.com&shareLink=${user}/${album}/${secret}`}
       />
-      <SharedPage params={{ user, album, secret }} albumData={albumData} />
+      <SharedPage albumData={albumData} />
     </>
   );
 }
