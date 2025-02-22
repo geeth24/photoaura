@@ -18,7 +18,7 @@ import {
 } from '@radix-ui/react-icons';
 import axios from 'axios';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { FadeIn, FadeInStagger } from './FadeIn';
 import {
   ContextMenu,
@@ -54,10 +54,11 @@ interface PhotoModalProps {
 
 export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageIndex, onClose }) => {
   const [api, setApi] = React.useState<CarouselApi>();
-  const [current, setCurrent] = React.useState(0);
+  const [current, setCurrent] = React.useState(selectedImageIndex);
   const [loaded, setLoaded] = React.useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const router = useRouter();
+  const pathName = usePathname();
 
   useEffect(() => {
     if (!api) {
@@ -71,9 +72,12 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
     // setCurrent(selectedImageIndex);
     api.on('select', () => {
       console.log('selected', api.selectedScrollSnap());
-      setCurrent(Number(api.selectedScrollSnap()));
+      setCurrent(api.selectedScrollSnap());
       console.log('current', current);
     });
+
+    console.log('selected', api.selectedScrollSnap());
+    console.log('current', current);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -177,8 +181,40 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious />
-        <CarouselNext />
+        <Link
+          href={`${pathName.split('/').slice(0, -1).join('/')}/${(api?.selectedScrollSnap() ?? 0) - 1}`}
+          onClick={(event) => {
+            event.preventDefault();
+            if (!api) return;
+            const newIndex = (api.selectedScrollSnap() ?? 0) - 1;
+            api.scrollTo(newIndex, true);
+
+            window.history.pushState(
+              {},
+              '',
+              `${pathName.split('/').slice(0, -1).join('/')}/${newIndex}`,
+            );
+          }}
+        >
+          <CarouselPrevious />
+        </Link>
+        <Link
+          href={`${pathName.split('/').slice(0, -1).join('/')}/${(api?.selectedScrollSnap() ?? 0) + 1}`}
+          onClick={(event) => {
+            event.preventDefault();
+            if (!api) return;
+            const newIndex = (api.selectedScrollSnap() ?? 0) + 1;
+            api.scrollTo(newIndex, true);
+
+            window.history.pushState(
+              {},
+              '',
+              `${pathName.split('/').slice(0, -1).join('/')}/${newIndex}`,
+            );
+          }}
+        >
+          <CarouselNext />
+        </Link>
       </Carousel>
     </div>
   );
@@ -249,11 +285,11 @@ function PhotosGrid({
               <ContextMenuTrigger asChild>
                 <Link
                   href={`${slug == undefined ? `/admin/photos/${index}` : `${share ? `/share/${slug}/photos/${index}` : `/admin/albums/${slug}/photos/${index}`}`}`}
-                  key={album.image}
+                  key={album.compressed_image}
                   className="after:content after:shadow-highlight group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg"
                 >
                   <Image
-                    src={album.image}
+                    src={album.compressed_image}
                     width={1920}
                     height={1080}
                     style={{ transform: 'translate3d(0, 0, 0)' }}
@@ -314,13 +350,13 @@ function PhotosGrid({
           </div>
         ))}
       </div>
-      {selectedImageIndex !== null && (
+      {/* {selectedImageIndex !== null && (
         <PhotoModal
           albums={albums}
           selectedImageIndex={selectedImageIndex}
           onClose={handleCloseModal}
         />
-      )}
+      )} */}
     </>
   );
 }

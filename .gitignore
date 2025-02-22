@@ -2,3 +2,4 @@ __pycache__
 .env.local
 ios/PhotoAura/PhotoAura.xcodeproj/project.xcworkspace/xcuserdata/geeth.xcuserdatad/UserInterfaceState.xcuserstate
 .env.production
+.venv

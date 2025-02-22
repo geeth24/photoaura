@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Pencil1Icon } from '@radix-ui/react-icons';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { getCookie } from 'cookies-next';
+
 type Face = {
   id: string;
   name: string;
@@ -36,7 +38,12 @@ function FacePage({ params: { id } }: { params: Params }) {
   });
 
   const getFace = async () => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/face/${id}`);
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/face/${id}`, {
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
+    });
     const data = await response.json();
     setFace(data);
     console.log(data);

@@ -30,6 +30,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Check, ChevronsUpDown } from 'lucide-react';
+import { getCookie } from 'cookies-next';
 
 export interface AlbumSmall {
   album_id: number;
@@ -84,13 +85,21 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
   });
 
   const fetchCategoriesLinked = async () => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/category-albums`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/category-albums`, {
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
+    });
     const data = await response.json();
     setCategoriesLinked(data);
   };
 
   const fetchCategories = async () => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories`, {
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
+    });
     const data = await response.json();
     setCategories(data);
   };
@@ -344,7 +353,7 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
               <p className="text-sm text-muted-foreground">
                 Linked to
                 <Link
-                  className="text-primary underline "
+                  className="text-primary underline"
                   href={`/admin/albums/${category.album.slug}`}
                 >
                   {' '}

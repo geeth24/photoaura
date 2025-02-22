@@ -104,8 +104,8 @@ async def create_upload_files(
     else:
         # Update the image count if the album already exists
         print("album exists")
-        # print(album)
         update = True
+
     # add album to user
     if user_id:
         add_album_to_user(user_id, album[0])
@@ -172,7 +172,6 @@ async def create_upload_files(
         os.remove(album_dir + "/" + file.filename)
 
         if update:
-            # print(len(files) + album[5])
             images_count = len(files) + album[5]
             if album[5] != images_count:
                 cursor.execute(

@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { showToastWithCooldown } from './ToastCooldown';
 import { AlbumGrid } from '@/components/AlbumPage';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
+import { useParams } from 'next/navigation';
 
 export const metadata = {
   title: 'Share',
@@ -32,13 +33,11 @@ type SocketMessage = {
   total_bytes: number;
 };
 
-type Params = {
-  user: string;
-  album: string;
-  secret: string;
-};
 
-function SharedPage({ params, albumData }: { params: Params; albumData: AlbumGrid }) {
+
+function SharedPage({ albumData }: { albumData: AlbumGrid }) {
+  const params = useParams();
+
   const [albumGrid, setAlbumGrid] = useState<AlbumGrid>(albumData);
   const [upload, setUpload] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);

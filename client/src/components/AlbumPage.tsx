@@ -138,7 +138,11 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
   const getAlbum = async () => {
     setIsLoading(true);
     await axios
-      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${userSlug}/${albumSlug}/`)
+      .get(`${process.env.NEXT_PUBLIC_API_URL}/album/${userSlug}/${albumSlug}/`, {
+        headers: {
+          Authorization: `Bearer ${getCookie('token')}`,
+        },
+      })
       .then((response) => {
         setAlbumGrid(response.data);
         // console.log(response.data);
