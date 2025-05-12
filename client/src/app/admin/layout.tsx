@@ -5,7 +5,7 @@ import SidebarNavButton from '@/components/SidebarNavButton';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { ScanFace } from 'lucide-react';
+import { ScanFace, Calendar } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathName = usePathname();
@@ -48,12 +48,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     alt="PhotoAura Logo"
                     width={500}
                     height={500}
-                    className={`${sidebarOpened ? 'ml-[0.13rem]' : ''} h-10 w-10 cursor-pointer rounded-full  bg-primary p-1`}
+                    className={`${sidebarOpened ? 'ml-[0.13rem]' : ''} h-10 w-10 cursor-pointer rounded-full bg-primary p-1`}
                     onClick={() => setSidebarOpened(!sidebarOpened)}
                   />
 
                   <h1
-                    className={`${sidebarOpened ? 'hidden' : 'flex'} font-blackmud ml-2 text-xl font-bold transition-all duration-500`}
+                    className={`${sidebarOpened ? 'hidden' : 'flex'} ml-2 font-blackmud text-xl font-bold transition-all duration-500`}
                   >
                     PhotoAura
                   </h1>
@@ -100,13 +100,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   active={pathName.startsWith('/admin/albums')}
                 />
                 <SidebarNavButton
-                  icon={
-                   <ScanFace />
-                  }
+                  icon={<ScanFace />}
                   label="Faces"
                   href="/admin/faces"
                   open={sidebarOpened}
                   active={pathName.startsWith('/admin/faces')}
+                />
+                <SidebarNavButton
+                  icon={<Calendar />}
+                  label="Bookings"
+                  href="/admin/bookings"
+                  open={sidebarOpened}
+                  active={pathName === '/admin/bookings'}
                 />
                 {parseInt(user?.id ?? '') === 1 && (
                   <SidebarNavButton

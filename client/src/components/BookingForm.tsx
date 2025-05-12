@@ -52,7 +52,7 @@ export default function BookingForm() {
     // Fetch service types from the API
     async function fetchServiceTypes() {
       try {
-        const response = await fetch('/api/service-types');
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/service-types`);
         if (!response.ok) throw new Error('Failed to fetch service types');
         const data = await response.json();
         setServiceTypes(data);
@@ -65,7 +65,7 @@ export default function BookingForm() {
     // Fetch pricing information
     async function fetchPricing() {
       try {
-        const response = await fetch('/api/pricing');
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/pricing`);
         if (!response.ok) throw new Error('Failed to fetch pricing information');
         const data = await response.json();
         setPricingData(data);
@@ -88,7 +88,7 @@ export default function BookingForm() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/bookings', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

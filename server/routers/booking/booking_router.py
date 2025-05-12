@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from services.database import get_db
 from services.google_calendar import create_calendar_event
-from services.email_service import send_booking_confirmation
+from services.email_service import send_booking_confirmation, create_calendar_invite
 import os
 
 router = APIRouter()
@@ -68,13 +68,43 @@ async def create_booking(booking: BookingRequest):
         booking_id = cursor.fetchone()[0]
         db.commit()
 
-        # Send confirmation email with service type
+        # Create an iCalendar invitation (marked as tentative)
         service_type_name = service_type[1]
+        end_time = booking.preferred_date + timedelta(hours=2)
+
+        event_summary = (
+            f"Reactive Shots - {service_type_name} Session (Pending Approval)"
+        )
+        event_description = f"""
+Your booking request for a {service_type_name} session with Reactive Shots is being processed.
+
+Date: {booking.preferred_date.strftime('%B %d, %Y')}
+Time: {booking.preferred_date.strftime('%I:%M %p')} - {end_time.strftime('%I:%M %p')}
+
+Additional Notes: {booking.additional_notes or ''}
+
+This booking is pending approval. We'll notify you once your booking is confirmed.
+
+Reactive Shots Team
+Contact: geeth@reactiveshots.com
+"""
+        # Create a tentative calendar invitation
+        ical_content = create_calendar_invite(
+            summary=event_summary,
+            description=event_description,
+            start_time=booking.preferred_date,
+            end_time=end_time,
+            attendees=[{"email": booking.client_email, "name": booking.client_name}],
+        )
+
+        # Send confirmation email with service type and calendar invite
         await send_booking_confirmation(
             booking.client_email,
             booking.client_name,
             booking.preferred_date,
             service_type_name,
+            is_approved=False,
+            ical_content=ical_content,
         )
 
         return {"id": booking_id, "message": "Booking request submitted successfully"}
@@ -92,7 +122,16 @@ async def update_booking_status(
 
     db, cursor = get_db()
     try:
-        cursor.execute("SELECT * FROM bookings WHERE id = %s", (booking_id,))
+        # Get booking with service type name
+        cursor.execute(
+            """
+            SELECT b.*, st.name as service_type 
+            FROM bookings b
+            JOIN service_types st ON b.service_type_id = st.id
+            WHERE b.id = %s
+        """,
+            (booking_id,),
+        )
         booking = cursor.fetchone()
 
         if not booking:
@@ -105,6 +144,7 @@ async def update_booking_status(
                 booking[2],  # client_email
                 booking[4],  # preferred_date
                 booking[5],  # additional_notes
+                booking[10],  # service_type name
             )
 
             cursor.execute(
