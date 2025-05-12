@@ -16,6 +16,7 @@ from services.aws_service import s3_client
 from uuid import uuid4
 from utils.face_recog import detect_and_store_faces
 from utils.utils import get_file_metadata, add_album_to_user
+from utils.image_utils import generate_blur_data_url
 from routers.websocket.websocket_router import manager
 from fastapi.security import OAuth2PasswordBearer
 from routers.auth.auth_router import verify_token

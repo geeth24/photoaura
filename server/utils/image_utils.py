@@ -31,7 +31,7 @@ def rotate_image_based_on_exif(img):
 
 def generate_blur_data_url(image_content):
     image = Image.open(io.BytesIO(image_content))
-    image = image.resize((10, 10), Image.ANTIALIAS)
+    image = image.resize((10, 10), Image.Resampling.LANCZOS)
     buffered = io.BytesIO()
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
