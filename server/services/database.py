@@ -102,6 +102,82 @@ def create_table():
         )
         db.commit()
 
+    # Booking table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bookings (
+            id SERIAL PRIMARY KEY,
+            client_name VARCHAR(255),
+            client_email VARCHAR(255),
+            client_phone VARCHAR(50),
+            preferred_date TIMESTAMP,
+            additional_notes TEXT,
+            status VARCHAR(50) DEFAULT 'pending',
+            google_calendar_event_id VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Pricing table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pricing (
+            id SERIAL PRIMARY KEY,
+            session_type VARCHAR(255),
+            price DECIMAL(10,2),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Videos table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS videos (
+            id SERIAL PRIMARY KEY,
+            client_id INT,
+            title VARCHAR(255),
+            s3_key VARCHAR(255),
+            content_type VARCHAR(50),
+            size BIGINT,
+            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES users(id)
+        );
+    """)
+
+    # Video revisions table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS video_revisions (
+            id SERIAL PRIMARY KEY,
+            video_id INT,
+            s3_key VARCHAR(255),
+            version INT,
+            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            permanent_storage BOOLEAN DEFAULT FALSE,
+            FOREIGN KEY (video_id) REFERENCES videos(id)
+        );
+    """)
+
+    # Service types table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_types (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Insert default service types if they don't exist
+    cursor.execute("""
+        INSERT INTO service_types (name) 
+        VALUES ('photography'), ('videography'), ('both')
+        ON CONFLICT (name) DO NOTHING;
+    """)
+
+    # Add service_type_id to bookings table if it doesn't exist
+    cursor.execute("""
+        ALTER TABLE bookings 
+        ADD COLUMN IF NOT EXISTS service_type_id INT REFERENCES service_types(id);
+    """)
+
+    db.commit()
     cursor.close()
 
 
