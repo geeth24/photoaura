@@ -177,6 +177,34 @@ def create_table():
         ADD COLUMN IF NOT EXISTS service_type_id INT REFERENCES service_types(id);
     """)
 
+    # Event types table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS event_types (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) UNIQUE,
+            priority INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """
+    )
+
+    # Events table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS events (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            event_type_id INT REFERENCES event_types(id),
+            event_date TIMESTAMP NOT NULL,
+            location VARCHAR(255),
+            description TEXT,
+            created_by INT REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """
+    )
+
     db.commit()
     cursor.close()
 

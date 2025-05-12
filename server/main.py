@@ -22,6 +22,7 @@ from fastapi.security import OAuth2PasswordBearer
 from routers.auth.auth_router import verify_token
 from routers.booking.booking_router import router as booking_router
 from routers.video.video_router import router as video_router
+from routers.event.event_router import router as event_router
 
 app = FastAPI()
 # origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
@@ -44,6 +45,7 @@ app.include_router(face_router)
 app.include_router(danger_router)
 app.include_router(booking_router)
 app.include_router(video_router)
+app.include_router(event_router)
 app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
 
 # wait for db to start for 10 seconds

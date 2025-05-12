@@ -78,7 +78,7 @@ async def get_faces(token: str = Depends(oauth2_scheme)):
             "face_id": face_photo_link[2],
             "photo_id": face_photo_link[1],
             "album_id": face_photo_link[3],
-            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face_photo_link[2], face_photo_link[1], face_photo_link[3]}.jpg",
+            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face_photo_link[2]}-{face_photo_link[1]}-{face_photo_link[3]}.jpg",
         }
         for face_photo_link in face_photo_links
     ]

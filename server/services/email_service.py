@@ -82,7 +82,7 @@ def create_calendar_invite(
     start_time: datetime,
     end_time: datetime,
     location: str = "",
-    organizer_email: str = "booking@contact.geeth.co",
+    organizer_email: str = "booking@reactiveshots.com",
     organizer_name: str = "Reactive Shots",
     attendees=None,
 ):

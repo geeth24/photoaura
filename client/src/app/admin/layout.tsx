@@ -5,7 +5,7 @@ import SidebarNavButton from '@/components/SidebarNavButton';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { ScanFace, Calendar } from 'lucide-react';
+import { ScanFace, Calendar, CalendarClock } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathName = usePathname();
@@ -112,6 +112,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href="/admin/bookings"
                   open={sidebarOpened}
                   active={pathName === '/admin/bookings'}
+                />
+                <SidebarNavButton
+                  icon={<CalendarClock />}
+                  label="Events"
+                  href="/admin/events"
+                  open={sidebarOpened}
+                  active={pathName.startsWith('/admin/events')}
                 />
                 {parseInt(user?.id ?? '') === 1 && (
                   <SidebarNavButton
