@@ -5,6 +5,7 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/components/theme-provider';
+import Header from '@/components/Header';
 
 const blackMud = localFont({
   src: './Blackmud-VGoOx.ttf',
