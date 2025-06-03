@@ -176,7 +176,10 @@ export const PhotoModal: React.FC<PhotoModalProps> = ({ albums, selectedImageInd
                 alt="Enlarged photo"
                 priority
                 className="h-full w-full rounded-md object-contain"
-                blurDataURL={album.file_metadata.blur_data_url}
+                blurDataURL={
+                  album.file_metadata.blur_data_url ||
+                  'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlCyQhQTlUYfmvzaGBg='
+                }
               />
             </CarouselItem>
           ))}
@@ -300,7 +303,10 @@ function PhotosGrid({
                     alt="Photo"
                     className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
                     placeholder="blur"
-                    blurDataURL={album.file_metadata.blur_data_url}
+                    blurDataURL={
+                      album.file_metadata.blur_data_url ||
+                      'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlCyQhQTlUYfmvzaGBg='
+                    }
                   />
                 </Link>
               </ContextMenuTrigger>

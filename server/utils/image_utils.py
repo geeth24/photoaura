@@ -30,8 +30,27 @@ def rotate_image_based_on_exif(img):
     return img
 
 def generate_blur_data_url(image_content):
-    image = Image.open(io.BytesIO(image_content))
-    image = image.resize((10, 10), Image.Resampling.LANCZOS)
-    buffered = io.BytesIO()
-    image.save(buffered, format="JPEG")
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+    try:
+        image = Image.open(io.BytesIO(image_content))
+
+        # Convert to RGB if necessary (handles RGBA, P, etc.)
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+
+        # Rotate based on EXIF orientation
+        image = rotate_image_based_on_exif(image)
+
+        # Create small blurred version
+        image = image.resize((10, 10), Image.Resampling.LANCZOS)
+
+        buffered = io.BytesIO()
+        image.save(buffered, format="JPEG", quality=85)
+
+        # Return data URL format
+        encoded_img = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{encoded_img}"
+
+    except Exception as e:
+        print(f"Error generating blur data URL: {e}")
+        # Return a minimal 1x1 transparent placeholder
+        return "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlCyQhQTlUYfmvzaGBg="

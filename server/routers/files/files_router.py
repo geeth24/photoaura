@@ -43,7 +43,7 @@ async def create_upload_files(
         headers={"WWW-Authenticate": "Bearer"},
     )
     verify_token(token, credentials_exception)
-    
+
     # Send upload progress to client
     websocket = manager.active_connections[0]
     total_bytes = 0
@@ -183,6 +183,7 @@ async def create_upload_files(
 
         # generate blur data URL based on the regular file
         blur_data_url = generate_blur_data_url(content)
+
         cursor.execute(
             "UPDATE file_metadata SET blur_data_url=%s WHERE id=%s",
             (blur_data_url, file_metadata[0]),

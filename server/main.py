@@ -5,6 +5,7 @@ from fastapi import (
     status,
 )
 import os
+from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -24,7 +25,29 @@ from routers.booking.booking_router import router as booking_router
 from routers.video.video_router import router as video_router
 from routers.event.event_router import router as event_router
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("🚀 PhotoAura API starting up...")
+
+    # Run the blur data URL migration
+    try:
+        from migration_blur_data_url import migrate_blur_data_urls
+
+        print("🔄 Running blur data URL migration...")
+        migrate_blur_data_urls()
+        print("✅ Migration completed!")
+    except Exception as e:
+        print(f"⚠️  Migration failed (this is okay if no photos need updating): {e}")
+
+    yield
+
+    # Shutdown
+    print("👋 PhotoAura API shutting down...")
+
+
+app = FastAPI(lifespan=lifespan)
 # origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
 app.add_middleware(
     CORSMiddleware,
