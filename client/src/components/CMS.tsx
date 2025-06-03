@@ -27,6 +27,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
+import { cn } from '@/lib/utils';
 import { getCookie } from 'cookies-next';
 
 export interface AlbumSmall {
@@ -80,6 +91,7 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
     category_name: '',
     album_name: '',
   });
+  const [albumSelectOpen, setAlbumSelectOpen] = useState(false);
 
   const fetchCategoriesLinked = async () => {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/category-albums`);
@@ -254,26 +266,55 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
             </div>
             <div className="mt-4">
               <p className="text-sm text-muted-foreground">Link to Album</p>
-              <Select
-                value={newLinkedCategory.album_name}
-                onValueChange={(value) => {
-                  setNewLinkedCategory({
-                    ...newLinkedCategory,
-                    album_name: value,
-                  });
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Album..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {albums.map((album) => (
-                    <SelectItem key={album.slug} value={album.album_name}>
-                      {album.album_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover modal open={albumSelectOpen} onOpenChange={setAlbumSelectOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={albumSelectOpen}
+                    className="w-full justify-between"
+                  >
+                    {newLinkedCategory.album_name
+                      ? albums.find((album) => album.album_name === newLinkedCategory.album_name)
+                          ?.album_name
+                      : 'Select Album...'}
+                    <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0">
+                  <Command className="w-full">
+                    <CommandInput placeholder="Search albums..." className="h-9" />
+                    <CommandEmpty>No album found.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        {albums.map((album) => (
+                          <CommandItem
+                            key={album.album_id}
+                            value={album.album_name}
+                            onSelect={(currentValue) => {
+                              setNewLinkedCategory({
+                                ...newLinkedCategory,
+                                album_name: currentValue,
+                              });
+                              setAlbumSelectOpen(false);
+                            }}
+                          >
+                            {album.album_name}
+                            <CheckIcon
+                              className={cn(
+                                'ml-auto h-4 w-4',
+                                newLinkedCategory.album_name === album.album_name
+                                  ? 'opacity-100'
+                                  : 'opacity-0',
+                              )}
+                            />
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <SheetClose className="mt-4">
               <Button onClick={linkCategory}>Link Category</Button>

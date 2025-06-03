@@ -42,6 +42,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +53,7 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
+  DrawerDescription,
   DrawerFooter,
 } from '@/components/ui/drawer';
 import { ModeToggle } from '@/components/ui/mode-toggle';
@@ -224,6 +226,9 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
       `${process.env.NEXT_PUBLIC_API_URL}/upload-files/?album_name=${encodeURIComponent(albumGrid.album_name)}&user_id=${user?.id}&update=true&face_detection=${albumGrid.face_detection}`,
       {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getCookie('token')}`,
+        },
         body: formData,
       },
     );
@@ -267,6 +272,7 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
                 >
                   <DrawerHeader>
                     <DrawerTitle>Upload Photos</DrawerTitle>
+                    <DrawerDescription>Select and upload photos to this album</DrawerDescription>
                     <div className="mt-4">
                       <Label>Upload Images</Label>
                       <Input
@@ -326,7 +332,7 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
                 {albumGrid.image_count} photos
               </SheetDescription>
             </SheetHeader>
-            <div className="mt-4 flex h-[calc(100%-5rem)] flex-col justify-between space-y-4 ">
+            <div className="mt-4 flex h-[calc(100%-5rem)] flex-col justify-between space-y-4">
               <div className="grid w-full max-w-sm items-center gap-1.5">
                 <Label htmlFor="album_name">Album name</Label>
                 <Input
@@ -374,7 +380,7 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
                       </Badge>
                     ))}
                   </div>
-                  <Popover open={open} onOpenChange={setOpen}>
+                  <Popover modal open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -393,48 +399,50 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
                       <Command className="w-full">
                         <CommandInput placeholder="Search user..." className="h-9" />
                         <CommandEmpty>No user found.</CommandEmpty>
-                        <CommandGroup>
-                          {users.map((user) => (
-                            <CommandItem
-                              key={user.id}
-                              value={user.user_name}
-                              onSelect={(currentValue) => {
-                                if (
-                                  albumPermissions.find((user) => user.user_name === currentValue)
-                                ) {
-                                  toast.error('User already added');
-                                  return;
-                                }
-                                setAlbumPermissions([
-                                  ...albumPermissions,
-                                  {
-                                    user_id: user.id,
-                                    user_name: user.user_name,
-                                    full_name: user.full_name,
-                                    user_email: user.user_email,
-                                  },
-                                ]);
-                                setNewAlbumUser(
-                                  users.find((user) => user.user_name === currentValue) ||
-                                    ({ user_name: '' } as User),
-                                );
-                                setAction('update');
+                        <CommandList>
+                          <CommandGroup>
+                            {users.map((user) => (
+                              <CommandItem
+                                key={user.id}
+                                value={user.user_name}
+                                onSelect={(currentValue) => {
+                                  if (
+                                    albumPermissions.find((user) => user.user_name === currentValue)
+                                  ) {
+                                    toast.error('User already added');
+                                    return;
+                                  }
+                                  setAlbumPermissions([
+                                    ...albumPermissions,
+                                    {
+                                      user_id: user.id,
+                                      user_name: user.user_name,
+                                      full_name: user.full_name,
+                                      user_email: user.user_email,
+                                    },
+                                  ]);
+                                  setNewAlbumUser(
+                                    users.find((user) => user.user_name === currentValue) ||
+                                      ({ user_name: '' } as User),
+                                  );
+                                  setAction('update');
 
-                                setOpen(false);
-                              }}
-                            >
-                              {user.user_name}
-                              <CheckIcon
-                                className={cn(
-                                  'ml-auto h-4 w-4',
-                                  newAlbumUser.user_name === user.user_name
-                                    ? 'opacity-100'
-                                    : 'opacity-0',
-                                )}
-                              />
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
+                                  setOpen(false);
+                                }}
+                              >
+                                {user.user_name}
+                                <CheckIcon
+                                  className={cn(
+                                    'ml-auto h-4 w-4',
+                                    newAlbumUser.user_name === user.user_name
+                                      ? 'opacity-100'
+                                      : 'opacity-0',
+                                  )}
+                                />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
                       </Command>
                     </PopoverContent>
                   </Popover>
@@ -472,11 +480,32 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
                       value={`${process.env.NEXT_PUBLIC_API_URL?.includes('localhost') ? 'http://localhost:3000' : `${process.env.NEXT_PUBLIC_CLIENT_URL}`}/share/${albumGrid.slug}/${albumGrid.secret}/photos`}
                       readOnly
                     />
+                    <Label>API Endpoint (Public)</Label>
+                    <div className="flex space-x-2">
+                      <Input
+                        type="text"
+                        value={`${process.env.NEXT_PUBLIC_API_URL}/album/${albumGrid.slug}/?secret=${albumGrid.secret}`}
+                        readOnly
+                      />
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `${process.env.NEXT_PUBLIC_API_URL}/album/${albumGrid.slug}/?secret=${albumGrid.secret}`,
+                          );
+                          toast.success('API endpoint copied to clipboard');
+                        }}
+                      >
+                        <CopyIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Alert>
                       <CopyIcon className="h-4 w-4" />
-                      <AlertTitle>Share Link</AlertTitle>
+                      <AlertTitle>Share Link & API</AlertTitle>
                       <AlertDescription>
-                        Anyone with this link can view this album.
+                        Anyone with this link can view this album. The API endpoint is public and
+                        doesn't require authentication.
                       </AlertDescription>
                     </Alert>
                     <Button asChild>
