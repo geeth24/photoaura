@@ -505,7 +505,7 @@ function AlbumPage({ albumData, usersData }: AlbumPageProps) {
                       <AlertTitle>Share Link & API</AlertTitle>
                       <AlertDescription>
                         Anyone with this link can view this album. The API endpoint is public and
-                        doesn't require authentication.
+                        doesn&apos;t require authentication.
                       </AlertDescription>
                     </Alert>
                     <Button asChild>
