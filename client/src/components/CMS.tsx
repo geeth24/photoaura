@@ -21,15 +21,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TrashIcon } from '@radix-ui/react-icons';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { Check, ChevronsUpDown } from 'lucide-react';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { getCookie } from 'cookies-next';
 
 export interface AlbumSmall {
@@ -171,9 +168,6 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
     getAlbums();
   }, []);
 
-  const [openCategory, setOpenCategory] = useState(false);
-  const [openAlbum, setOpenAlbum] = useState(false);
-
   return (
     <div className={`relative flex flex-col ${sidebarOpened ? 'pl-4' : ''} pr-4`}>
       <div className="mt-4 flex w-full items-center justify-between">
@@ -237,110 +231,49 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
             </SheetDescription>
             <div className="mt-4">
               <p className="text-sm text-muted-foreground">Select Category</p>
-              <Popover open={openCategory} onOpenChange={setOpenCategory}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openCategory}
-                    className="w-full justify-between"
-                  >
-                    {newLinkedCategory.category_name
-                      ? categories.find(
-                          (category) => category.name === newLinkedCategory.category_name,
-                        )?.name
-                      : 'Select Category...'}
-
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search Category..." />
-                    <CommandEmpty>No categories found</CommandEmpty>
-                    <CommandGroup>
-                      {categories.map((category) => (
-                        <CommandItem
-                          key={category.id}
-                          value={category.id as any}
-                          onSelect={(currentValue) => {
-                            setNewLinkedCategory({
-                              ...newLinkedCategory,
-                              category_name:
-                                currentValue === newLinkedCategory.category_name
-                                  ? ''
-                                  : category.name,
-                            });
-                            setOpenCategory(false);
-                          }}
-                        >
-                          {category.name}
-                          <Check
-                            className={cn(
-                              'ml-auto h-4 w-4',
-                              newLinkedCategory.category_name === category.name
-                                ? 'opacity-100'
-                                : 'opacity-0',
-                            )}
-                          />
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Select
+                value={newLinkedCategory.category_name}
+                onValueChange={(value) => {
+                  setNewLinkedCategory({
+                    ...newLinkedCategory,
+                    category_name: value,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.name}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="mt-4">
               <p className="text-sm text-muted-foreground">Link to Album</p>
-              <Popover open={openAlbum} onOpenChange={setOpenAlbum}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openAlbum}
-                    className="w-full justify-between"
-                  >
-                    {newLinkedCategory.album_name
-                      ? newLinkedCategory.album_name
-                      : 'Select Album...'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search Album..." />
-                    <CommandEmpty>No albums found</CommandEmpty>
-                    <CommandGroup>
-                      {albums.map((album) => (
-                        <CommandItem
-                          key={album.slug}
-                          value={album.slug as any}
-                          onSelect={(currentValue) => {
-                            setNewLinkedCategory({
-                              ...newLinkedCategory,
-                              album_name:
-                                currentValue === newLinkedCategory.album_name
-                                  ? ''
-                                  : album.album_name,
-                            });
-                            setOpenAlbum(false);
-                          }}
-                        >
-                          {album.album_name}
-                          <Check
-                            className={cn(
-                              'ml-auto h-4 w-4',
-                              newLinkedCategory.album_name === album.album_name
-                                ? 'opacity-100'
-                                : 'opacity-0',
-                            )}
-                          />
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Select
+                value={newLinkedCategory.album_name}
+                onValueChange={(value) => {
+                  setNewLinkedCategory({
+                    ...newLinkedCategory,
+                    album_name: value,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Album..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {albums.map((album) => (
+                    <SelectItem key={album.slug} value={album.album_name}>
+                      {album.album_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <SheetClose className="mt-4">
               <Button onClick={linkCategory}>Link Category</Button>
