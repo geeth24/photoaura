@@ -85,11 +85,7 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
   });
 
   const fetchCategoriesLinked = async () => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/category-albums`, {
-      headers: {
-        Authorization: `Bearer ${getCookie('token')}`,
-      },
-    });
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/category-albums`);
     const data = await response.json();
     setCategoriesLinked(data);
   };
@@ -111,6 +107,7 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${getCookie('token')}`,
         },
       },
     );
@@ -121,6 +118,9 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
   const deleteCategory = async (id: number) => {
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${id}`, {
       method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
     });
     fetchCategories();
   };
@@ -129,7 +129,11 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
 
   const getAlbums = async () => {
     // console.log('Getting albums');
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/albums/?user_id=${user?.id}`, {
+      headers: {
+        Authorization: `Bearer ${getCookie('token')}`,
+      },
+    });
     const data = await response.json();
 
     // console.log(data);
@@ -154,6 +158,7 @@ function CMS({ categoriesLinkedData, categoriesData, albumsData }: CMSProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${getCookie('token')}`,
         },
       },
     );
