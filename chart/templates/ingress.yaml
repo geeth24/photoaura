@@ -4,14 +4,11 @@ kind: Ingress
 metadata:
   name: {{ .Values.global.name }}-backend
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - {{ .Values.backend.ingress.host }}
-      secretName: {{ .Values.global.name }}-backend-tls
+  ingressClassName: nginx
   rules:
     - host: {{ .Values.backend.ingress.host }}
       http:
@@ -31,14 +28,9 @@ kind: Ingress
 metadata:
   name: {{ .Values.global.name }}-frontend
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
 spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - {{ .Values.frontend.ingress.host }}
-      secretName: {{ .Values.global.name }}-frontend-tls
+  ingressClassName: nginx
   rules:
     - host: {{ .Values.frontend.ingress.host }}
       http:
