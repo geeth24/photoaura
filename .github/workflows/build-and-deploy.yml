@@ -1,0 +1,71 @@
+# Build and deploy to ArgoCD/K3s
+#
+# Required GitHub Secrets:
+#   (none - registry.rsft.co has no auth)
+#
+# How it works:
+#   1. Builds your Docker image
+#   2. Pushes to registry.rsft.co
+#   3. Updates the image tag in chart/values.yaml
+#   4. ArgoCD detects the change and deploys automatically
+
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  REGISTRY: registry.rsft.co
+  IMAGE_NAME: photoaura
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.short_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update image tag in chart
+        run: |
+          sed -i "s/tag: .*/tag: ${{ steps.meta.outputs.short_sha }}/" chart/values.yaml
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add chart/values.yaml
+          git diff --staged --quiet || git commit -m "chore: update image tag to ${{ steps.meta.outputs.short_sha }}"
+          git push

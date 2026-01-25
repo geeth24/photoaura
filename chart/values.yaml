@@ -1,0 +1,96 @@
+# ============================================
+# photoaura - Backend API Configuration
+# ============================================
+
+global:
+  name: photoaura
+  registry: registry.rsft.co
+
+# ============================================
+# Backend API (FastAPI)
+# ============================================
+backend:
+  enabled: true
+
+  image:
+    repository: photoaura
+    tag: latest
+    pullPolicy: Always
+
+  port: 8000
+  replicas: 1
+
+  healthCheck:
+    path: /api
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  ingress:
+    enabled: true
+    host: aura-api.reactiveshots.com
+
+  # Data persistence for /var/aura/data
+  persistence:
+    enabled: true
+    size: 10Gi
+    mountPath: /var/aura/data
+
+  env:
+    HOST_NAME: aura.reactiveshots.com
+    API_URL: https://aura-api.reactiveshots.com/api
+    NEXT_PUBLIC_API_URL: https://aura-api.reactiveshots.com/api
+    NEXT_PUBLIC_CLIENT_URL: https://aura.reactiveshots.com
+    NEXT_PUBLIC_WS_URL: wss://aura-api.reactiveshots.com/api
+    AWS_REGION: us-east-1
+    AWS_BUCKET: photoaura
+    AWS_CLOUDFRONT_URL: aura-cdn.reactiveshots.com
+    GOOGLE_CALENDAR_ID: primary
+
+  # Secrets loaded from K8s secret
+  secretRef: photoaura-secrets
+
+# ============================================
+# Frontend (disabled - separate deployment)
+# ============================================
+frontend:
+  enabled: false
+
+# ============================================
+# PostgreSQL Database
+# ============================================
+postgres:
+  enabled: true
+
+  image: postgres:16-alpine
+
+  database: postgres
+  username: root
+  # Password loaded from secret
+  passwordSecretRef: photoaura-secrets
+  passwordSecretKey: POSTGRES_PASSWORD
+
+  port: 5432
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ============================================
+# Redis (disabled)
+# ============================================
+redis:
+  enabled: false
