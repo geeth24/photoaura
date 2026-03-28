@@ -14,7 +14,7 @@ backend:
 
   image:
     repository: photoaura
-    tag: 8435266
+    tag: "8435266"
     pullPolicy: Always
 
   port: 8000
