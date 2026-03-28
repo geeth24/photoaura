@@ -109,7 +109,7 @@ async def create_upload_files(
             )
 
             cursor.execute(
-                "INSERT INTO file_metadata (album_id, filename, content_type, size, width, height, upload_date, exif_data) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                "INSERT INTO file_metadata (album_id, filename, content_type, size, width, height, upload_date, exif_data, orientation) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     album[0],
                     file.filename,
@@ -119,6 +119,7 @@ async def create_upload_files(
                     file_metadata["height"],
                     datetime.now(),
                     json.dumps(file_metadata["exif_data"]),
+                    file_metadata["orientation"],
                 ),
             )
             db.commit()

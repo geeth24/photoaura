@@ -35,6 +35,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Migration failed (this is okay if no photos need updating): {e}")
 
+    # Backfill orientation for any photos missing it
+    try:
+        from services.database import get_db
+        with get_db() as (db, cursor):
+            cursor.execute(
+                "UPDATE file_metadata SET orientation = CASE WHEN height > width THEN 'portrait' WHEN width > height THEN 'landscape' ELSE 'square' END WHERE orientation IS NULL AND width IS NOT NULL AND height IS NOT NULL"
+            )
+            if cursor.rowcount > 0:
+                print(f"🔄 Backfilled orientation for {cursor.rowcount} photos")
+            db.commit()
+    except Exception as e:
+        print(f"⚠️  Orientation backfill skipped: {e}")
+
     yield
 
     # Shutdown

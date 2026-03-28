@@ -38,7 +38,10 @@ def create_table():
         )
 
         cursor.execute(
-            "CREATE TABLE IF NOT EXISTS file_metadata (id SERIAL PRIMARY KEY, album_id INT, filename VARCHAR(255), content_type VARCHAR(50), size INT, width INT, height INT, upload_date TIMESTAMP, exif_data JSON, blur_data_url TEXT, FOREIGN KEY (album_id) REFERENCES album(id));"
+            "CREATE TABLE IF NOT EXISTS file_metadata (id SERIAL PRIMARY KEY, album_id INT, filename VARCHAR(255), content_type VARCHAR(50), size INT, width INT, height INT, upload_date TIMESTAMP, exif_data JSON, blur_data_url TEXT, orientation VARCHAR(10), FOREIGN KEY (album_id) REFERENCES album(id));"
+        )
+        cursor.execute(
+            "ALTER TABLE file_metadata ADD COLUMN IF NOT EXISTS orientation VARCHAR(10);"
         )
         cursor.execute(
             """

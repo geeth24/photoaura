@@ -40,11 +40,19 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     img = Image.open(album_dir)
     width, height = img.size
 
+    if height > width:
+        orientation = "portrait"
+    elif width > height:
+        orientation = "landscape"
+    else:
+        orientation = "square"
+
     return {
         "size": file_size,
         "exif_data": exif_data_json,
         "width": width,
         "height": height,
+        "orientation": orientation,
     }
 
 
@@ -67,6 +75,7 @@ def create_album_photos_json(album_slug, file_metadata):
                     "upload_date": meta[7],
                     "exif_data": meta[8],
                     "blur_data_url": meta[9],
+                    "orientation": meta[10] if len(meta) > 10 else None,
                 },
             }
         )
