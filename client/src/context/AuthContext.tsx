@@ -4,8 +4,6 @@ import { toast } from 'sonner';
 import { setCookie, getCookie, deleteCookie } from 'cookies-next';
 import { usePathname, useRouter } from 'next/navigation';
 import ProtectedRoute from './ProtectedRoute';
-import { Jwt } from 'jsonwebtoken';
-
 interface CustomJwt {
   exp: number;
   // Include other properties from the JWT you might need
@@ -115,70 +113,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = getCookie('token');
       if (token) {
         const decodedToken = JSON.parse(atob((token as string).split('.')[1])) as CustomJwt;
-        const expirationTime = decodedToken.exp * 1000; // Convert to milliseconds
+        const expirationTime = decodedToken.exp * 1000;
         const currentTime = new Date().getTime();
         if (expirationTime < currentTime) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
           deleteCookie('token');
           deleteCookie('user');
           toast.error('Session expired. Please log in again.');
           router.push('/login');
         } else {
           const storedUser = getCookie('user') as string;
-          //verify if the user is stored in the cookie
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
-            const token = getCookie('token');
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/verify-token`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/verify-token`, {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }).then((response) => {
-              if (response.status === 401) {
-                toast.error('Session expired. Please log in again.');
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                deleteCookie('token');
-                deleteCookie('user');
-                router.push('/login');
-              } else {
-                setUser(parsedUser);
-              }
             });
-          }
-        }
-        if (expirationTime < currentTime) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          deleteCookie('token');
-          deleteCookie('user');
-          toast.error('Session expired. Please log in again.');
-          router.push('/login');
-        } else {
-          const storedUser = getCookie('user') as string;
-          //verify if the user is stored in the cookie
-          if (storedUser) {
-            const parsedUser = JSON.parse(storedUser);
-            const token = getCookie('token');
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/verify-token`, {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }).then((response) => {
-              if (response.status === 401) {
-                toast.error('Session expired. Please log in again.');
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                deleteCookie('token');
-                deleteCookie('user');
-                router.push('/login');
-              } else {
-                setUser(parsedUser);
-              }
-            });
+            if (response.status === 401) {
+              toast.error('Session expired. Please log in again.');
+              deleteCookie('token');
+              deleteCookie('user');
+              router.push('/login');
+            } else {
+              setUser(parsedUser);
+            }
           }
         }
       }
@@ -186,12 +145,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     checkTokenExpiration();
-    //every 5 seconds check if the token has expired
-    const intervalId = setInterval(() => {
-      checkTokenExpiration();
-    }, 10000);
 
-    return () => clearInterval(intervalId);
+    const handleFocus = () => checkTokenExpiration();
+    window.addEventListener('focus', handleFocus);
+
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   useEffect(() => {

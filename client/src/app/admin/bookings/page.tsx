@@ -58,128 +58,42 @@ export default function BookingsPage() {
 
   const fetchBookings = async () => {
     try {
-      console.log('Fetching bookings...');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bookings`, {
-        headers: {
-          Authorization: `Bearer ${getCookie('token')}`,
-        },
-      });
+      const [bookingsRes, serviceTypesRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/bookings`, {
+          headers: { Authorization: `Bearer ${getCookie('token')}` },
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/service-types`, {
+          headers: { Authorization: `Bearer ${getCookie('token')}` },
+        }),
+      ]);
 
-      if (!response.ok) throw new Error('Failed to fetch bookings');
+      if (!bookingsRes.ok) throw new Error('Failed to fetch bookings');
 
-      const data = await response.json();
-      console.log('Bookings data from API:', data);
+      const data = await bookingsRes.json();
+      const serviceTypes = await serviceTypesRes.json();
 
       if (!Array.isArray(data) || data.length === 0) {
-        console.log('No bookings found or invalid data format');
         setBookings([]);
         setIsLoading(false);
         return;
       }
 
-      // Fetch service types first
-      console.log('Fetching service types...');
-      const serviceTypesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/service-types`, {
-        headers: {
-          Authorization: `Bearer ${getCookie('token')}`,
-        },
-      });
-      const serviceTypes = await serviceTypesResponse.json();
-      console.log('Service types data:', serviceTypes);
+      const serviceTypeMap = new Map(
+        serviceTypes.map((st: { id: number; name: string }) => [st.id, st.name]),
+      );
 
-      // Check the structure of a booking row to understand the indexes
-      if (data.length > 0) {
-        console.log('First booking row structure:', data[0]);
-        // Log all indexes to help identify the service_type_id position
-        for (let i = 0; i < data[0].length; i++) {
-          console.log(`Index ${i}:`, data[0][i]);
-        }
-      }
+      const formattedBookings: Booking[] = data.map((booking: any[]) => ({
+        id: booking[0],
+        client_name: booking[1] || 'Unknown',
+        client_email: booking[2] || '',
+        client_phone: booking[3] || '',
+        preferred_date: booking[4] || new Date().toISOString(),
+        additional_notes: booking[5],
+        status: booking[6] || 'pending',
+        created_at: booking[8] || new Date().toISOString(),
+        service_type: serviceTypeMap.get(booking[9]) || 'Unknown',
+      }));
 
-      // Add this function to map service types based on text values or IDs
-      const getServiceTypeName = (value: any): string => {
-        if (!value) return 'Unknown';
-
-        // If the value is already a string like "photography", "videography", or "both"
-        if (typeof value === 'string') {
-          if (['photography', 'videography', 'both'].includes(value.toLowerCase())) {
-            return value.toLowerCase();
-          }
-        }
-
-        // If the value is a number (ID), map it
-        if (typeof value === 'number') {
-          if (value === 1) return 'photography';
-          if (value === 2) return 'videography';
-          if (value === 3) return 'both';
-        }
-
-        return 'Unknown';
-      };
-
-      // Transform the raw database rows into properly formatted Booking objects
-      const formattedBookings: Booking[] = data.map((booking: any) => {
-        // Log the entire booking row to verify its structure
-        console.log('Booking row:', booking);
-
-        // Try different approaches to find the service type
-        let serviceTypeName = 'Unknown';
-
-        // Look for the service type in the array
-        for (let i = 0; i < booking.length; i++) {
-          if (
-            typeof booking[i] === 'string' &&
-            ['photography', 'videography', 'both'].includes(booking[i].toLowerCase())
-          ) {
-            serviceTypeName = booking[i].toLowerCase();
-            console.log(`Found service type at index ${i}: ${serviceTypeName}`);
-            break;
-          }
-        }
-
-        // If service type wasn't found directly, try using service_type_id
-        if (serviceTypeName === 'Unknown') {
-          // The service_type_id is expected at index 9, but might be elsewhere
-          let serviceTypeId = null;
-
-          // Try to find a numeric ID that might be the service type
-          for (let i = 0; i < booking.length; i++) {
-            if (typeof booking[i] === 'number' && booking[i] >= 1 && booking[i] <= 3) {
-              serviceTypeId = booking[i];
-              console.log(`Found potential service_type_id at index ${i}: ${serviceTypeId}`);
-              break;
-            }
-          }
-
-          // If we found a service type ID, map it to a name
-          if (serviceTypeId) {
-            serviceTypeName = getServiceTypeName(serviceTypeId);
-            console.log(`Mapped service ID ${serviceTypeId} to: ${serviceTypeName}`);
-          }
-        }
-
-        // Make sure the date is in a usable format, or default to current date
-        let preferredDate = booking[4];
-        if (!preferredDate) {
-          console.log(`Booking ${booking[0]} has no preferred_date, using current date`);
-          preferredDate = new Date().toISOString();
-        }
-
-        return {
-          id: booking[0],
-          client_name: booking[1] || 'Unknown',
-          client_email: booking[2] || '',
-          client_phone: booking[3] || '',
-          preferred_date: preferredDate,
-          additional_notes: booking[5],
-          status: booking[6] || 'pending',
-          google_calendar_event_id: booking[7],
-          created_at: booking[8] || new Date().toISOString(),
-          service_type: serviceTypeName,
-        };
-      });
-
-      console.log('Formatted bookings:', formattedBookings);
       setBookings(formattedBookings);
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -205,8 +119,6 @@ export default function BookingsPage() {
       // Map action type to status for API call
       const statusValue = actionType === 'approve' ? 'approved' : 'rejected';
 
-      console.log(`Updating booking ${selectedBooking.id} status to ${statusValue}`);
-
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/bookings/${selectedBooking.id}/status?status=${statusValue}`,
         {
@@ -225,8 +137,7 @@ export default function BookingsPage() {
         );
       }
 
-      const data = await response.json();
-      console.log('Status update response:', data);
+      await response.json();
 
       // Update local state
       setBookings((prevBookings) =>
@@ -235,13 +146,11 @@ export default function BookingsPage() {
         ),
       );
 
-      console.log(`Successfully updated booking ${selectedBooking.id} status to ${statusValue}`);
-
       // Close dialogs
       setShowConfirmDialog(false);
       setShowDetails(false);
     } catch (error) {
-      console.error(`Error ${actionType}ing booking:`, error);
+      console.error('Error updating booking:', error);
     } finally {
       setIsProcessing(false);
       setActionType(null);

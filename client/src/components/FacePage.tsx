@@ -43,7 +43,7 @@ function FacePage({ params: { id } }: { params: Params }) {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/face/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/face/${id}`, {
         headers: {
           Authorization: `Bearer ${getCookie('token')}`,
         },
@@ -65,7 +65,7 @@ function FacePage({ params: { id } }: { params: Params }) {
 
   const updateFace = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/face/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/face/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

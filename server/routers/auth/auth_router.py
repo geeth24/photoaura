@@ -4,22 +4,16 @@ from fastapi import (
     status,
     APIRouter,
 )
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from typing import Optional
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+from typing import Optional
 import jwt
 import bcrypt
+from config import settings
+from dependencies import oauth2_scheme, verify_token
 
 router = APIRouter()
-
-# JWT settings and utility functions
-SECRET_KEY = "your_secret_key_here"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 class Token(BaseModel):
@@ -27,61 +21,39 @@ class Token(BaseModel):
     token_type: str
 
 
-class TokenData(BaseModel):
-    user_name: Optional[str] = None
-
-
-def get_password_hash(user_password: str) -> str:
-    # Hashing the user_password
-    return bcrypt.hashpw(user_password.encode("utf-8"), bcrypt.gensalt()).decode(
-        "utf-8"
-    )
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # Verifying the user_password
     return bcrypt.checkpw(
         plain_password.encode("utf-8"), hashed_password.encode("utf-8")
     )
 
 
-def create_token(user: tuple):
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user[1]},
-        expires_delta=access_token_expires,  # user[1] assumes that the username is the second field in the tuple
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now() + expires_delta
     else:
-        # 1 hour by default
-        expire = datetime.now() + timedelta(minutes=60)
+        expire = datetime.now() + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_token(token: str, credentials_exception):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_name: str = payload.get("sub")
-        if user_name is None:
-            raise credentials_exception
-        token_data = TokenData(user_name=user_name)
-    except jwt.PyJWTError:
-        raise credentials_exception
-    return token_data
+def create_token(user: tuple) -> dict:
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user[1]},
+        expires_delta=access_token_expires,
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post("/api/verify-token")
 def verify_token_endpoint(token: str = Depends(oauth2_scheme)):
-    # print(token)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid credentials",

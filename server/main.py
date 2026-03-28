@@ -1,15 +1,12 @@
-from fastapi import (
-    FastAPI,
-    Depends,
-    HTTPException,
-    status,
-)
-import os
+from fastapi import FastAPI, Depends, HTTPException, status
 from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import os
 
-from services.database import create_table, data_dir
+from config import settings
+from services.database import create_table
+from dependencies import oauth2_scheme, verify_token
 from routers.auth.auth_router import router as auth_router
 from routers.user.user import router as user_router
 from routers.album.album_routes import router as album_router
@@ -18,9 +15,6 @@ from routers.category.category import router as category_router
 from routers.face.face_router import router as face_router
 from routers.websocket.websocket_router import router as websocket_router
 from routers.danger.danger_router import router as danger_router
-from services.database import get_db
-from fastapi.security import OAuth2PasswordBearer
-from routers.auth.auth_router import verify_token
 from routers.booking.booking_router import router as booking_router
 from routers.video.video_router import router as video_router
 from routers.event.event_router import router as event_router
@@ -48,10 +42,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-# origins = ["http://localhost:3000", "https://aura.reactiveshots.com"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS if settings.CORS_ORIGINS != ["*"] else ["*"],
     allow_credentials=True,
     expose_headers=["*"],
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -69,13 +63,10 @@ app.include_router(danger_router)
 app.include_router(booking_router)
 app.include_router(video_router)
 app.include_router(event_router)
-app.mount("/api/static", StaticFiles(directory=data_dir), name="static")
+app.mount("/api/static", StaticFiles(directory=settings.DATA_DIR), name="static")
 
-# wait for db to start for 10 seconds
-# time.sleep(10)
 create_table()
-
-os.makedirs(data_dir, exist_ok=True)
+os.makedirs(settings.DATA_DIR, exist_ok=True)
 
 
 @app.get("/")
@@ -88,7 +79,7 @@ async def api_root():
     return {"message": "PhotoAura API"}
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+from services.database import get_db
 
 @app.get("/api/dashboard/")
 async def get_dashboard(token: str = Depends(oauth2_scheme)):
@@ -98,19 +89,19 @@ async def get_dashboard(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     verify_token(token, credentials_exception)
-    db, cursor = get_db()
-    cursor.execute("SELECT * FROM album")
-    albums = cursor.fetchall()
 
-    cursor.execute("SELECT * FROM users")
-    users = cursor.fetchall()
+    with get_db() as (db, cursor):
+        cursor.execute("SELECT COUNT(*) FROM album")
+        albums_count = cursor.fetchone()[0]
 
-    # return number of photos
-    cursor.execute("SELECT * FROM file_metadata")
-    photos = cursor.fetchall()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        users_count = cursor.fetchone()[0]
 
-    return {
-        "albums": len(albums),
-        "users": len(users),
-        "photos": len(photos),
-    }
+        cursor.execute("SELECT COUNT(*) FROM file_metadata")
+        photos_count = cursor.fetchone()[0]
+
+        return {
+            "albums": albums_count,
+            "users": users_count,
+            "photos": photos_count,
+        }

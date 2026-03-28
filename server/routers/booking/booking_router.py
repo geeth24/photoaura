@@ -1,15 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from services.database import get_db
 from services.google_calendar import create_calendar_event
 from services.email_service import send_booking_confirmation, create_calendar_invite
-import os
+from dependencies import get_current_user
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 class BookingRequest(BaseModel):
@@ -26,56 +24,55 @@ class PricingRequest(BaseModel):
     price: float
     notes: Optional[str] = None
 
+
 @router.get("/api/bookings")
-async def get_bookings(token: str = Depends(oauth2_scheme)):
-    db, cursor = get_db()
-    try:
-        cursor.execute("SELECT * FROM bookings ORDER BY created_at DESC")
-        bookings = cursor.fetchall()
-        return bookings
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_bookings(current_user=Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        try:
+            cursor.execute("SELECT * FROM bookings ORDER BY created_at DESC")
+            bookings = cursor.fetchall()
+            return bookings
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/bookings")
 async def create_booking(booking: BookingRequest):
-    db, cursor = get_db()
-    try:
-        # Verify service type exists
-        cursor.execute(
-            "SELECT * FROM service_types WHERE id = %s", (booking.service_type_id,)
-        )
-        service_type = cursor.fetchone()
-        if not service_type:
-            raise HTTPException(status_code=400, detail="Invalid service type")
+    with get_db() as (db, cursor):
+        try:
+            cursor.execute(
+                "SELECT * FROM service_types WHERE id = %s", (booking.service_type_id,)
+            )
+            service_type = cursor.fetchone()
+            if not service_type:
+                raise HTTPException(status_code=400, detail="Invalid service type")
 
-        cursor.execute(
-            """
-            INSERT INTO bookings 
-            (client_name, client_email, client_phone, preferred_date, service_type_id, additional_notes)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """,
-            (
-                booking.client_name,
-                booking.client_email,
-                booking.client_phone,
-                booking.preferred_date,
-                booking.service_type_id,
-                booking.additional_notes,
-            ),
-        )
-        booking_id = cursor.fetchone()[0]
-        db.commit()
+            cursor.execute(
+                """
+                INSERT INTO bookings 
+                (client_name, client_email, client_phone, preferred_date, service_type_id, additional_notes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """,
+                (
+                    booking.client_name,
+                    booking.client_email,
+                    booking.client_phone,
+                    booking.preferred_date,
+                    booking.service_type_id,
+                    booking.additional_notes,
+                ),
+            )
+            booking_id = cursor.fetchone()[0]
+            db.commit()
 
-        # Create an iCalendar invitation (marked as tentative)
-        service_type_name = service_type[1]
-        end_time = booking.preferred_date + timedelta(hours=2)
+            service_type_name = service_type[1]
+            end_time = booking.preferred_date + timedelta(hours=2)
 
-        event_summary = (
-            f"Reactive Shots - {service_type_name} Session (Pending Approval)"
-        )
-        event_description = f"""
+            event_summary = (
+                f"Reactive Shots - {service_type_name} Session (Pending Approval)"
+            )
+            event_description = f"""
 Your booking request for a {service_type_name} session with Reactive Shots is being processed.
 
 Date: {booking.preferred_date.strftime('%B %d, %Y')}
@@ -88,169 +85,173 @@ This booking is pending approval. We'll notify you once your booking is confirme
 Reactive Shots Team
 Contact: geeth@reactiveshots.com
 """
-        # Create a tentative calendar invitation
-        ical_content = create_calendar_invite(
-            summary=event_summary,
-            description=event_description,
-            start_time=booking.preferred_date,
-            end_time=end_time,
-            attendees=[{"email": booking.client_email, "name": booking.client_name}],
-        )
+            ical_content = create_calendar_invite(
+                summary=event_summary,
+                description=event_description,
+                start_time=booking.preferred_date,
+                end_time=end_time,
+                attendees=[
+                    {"email": booking.client_email, "name": booking.client_name}
+                ],
+            )
 
-        # Send confirmation email with service type and calendar invite
-        await send_booking_confirmation(
-            booking.client_email,
-            booking.client_name,
-            booking.preferred_date,
-            service_type_name,
-            is_approved=False,
-            ical_content=ical_content,
-        )
+            await send_booking_confirmation(
+                booking.client_email,
+                booking.client_name,
+                booking.preferred_date,
+                service_type_name,
+                is_approved=False,
+                ical_content=ical_content,
+            )
 
-        return {"id": booking_id, "message": "Booking request submitted successfully"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+            return {
+                "id": booking_id,
+                "message": "Booking request submitted successfully",
+            }
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/api/bookings/{booking_id}/status")
 async def update_booking_status(
-    booking_id: int, status: str, token: str = Depends(oauth2_scheme)
+    booking_id: int, status: str, current_user=Depends(get_current_user)
 ):
     if status not in ["approved", "rejected"]:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    db, cursor = get_db()
-    try:
-        # Get booking with service type name
-        cursor.execute(
-            """
-            SELECT b.*, st.name as service_type 
-            FROM bookings b
-            JOIN service_types st ON b.service_type_id = st.id
-            WHERE b.id = %s
-        """,
-            (booking_id,),
-        )
-        booking = cursor.fetchone()
-
-        if not booking:
-            raise HTTPException(status_code=404, detail="Booking not found")
-
-        if status == "approved":
-            # Create Google Calendar event
-            event_id = await create_calendar_event(
-                booking[1],  # client_name
-                booking[2],  # client_email
-                booking[4],  # preferred_date
-                booking[5],  # additional_notes
-                booking[10],  # service_type name
-            )
-
+    with get_db() as (db, cursor):
+        try:
             cursor.execute(
                 """
-                UPDATE bookings 
-                SET status = %s, google_calendar_event_id = %s
-                WHERE id = %s
+                SELECT b.*, st.name as service_type 
+                FROM bookings b
+                JOIN service_types st ON b.service_type_id = st.id
+                WHERE b.id = %s
             """,
-                (status, event_id, booking_id),
+                (booking_id,),
             )
-        else:
-            cursor.execute(
-                "UPDATE bookings SET status = %s WHERE id = %s", (status, booking_id)
-            )
+            booking = cursor.fetchone()
 
-        db.commit()
-        return {"message": f"Booking {status} successfully"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+            if not booking:
+                raise HTTPException(status_code=404, detail="Booking not found")
+
+            if status == "approved":
+                event_id = await create_calendar_event(
+                    booking[1],
+                    booking[2],
+                    booking[4],
+                    booking[5],
+                    booking[10],
+                )
+
+                cursor.execute(
+                    """
+                    UPDATE bookings 
+                    SET status = %s, google_calendar_event_id = %s
+                    WHERE id = %s
+                """,
+                    (status, event_id, booking_id),
+                )
+            else:
+                cursor.execute(
+                    "UPDATE bookings SET status = %s WHERE id = %s",
+                    (status, booking_id),
+                )
+
+            db.commit()
+            return {"message": f"Booking {status} successfully"}
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/pricing")
-async def create_pricing(pricing: PricingRequest, token: str = Depends(oauth2_scheme)):
-    db, cursor = get_db()
-    try:
-        cursor.execute(
-            """
-            INSERT INTO pricing 
-            (session_type, price, notes)
-            VALUES (%s, %s, %s)
-            RETURNING id
-        """,
-            (pricing.session_type, pricing.price, pricing.notes),
-        )
-        pricing_id = cursor.fetchone()[0]
-        db.commit()
-        return {"id": pricing_id, "message": "Pricing created successfully"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+async def create_pricing(
+    pricing: PricingRequest, current_user=Depends(get_current_user)
+):
+    with get_db() as (db, cursor):
+        try:
+            cursor.execute(
+                """
+                INSERT INTO pricing 
+                (session_type, price, notes)
+                VALUES (%s, %s, %s)
+                RETURNING id
+            """,
+                (pricing.session_type, pricing.price, pricing.notes),
+            )
+            pricing_id = cursor.fetchone()[0]
+            db.commit()
+            return {"id": pricing_id, "message": "Pricing created successfully"}
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/pricing")
 async def get_pricing():
-    db, cursor = get_db()
-    try:
-        cursor.execute("SELECT * FROM pricing ORDER BY created_at DESC")
-        pricing = cursor.fetchall()
-        return [
-            {
-                "id": p[0],
-                "session_type": p[1],
-                "price": float(p[2]),
-                "notes": p[3],
-                "created_at": p[4],
-            }
-            for p in pricing
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with get_db() as (db, cursor):
+        try:
+            cursor.execute("SELECT * FROM pricing ORDER BY created_at DESC")
+            pricing = cursor.fetchall()
+            return [
+                {
+                    "id": p[0],
+                    "session_type": p[1],
+                    "price": float(p[2]),
+                    "notes": p[3],
+                    "created_at": p[4],
+                }
+                for p in pricing
+            ]
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/service-types")
 async def get_service_types():
-    db, cursor = get_db()
-    try:
-        cursor.execute("SELECT * FROM service_types ORDER BY name")
-        services = cursor.fetchall()
-        return [
-            {"id": service[0], "name": service[1], "created_at": service[2]}
-            for service in services
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with get_db() as (db, cursor):
+        try:
+            cursor.execute("SELECT * FROM service_types ORDER BY name")
+            services = cursor.fetchall()
+            return [
+                {"id": service[0], "name": service[1], "created_at": service[2]}
+                for service in services
+            ]
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/bookings/{booking_id}")
-async def get_booking(booking_id: int, token: str = Depends(oauth2_scheme)):
-    db, cursor = get_db()
-    try:
-        cursor.execute(
-            """
-            SELECT b.*, st.name as service_type 
-            FROM bookings b
-            JOIN service_types st ON b.service_type_id = st.id
-            WHERE b.id = %s
-        """,
-            (booking_id,),
-        )
+async def get_booking(booking_id: int, current_user=Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        try:
+            cursor.execute(
+                """
+                SELECT b.*, st.name as service_type 
+                FROM bookings b
+                JOIN service_types st ON b.service_type_id = st.id
+                WHERE b.id = %s
+            """,
+                (booking_id,),
+            )
 
-        booking = cursor.fetchone()
-        if not booking:
-            raise HTTPException(status_code=404, detail="Booking not found")
+            booking = cursor.fetchone()
+            if not booking:
+                raise HTTPException(status_code=404, detail="Booking not found")
 
-        return {
-            "id": booking[0],
-            "client_name": booking[1],
-            "client_email": booking[2],
-            "client_phone": booking[3],
-            "preferred_date": booking[4],
-            "additional_notes": booking[5],
-            "status": booking[6],
-            "google_calendar_event_id": booking[7],
-            "created_at": booking[8],
-            "service_type": booking[10],  # From the joined service_types table
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            return {
+                "id": booking[0],
+                "client_name": booking[1],
+                "client_email": booking[2],
+                "client_phone": booking[3],
+                "preferred_date": booking[4],
+                "additional_notes": booking[5],
+                "status": booking[6],
+                "google_calendar_event_id": booking[7],
+                "created_at": booking[8],
+                "service_type": booking[10],
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))

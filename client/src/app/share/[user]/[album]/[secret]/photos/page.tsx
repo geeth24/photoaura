@@ -7,37 +7,36 @@ export async function generateMetadata({
 }: {
   params: Promise<{ user: string; album: string; secret: string }>;
 }): Promise<Metadata> {
-  const { user, album, secret } = await params;
-  const dev = process.env.NEXT_PUBLIC_API_URL?.includes('localhost');
+  const { user, album } = await params;
 
-  if (dev) {
+  const fallback = {
+    title: `${album} | PhotoAura`,
+    description: `View ${album} on PhotoAura`,
+    openGraph: {
+      images: [{ url: 'https://aura.reactiveshots.com/images/Logo-Banner.png' }],
+    },
+  };
+
+  try {
+    const response = await fetch(`${process.env.API_URL}/album/${user}/${album}/`);
+    if (!response.ok) return fallback;
+
+    const result: AlbumGrid = await response.json();
     return {
-      title: `${album} | PhotoAura`,
-      description: `View ${album} on PhotoAura`,
+      title: `${result.album_name} | PhotoAura`,
+      description: `View ${result.album_name} on PhotoAura`,
       openGraph: {
         images: [
           {
-            url: 'https://aura.reactiveshots.com/images/Logo-Banner.png',
+            url: result.album_photos[0]?.compressed_image?.split('?')[0] ||
+              'https://aura.reactiveshots.com/images/Logo-Banner.png',
           },
         ],
       },
     };
+  } catch {
+    return fallback;
   }
-
-  const response = await fetch(`http://aura-api.reactiveshots.com/api/album/${user}/${album}/`);
-  const result: AlbumGrid = await response.json();
-
-  return {
-    title: `${result.album_name} | PhotoAura`,
-    description: `View ${result.album_name} on PhotoAura`,
-    openGraph: {
-      images: [
-        {
-          url: result.album_photos[0].compressed_image.split('?')[0],
-        },
-      ],
-    },
-  };
 }
 
 async function Page({

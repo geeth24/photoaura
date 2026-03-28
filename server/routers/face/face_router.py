@@ -1,199 +1,158 @@
 from fastapi import APIRouter, HTTPException, Depends
+from config import settings
 from services.database import get_db
 from utils.utils import create_album_photos_json
-from fastapi.security import OAuth2PasswordBearer
-from routers.auth.auth_router import verify_token
-import os
-
-AWS_BUCKET = os.environ.get("AWS_BUCKET")
-AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
+from dependencies import get_current_user
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+AWS_BUCKET = settings.AWS_BUCKET
+AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 
 @router.get("/api/face")
-async def get_faces(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
-    db, cursor = get_db()
-    cursor.execute("SELECT * FROM photo_face_link")
-    faces = cursor.fetchall()
-
-    faces = [
-        {
-            "id": face[0],
-            "photo_id": face[1],
-            "face_id": face[2],
-            "album_id": face[3],
-        }
-        for face in faces
-    ]
-
-    return faces
+async def get_faces(current_user = Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        cursor.execute("SELECT * FROM photo_face_link")
+        faces = cursor.fetchall()
+        return [
+            {
+                "id": face[0],
+                "photo_id": face[1],
+                "face_id": face[2],
+                "album_id": face[3],
+            }
+            for face in faces
+        ]
 
 
 @router.get("/api/face/{face_id}/photo")
-async def get_face_photo(face_id: str, token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
-    db, cursor = get_db()
-    cursor.execute(
-        "SELECT photo_id FROM photo_face_link WHERE face_id = %s", (face_id,)
-    )
-    photo_id = cursor.fetchone()
+async def get_face_photo(face_id: str, current_user = Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        cursor.execute(
+            "SELECT photo_id FROM photo_face_link WHERE face_id = %s", (face_id,)
+        )
+        photo_id = cursor.fetchone()
 
-    if not photo_id:
-        raise HTTPException(status_code=404, detail="Photo not found for this face")
+        if not photo_id:
+            raise HTTPException(status_code=404, detail="Photo not found for this face")
 
-    return {"photo_id": photo_id[0]}
+        return {"photo_id": photo_id[0]}
 
 
 @router.get("/api/faces")
-async def get_faces(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
-    db, cursor = get_db()
-    cursor.execute("SELECT * FROM face_data")
-    faces = cursor.fetchall()
+async def get_faces(current_user = Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        cursor.execute("SELECT * FROM face_data")
+        faces = cursor.fetchall()
 
-    cursor.execute("SELECT * FROM photo_face_link")
-    face_photo_links = cursor.fetchall()
+        cursor.execute("SELECT * FROM photo_face_link")
+        face_photo_links = cursor.fetchall()
 
-    # get the face photo links
-    face_photo_links = [
-        {
-            "face_id": face_photo_link[2],
-            "photo_id": face_photo_link[1],
-            "album_id": face_photo_link[3],
-            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face_photo_link[2]}-{face_photo_link[1]}-{face_photo_link[3]}.jpg",
-        }
-        for face_photo_link in face_photo_links
-    ]
+        face_photo_links = [
+            {
+                "face_id": face_photo_link[2],
+                "photo_id": face_photo_link[1],
+                "album_id": face_photo_link[3],
+                "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face_photo_link[2]}-{face_photo_link[1]}-{face_photo_link[3]}.jpg",
+            }
+            for face_photo_link in face_photo_links
+        ]
 
-    # now get the face details and link them to the photo
-    faces = [
-        {
-            "id": face[0],
-            "name": face[1],
-            "external_id": face[2],
-            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face[2]}.jpg",
-            "photo_links": [
-                {
-                    "photo_id": face_photo_link["photo_id"],
-                    "album_id": face_photo_link["album_id"],
-                }
-                for face_photo_link in face_photo_links
-                if face_photo_link["face_id"] == face[2]
-            ],
-        }
-        for face in faces
-    ]
+        faces = [
+            {
+                "id": face[0],
+                "name": face[1],
+                "external_id": face[2],
+                "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face[2]}.jpg",
+                "photo_links": [
+                    {
+                        "photo_id": face_photo_link["photo_id"],
+                        "album_id": face_photo_link["album_id"],
+                    }
+                    for face_photo_link in face_photo_links
+                    if face_photo_link["face_id"] == face[2]
+                ],
+            }
+            for face in faces
+        ]
 
-    return faces
+        return faces
 
 
 @router.get("/api/face/{face_id}")
-async def get_face(face_id: str, token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
-    db, cursor = get_db()
-    cursor.execute("SELECT * FROM face_data WHERE external_id = %s", (face_id,))
-    face = cursor.fetchone()
+async def get_face(face_id: str, current_user = Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        cursor.execute("SELECT * FROM face_data WHERE external_id = %s", (face_id,))
+        face = cursor.fetchone()
 
-    if not face:
-        raise HTTPException(status_code=404, detail="Face not found")
+        if not face:
+            raise HTTPException(status_code=404, detail="Face not found")
 
-    cursor.execute("SELECT * FROM photo_face_link WHERE face_id = %s", (face[2],))
-    face_photo_links = cursor.fetchall()
+        cursor.execute("SELECT * FROM photo_face_link WHERE face_id = %s", (face[2],))
+        face_photo_links = cursor.fetchall()
 
-    face_photo_links = [
-        {
-            "photo_id": face_photo_link[1],
-            "album_id": face_photo_link[3],
-        }
-        for face_photo_link in face_photo_links
-    ]
-
-    face_photos = []
-
-    for face_photo_link in face_photo_links:
-        cursor.execute(
-            "SELECT * FROM file_metadata WHERE id = %s", (face_photo_link["photo_id"],)
-        )
-        photo = cursor.fetchone()
-
-        album = cursor.execute(
-            "SELECT * FROM album WHERE id = %s", (face_photo_link["album_id"],)
-        )
-        album = cursor.fetchone()
-
-        album_slug = album[2]
-
-        if not photo:
-            continue
-
-        # compressed_image_url = (
-        #     f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/compressed/{photo[2]}"
-        # )
-        # image_url = f"https://{AWS_CLOUDFRONT_URL}/{album_slug}/{photo[2]}"
-
-        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{photo[2]}"  # Grid thumbnail
-        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{photo[2]}"  # Detailed view
-        face_photos.append(
+        face_photo_links = [
             {
-                "image": image_url,
-                "compressed_image": compressed_image_url,
-                "file_metadata": {
-                    "id": photo[0],
-                    "album_id": photo[1],
-                    "name": photo[2],
-                    "slug": album_slug,
-                    "location": photo[3],
-                    "date": photo[4],
-                    "upload_date": photo[7],
-                    "exif_data": photo[8],
-                    "blur_data_url": photo[9],
-                },
+                "photo_id": face_photo_link[1],
+                "album_id": face_photo_link[3],
             }
-        )
+            for face_photo_link in face_photo_links
+        ]
 
-    return {
-        "id": face[0],
-        "name": face[1],
-        "external_id": face[2],
-        "face_photos": face_photos,
-    }
+        face_photos = []
+
+        for face_photo_link in face_photo_links:
+            cursor.execute(
+                "SELECT * FROM file_metadata WHERE id = %s", (face_photo_link["photo_id"],)
+            )
+            photo = cursor.fetchone()
+
+            if not photo:
+                continue
+
+            cursor.execute(
+                "SELECT * FROM album WHERE id = %s", (face_photo_link["album_id"],)
+            )
+            album = cursor.fetchone()
+
+            if not album:
+                continue
+
+            album_slug = album[2]
+
+            compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{photo[2]}"
+            image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{photo[2]}"
+            face_photos.append(
+                {
+                    "image": image_url,
+                    "compressed_image": compressed_image_url,
+                    "file_metadata": {
+                        "id": photo[0],
+                        "album_id": photo[1],
+                        "name": photo[2],
+                        "slug": album_slug,
+                        "location": photo[3],
+                        "date": photo[4],
+                        "upload_date": photo[7],
+                        "exif_data": photo[8],
+                        "blur_data_url": photo[9],
+                    },
+                }
+            )
+
+        return {
+            "id": face[0],
+            "name": face[1],
+            "external_id": face[2],
+            "face_photos": face_photos,
+        }
 
 
 @router.put("/api/face/{face_id}")
-async def update_face(face_id: str, face: dict, token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    verify_token(token, credentials_exception)
-    db, cursor = get_db()
-    cursor.execute(
-        "UPDATE face_data SET name = %s WHERE external_id = %s", (face["name"], face_id)
-    )
-    db.commit()
-
-    return {"message": "Face updated successfully."}
+async def update_face(face_id: str, face: dict, current_user = Depends(get_current_user)):
+    with get_db() as (db, cursor):
+        cursor.execute(
+            "UPDATE face_data SET name = %s WHERE external_id = %s", (face["name"], face_id)
+        )
+        db.commit()
+        return {"message": "Face updated successfully."}

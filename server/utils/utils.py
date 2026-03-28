@@ -1,14 +1,13 @@
-from fastapi import (
-    UploadFile,
-)
+from fastapi import UploadFile
 import os
 from PIL import Image
 import json
 import PIL.ExifTags
 from io import BytesIO
+from config import settings
 from services.database import get_db
 
-AWS_CLOUDFRONT_URL = os.environ.get("AWS_CLOUDFRONT_URL")
+AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 
 def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
@@ -86,18 +85,16 @@ def extract_exif_data(file_content: bytes):
 
 
 def add_album_to_user(user_id, album_id):
-    db, cursor = get_db()
-    # check if album already exists
-    cursor.execute(
-        "SELECT * FROM user_album_permissions WHERE user_id=%s AND album_id=%s",
-        (user_id, album_id),
-    )
-    album = cursor.fetchone()
-    if album:
-        return
-    cursor.execute(
-        "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
-        (user_id, album_id),
-    )
-    db.commit()
-    cursor.close()
+    with get_db() as (db, cursor):
+        cursor.execute(
+            "SELECT * FROM user_album_permissions WHERE user_id=%s AND album_id=%s",
+            (user_id, album_id),
+        )
+        album = cursor.fetchone()
+        if album:
+            return
+        cursor.execute(
+            "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
+            (user_id, album_id),
+        )
+        db.commit()

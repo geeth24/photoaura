@@ -21,7 +21,7 @@ function Page() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/faces`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/face`, {
         headers: {
           Authorization: `Bearer ${getCookie('token')}`,
         },

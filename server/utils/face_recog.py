@@ -1,10 +1,11 @@
 import io
 import os
 from PIL import Image
+from config import settings
 from services.aws_service import s3_client, rekognition_client as rekognition
 from services.database import get_db
 
-AWS_BUCKET = os.environ.get("AWS_BUCKET")
+AWS_BUCKET = settings.AWS_BUCKET
 
 
 def ensure_directory_exists(directory):
@@ -25,7 +26,8 @@ def is_face_forward(
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
-    db, cursor = get_db()
+    from services.database import get_db
+    with get_db() as (db, cursor):
 
     # Get the original image from S3
     original_image = s3_client.get_object(Bucket=bucket, Key=file_path)
@@ -142,6 +144,5 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             (photo_id, face_id, album_id),
         )
 
-    db.commit()
-    cursor.close()
-    return "Faces processed and stored."
+        db.commit()
+        return "Faces processed and stored."

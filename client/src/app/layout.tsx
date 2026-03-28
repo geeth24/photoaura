@@ -20,7 +20,7 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('http://localhost:3000'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_CLIENT_URL || 'https://aura.reactiveshots.com'),
   title: 'PhotoAura',
   description: 'All your photos in one place',
   openGraph: {
