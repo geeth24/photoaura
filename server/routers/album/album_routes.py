@@ -14,7 +14,7 @@ AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 
 @router.get("/api/album/{user_name}/{album_name}/")
-async def get_album(user_name: str, album_name: str, secret: str = None):
+async def get_album(user_name: str, album_name: str, secret: str = None, orientation: str = None):
     album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
     with get_db() as (db, cursor):
         cursor.execute("SELECT * FROM album WHERE slug=%s", (album_slug,))
@@ -23,7 +23,13 @@ async def get_album(user_name: str, album_name: str, secret: str = None):
         if album is None:
             raise HTTPException(status_code=404, detail="Album not found")
 
-        cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
+        if orientation:
+            cursor.execute(
+                "SELECT * FROM file_metadata WHERE album_id=%s AND orientation=%s",
+                (album[0], orientation),
+            )
+        else:
+            cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
         file_metadata = cursor.fetchall()
 
         if not file_metadata:
@@ -104,7 +110,7 @@ async def get_all_albums(user_id: int = None):
 
 
 @router.get("/api/photos/")
-async def get_all_photos(user_id: int = None):
+async def get_all_photos(user_id: int = None, orientation: str = None):
     with get_db() as (db, cursor):
         if user_id:
             cursor.execute(
@@ -121,7 +127,13 @@ async def get_all_photos(user_id: int = None):
 
         all_photos = []
         for album in albums:
-            cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
+            if orientation:
+                cursor.execute(
+                    "SELECT * FROM file_metadata WHERE album_id=%s AND orientation=%s",
+                    (album[0], orientation),
+                )
+            else:
+                cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
             file_metadata = cursor.fetchall()
             album_photos = create_album_photos_json(album[2], file_metadata)
             all_photos.extend(album_photos)
