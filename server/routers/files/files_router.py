@@ -12,6 +12,10 @@ from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
 from routers.websocket.websocket_router import manager
 from dependencies import oauth2_scheme, get_current_user
+from services.gemini_service import analyze_image
+from fastapi.responses import StreamingResponse
+import asyncio
+import io
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -156,3 +160,90 @@ async def create_upload_files(
                 db.commit()
 
         return {"filenames": [file.filename for file in files]}
+
+
+@router.post("/api/label-photos")
+async def label_all_photos(current_user=Depends(get_current_user)):
+    """batch label all photos that don't have descriptions yet"""
+
+    async def stream():
+        with get_db() as (db, cursor):
+            cursor.execute(
+                "SELECT id, album_id, filename FROM file_metadata WHERE description IS NULL"
+            )
+            unlabeled = cursor.fetchall()
+            total = len(unlabeled)
+            yield json.dumps({"status": "started", "total": total}) + "\n"
+
+            for i, (photo_id, album_id, filename) in enumerate(unlabeled):
+                cursor.execute("SELECT slug FROM album WHERE id = %s", (album_id,))
+                album = cursor.fetchone()
+                if not album:
+                    continue
+
+                s3_key = f"{album[0]}/{filename}"
+                try:
+                    obj = s3_client.get_object(Bucket=AWS_BUCKET, Key=s3_key)
+                    image_bytes = obj["Body"].read()
+
+                    result = analyze_image(image_bytes)
+
+                    cursor.execute(
+                        "UPDATE file_metadata SET description = %s, tags = %s WHERE id = %s",
+                        (result["description"], result["tags"], photo_id),
+                    )
+                    db.commit()
+
+                    yield json.dumps({
+                        "progress": i + 1,
+                        "total": total,
+                        "filename": filename,
+                        "description": result["description"],
+                        "tags": result["tags"],
+                    }) + "\n"
+                except Exception as e:
+                    yield json.dumps({
+                        "progress": i + 1,
+                        "total": total,
+                        "filename": filename,
+                        "error": str(e),
+                    }) + "\n"
+
+                # small delay to avoid rate limits
+                await asyncio.sleep(0.5)
+
+            yield json.dumps({"status": "complete", "labeled": total}) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@router.post("/api/label-photo/{photo_id}")
+async def label_single_photo(photo_id: int, current_user=Depends(get_current_user)):
+    """label a single photo by id"""
+    with get_db() as (db, cursor):
+        cursor.execute(
+            "SELECT fm.id, fm.filename, a.slug FROM file_metadata fm JOIN album a ON fm.album_id = a.id WHERE fm.id = %s",
+            (photo_id,),
+        )
+        photo = cursor.fetchone()
+        if not photo:
+            raise HTTPException(status_code=404, detail="Photo not found")
+
+        s3_key = f"{photo[2]}/{photo[1]}"
+        obj = s3_client.get_object(Bucket=AWS_BUCKET, Key=s3_key)
+        image_bytes = obj["Body"].read()
+
+        result = analyze_image(image_bytes)
+
+        cursor.execute(
+            "UPDATE file_metadata SET description = %s, tags = %s WHERE id = %s",
+            (result["description"], result["tags"], photo_id),
+        )
+        db.commit()
+
+        return {
+            "id": photo_id,
+            "filename": photo[1],
+            "description": result["description"],
+            "tags": result["tags"],
+        }

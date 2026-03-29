@@ -44,6 +44,12 @@ def create_table():
             "ALTER TABLE file_metadata ADD COLUMN IF NOT EXISTS orientation VARCHAR(10);"
         )
         cursor.execute(
+            "ALTER TABLE file_metadata ADD COLUMN IF NOT EXISTS description TEXT;"
+        )
+        cursor.execute(
+            "ALTER TABLE file_metadata ADD COLUMN IF NOT EXISTS tags TEXT[];"
+        )
+        cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_album_permissions (
                 id SERIAL PRIMARY KEY,

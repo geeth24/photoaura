@@ -81,6 +81,8 @@ def create_album_photos_json(album_slug, file_metadata):
                     "exif_data": meta[8],
                     "blur_data_url": meta[9],
                     "orientation": meta[10] if len(meta) > 10 else None,
+                    "description": meta[11] if len(meta) > 11 else None,
+                    "tags": meta[12] if len(meta) > 12 else None,
                 },
             }
         )

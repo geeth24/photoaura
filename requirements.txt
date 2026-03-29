@@ -12,6 +12,8 @@ click==8.1.7
 cryptography==41.0.7
 ecdsa==0.18.0
 fastapi==0.108.0
+google-ai-generativelanguage
+google-generativeai
 google-api-core==2.24.1
 google-api-python-client==2.161.0
 google-auth==2.38.0
