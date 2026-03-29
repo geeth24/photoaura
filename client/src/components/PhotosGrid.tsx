@@ -40,9 +40,10 @@ export interface Album {
     height: number;
     upload_date: string;
     exif_data: {
-      [key: string]: any; // Since EXIF data can be very varied, use an index signature here.
+      [key: string]: any;
     };
     blur_data_url: string;
+    orientation: 'portrait' | 'landscape' | 'square' | null;
   };
 }
 
@@ -293,8 +294,8 @@ function PhotosGrid({
                 >
                   <Image
                     src={album.compressed_image}
-                    width={1920}
-                    height={1080}
+                    width={album.file_metadata.width || 720}
+                    height={album.file_metadata.height || 480}
                     style={{ transform: 'translate3d(0, 0, 0)' }}
                     sizes="(max-width: 640px) 100vw,
          (max-width: 1280px) 75vw,
