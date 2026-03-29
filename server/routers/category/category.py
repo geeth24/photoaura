@@ -107,11 +107,11 @@ async def get_album_by_category(category_id: int, current_user = Depends(get_cur
 
 # route for getting all albums linked each category
 @router.get("/api/category-albums")
-async def get_albums_by_category():
+async def get_albums_by_category(orientation: str = None):
     with get_db() as (db, cursor):
         cursor.execute(
             """
-            SELECT ac.category_id, c.name as category_name, c.slug as category_slug, a.id, a.name, 
+            SELECT ac.category_id, c.name as category_name, c.slug as category_slug, a.id, a.name,
                    a.slug, a.location, a.date, a.image_count, a.shared, a.upload, a.secret
             FROM album a
             JOIN album_categories ac ON a.id = ac.album_id
@@ -138,7 +138,13 @@ async def get_albums_by_category():
                 "album_photos": [],
             }
 
-            cursor.execute("SELECT * FROM file_metadata WHERE album_id = %s", (album[3],))
+            if orientation:
+                cursor.execute(
+                    "SELECT * FROM file_metadata WHERE album_id = %s AND orientation = %s",
+                    (album[3], orientation),
+                )
+            else:
+                cursor.execute("SELECT * FROM file_metadata WHERE album_id = %s", (album[3],))
             album_photos = cursor.fetchall()
             album_photos = create_album_photos_json(album[5], album_photos)
             album_details["album_photos"] = album_photos
