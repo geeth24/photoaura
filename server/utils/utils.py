@@ -36,9 +36,14 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     # get file size
     file_size = os.path.getsize(album_dir)
 
-    # get image dimensions
+    # get image dimensions, accounting for EXIF rotation
     img = Image.open(album_dir)
     width, height = img.size
+
+    # EXIF orientation 5-8 means the image is rotated 90°, so swap w/h
+    exif_orientation = exif_data.get("Orientation", 1)
+    if exif_orientation in (5, 6, 7, 8):
+        width, height = height, width
 
     if height > width:
         orientation = "portrait"

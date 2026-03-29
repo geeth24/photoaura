@@ -35,10 +35,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Migration failed (this is okay if no photos need updating): {e}")
 
-    # Backfill orientation for any photos missing it
+    # Backfill orientation, accounting for EXIF rotation
     try:
         from services.database import get_db
         with get_db() as (db, cursor):
+            # fix EXIF-rotated photos (orientation 5-8 means 90° rotation, swap dimensions)
+            cursor.execute("""
+                UPDATE file_metadata
+                SET width = height, height = width,
+                    orientation = CASE WHEN width > height THEN 'portrait' WHEN height > width THEN 'landscape' ELSE 'square' END
+                WHERE (exif_data::text LIKE '%"Orientation": 5%'
+                    OR exif_data::text LIKE '%"Orientation": 6%'
+                    OR exif_data::text LIKE '%"Orientation": 7%'
+                    OR exif_data::text LIKE '%"Orientation": 8%')
+                AND width > height
+            """)
+            if cursor.rowcount > 0:
+                print(f"🔄 Fixed {cursor.rowcount} EXIF-rotated photos")
+
+            # backfill any remaining photos missing orientation
             cursor.execute(
                 "UPDATE file_metadata SET orientation = CASE WHEN height > width THEN 'portrait' WHEN width > height THEN 'landscape' ELSE 'square' END WHERE orientation IS NULL AND width IS NOT NULL AND height IS NOT NULL"
             )
