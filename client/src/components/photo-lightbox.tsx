@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { motion, AnimatePresence } from "motion/react"
@@ -18,6 +18,7 @@ type Props = {
 export function PhotoLightbox({ user, album, photo, onClose }: Props) {
   const router = useRouter()
   const [photos, setPhotos] = useState<Photo[] | null>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     apiFetch<Album>(`/album/${user}/${album}/`)
@@ -57,6 +58,12 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
     }
   }, [onClose, goto, index, hasPrev, hasNext])
 
+  // keep the active thumbnail in view
+  useEffect(() => {
+    const el = stripRef.current?.querySelector('[data-active="true"]')
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+  }, [index])
+
   const meta = current?.file_metadata
 
   return (
@@ -82,7 +89,7 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
       </div>
 
       {/* image + side nav */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-8">
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-2">
         {hasPrev && (
           <button
             onClick={(e) => {
@@ -134,6 +141,39 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
           </button>
         )}
       </div>
+
+      {/* thumbnail filmstrip */}
+      {photos && photos.length > 1 && (
+        <div
+          ref={stripRef}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 overflow-x-auto px-4 pb-4"
+        >
+          <div className="mx-auto flex w-fit gap-2">
+            {photos.map((p, i) => (
+              <button
+                key={p.file_metadata.filename}
+                data-active={i === index}
+                onClick={() => goto(i)}
+                className={`relative size-14 shrink-0 overflow-hidden rounded-md outline-2 transition-all ${
+                  i === index
+                    ? "outline outline-white opacity-100"
+                    : "outline-transparent opacity-50 hover:opacity-100"
+                }`}
+                aria-label={`Photo ${i + 1}`}
+              >
+                <Image
+                  src={p.compressed_image}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="56px"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   )
 }
