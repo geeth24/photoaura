@@ -221,24 +221,6 @@ export default function AlbumDetailPage({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            {(photo.file_metadata.description || photo.file_metadata.tags?.length) && (
-              <div className="mt-1.5 space-y-1">
-                {photo.file_metadata.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {photo.file_metadata.description}
-                  </p>
-                )}
-                {photo.file_metadata.tags && photo.file_metadata.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {photo.file_metadata.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         ))}
       </div>

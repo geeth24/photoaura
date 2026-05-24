@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { motion, AnimatePresence } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import type { Album, Photo } from "@/lib/types"
-import { Badge } from "@/components/ui/badge"
 import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Props = {
@@ -60,8 +60,11 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
   const meta = current?.file_metadata
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm animate-in fade-in-0"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
       onClick={onClose}
     >
       {/* top bar */}
@@ -79,7 +82,7 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
       </div>
 
       {/* image + side nav */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4">
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-8">
         {hasPrev && (
           <button
             onClick={(e) => {
@@ -93,24 +96,30 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
           </button>
         )}
 
-        {current && meta && (
-          <div
-            className="relative flex h-full w-full items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Image
+        <AnimatePresence mode="wait">
+          {current && meta && (
+            <motion.div
               key={meta.filename}
-              src={current.image}
-              alt={meta.description || meta.filename}
-              fill
-              className="object-contain animate-in fade-in-0 zoom-in-95"
-              sizes="100vw"
-              placeholder={meta.blur_data_url ? "blur" : "empty"}
-              blurDataURL={meta.blur_data_url || undefined}
-              priority
-            />
-          </div>
-        )}
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              className="relative flex h-full w-full items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={current.image}
+                alt={meta.description || meta.filename}
+                fill
+                className="object-contain"
+                sizes="100vw"
+                placeholder={meta.blur_data_url ? "blur" : "empty"}
+                blurDataURL={meta.blur_data_url || undefined}
+                priority
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {hasNext && (
           <button
@@ -125,31 +134,6 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
           </button>
         )}
       </div>
-
-      {/* caption */}
-      {meta && (meta.description || (meta.tags && meta.tags.length > 0)) && (
-        <div
-          className="mx-auto w-full max-w-3xl space-y-2 p-4 text-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {meta.description && (
-            <p className="text-sm text-white/80">{meta.description}</p>
-          )}
-          {meta.tags && meta.tags.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {meta.tags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="outline"
-                  className="border-white/20 text-[11px] text-white/70"
-                >
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </motion.div>
   )
 }
