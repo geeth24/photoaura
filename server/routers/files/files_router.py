@@ -134,17 +134,17 @@ async def create_upload_files(
 
         os.remove(os.path.join(album_dir, file.filename))
 
-        if update:
-            images_count = len(files) + album.image_count
-            if album.image_count != images_count:
-                album.image_count = images_count
-                session.commit()
-
         blur_data_url = generate_blur_data_url(content)
 
         if uploaded_file_metadata:
             uploaded_file_metadata.blur_data_url = blur_data_url
             session.commit()
+
+    # keep image_count exact (= actual stored rows), regardless of new/append
+    album.image_count = (
+        session.query(FileMetadata).filter_by(album_id=album.id).count()
+    )
+    session.commit()
 
     return {"filenames": [file.filename for file in files]}
 
