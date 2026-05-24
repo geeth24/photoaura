@@ -32,7 +32,7 @@ export default function FacesPage() {
 
   const fetchFaces = () => {
     setLoading(true)
-    apiFetch<Face[]>("/face")
+    apiFetch<Face[]>("/faces")
       .then(setFaces)
       .catch(() => setFaces([]))
       .finally(() => setLoading(false))
@@ -46,8 +46,8 @@ export default function FacesPage() {
     setSelected(face)
     setPhotosLoading(true)
     try {
-      const photos = await apiFetch<Photo[]>(`/face/${face.external_id}/photo`)
-      setFacePhotos(photos)
+      const detail = await apiFetch<Face>(`/face/${face.external_id}`)
+      setFacePhotos(detail.face_photos || [])
     } catch {
       setFacePhotos([])
     } finally {
@@ -105,15 +105,17 @@ export default function FacesPage() {
             ))}
           </div>
         ) : (
-          <div className="columns-2 gap-4 space-y-4 sm:columns-3 lg:columns-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {facePhotos.map((photo) => (
-              <div key={photo.compressed_image} className="break-inside-avoid overflow-hidden">
+              <div
+                key={photo.compressed_image}
+                className="relative aspect-square overflow-hidden rounded-sm bg-muted"
+              >
                 <Image
                   src={photo.compressed_image}
-                  alt={photo.file_metadata.filename}
-                  width={photo.file_metadata.width}
-                  height={photo.file_metadata.height}
-                  className="w-full"
+                  alt=""
+                  fill
+                  className="object-cover"
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 />
               </div>
