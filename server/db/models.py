@@ -153,32 +153,3 @@ class VideoRevision(Base):
     )
 
     video: Mapped[Optional["Video"]] = relationship(back_populates="revisions")
-
-
-class EventType(Base):
-    __tablename__ = "event_types"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
-    priority: Mapped[Optional[int]] = mapped_column(Integer, server_default=text("0"))
-    created_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
-    )
-
-
-class Event(Base):
-    __tablename__ = "events"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    event_type_id: Mapped[Optional[int]] = mapped_column(ForeignKey("event_types.id"))
-    event_date: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False)
-    location: Mapped[Optional[str]] = mapped_column(String(255))
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
-    created_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
-    )
-
-    event_type: Mapped[Optional["EventType"]] = relationship()
-    creator: Mapped[Optional["User"]] = relationship()

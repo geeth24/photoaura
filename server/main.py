@@ -19,7 +19,6 @@ from routers.face.face_router import router as face_router
 from routers.websocket.websocket_router import router as websocket_router
 from routers.danger.danger_router import router as danger_router
 from routers.video.video_router import router as video_router
-from routers.event.event_router import router as event_router
 
 
 @asynccontextmanager
@@ -49,7 +48,6 @@ app.include_router(category_router)
 app.include_router(face_router)
 app.include_router(danger_router)
 app.include_router(video_router)
-app.include_router(event_router)
 os.makedirs(settings.DATA_DIR, exist_ok=True)
 app.mount("/api/static", StaticFiles(directory=settings.DATA_DIR), name="static")
 
