@@ -1,11 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
 import type { Album } from "@/lib/types"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { UploadAlbumDialog } from "@/components/upload-album-dialog"
+import { Plus } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -14,18 +17,36 @@ export default function AlbumsPage() {
   const [albums, setAlbums] = useState<Album[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const fetchAlbums = useCallback(() => {
     if (!user) return
-
     apiFetch<Album[]>(`/albums/?user_id=${user.id}`)
       .then(setAlbums)
       .catch(() => setAlbums([]))
       .finally(() => setLoading(false))
   }, [user])
 
+  useEffect(() => {
+    fetchAlbums()
+  }, [fetchAlbums])
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Albums</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Albums</h1>
+        {user && (
+          <UploadAlbumDialog
+            mode="new"
+            userId={user.id}
+            onUploaded={fetchAlbums}
+            trigger={
+              <Button size="sm">
+                <Plus className="size-4" />
+                New Album
+              </Button>
+            }
+          />
+        )}
+      </div>
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
