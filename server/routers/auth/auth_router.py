@@ -43,10 +43,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_token(user: tuple) -> dict:
+def create_token(user) -> dict:
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user[1]},
+        data={"sub": user.user_name},
         expires_delta=access_token_expires,
     )
     return {"access_token": access_token, "token_type": "bearer"}

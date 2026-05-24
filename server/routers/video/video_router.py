@@ -1,6 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from sqlalchemy.orm import Session
 from config import settings
-from services.database import get_db
+from db.base import get_session
+from db.models import Video, VideoRevision
 from services.aws_service import s3_client
 from datetime import datetime, timedelta
 from dependencies import get_current_user
@@ -15,153 +17,137 @@ async def upload_video(
     file: UploadFile = File(...),
     client_id: int = None,
     current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
-    if not file.content_type.startswith('video/'):
+    if not file.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="File must be a video")
 
-    with get_db() as (db, cursor):
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            s3_key = f"videos/{client_id}/{timestamp}_{file.filename}"
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        s3_key = f"videos/{client_id}/{timestamp}_{file.filename}"
 
-            content = await file.read()
-            s3_client.put_object(
-                Bucket=AWS_BUCKET,
-                Key=s3_key,
-                Body=content,
-                ContentType=file.content_type,
-            )
+        content = await file.read()
+        s3_client.put_object(
+            Bucket=AWS_BUCKET,
+            Key=s3_key,
+            Body=content,
+            ContentType=file.content_type,
+        )
 
-            cursor.execute(
-                """
-                INSERT INTO videos 
-                (client_id, title, s3_key, content_type, size)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-            """,
-                (client_id, file.filename, s3_key, file.content_type, len(content)),
-            )
-            video_id = cursor.fetchone()[0]
+        video = Video(
+            client_id=client_id,
+            title=file.filename,
+            s3_key=s3_key,
+            content_type=file.content_type,
+            size=len(content),
+        )
+        session.add(video)
+        session.flush()
 
-            cursor.execute(
-                """
-                INSERT INTO video_revisions 
-                (video_id, s3_key, version)
-                VALUES (%s, %s, %s)
-            """,
-                (video_id, s3_key, 1),
-            )
+        session.add(VideoRevision(video_id=video.id, s3_key=s3_key, version=1))
 
-            db.commit()
-            return {"message": "Video uploaded successfully", "video_id": video_id}
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+        return {"message": "Video uploaded successfully", "video_id": video.id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/api/videos/revisions/cleanup")
-async def cleanup_old_revisions(current_user=Depends(get_current_user)):
+async def cleanup_old_revisions(
+    current_user=Depends(get_current_user), session: Session = Depends(get_session)
+):
     """Cleanup revisions older than 2 weeks"""
-    with get_db() as (db, cursor):
-        try:
-            two_weeks_ago = datetime.now() - timedelta(weeks=2)
+    try:
+        two_weeks_ago = datetime.now() - timedelta(weeks=2)
 
-            cursor.execute(
-                """
-                SELECT s3_key FROM video_revisions 
-                WHERE upload_date < %s 
-                AND permanent_storage = FALSE
-            """,
-                (two_weeks_ago,),
+        revisions = (
+            session.query(VideoRevision)
+            .filter(
+                VideoRevision.upload_date < two_weeks_ago,
+                VideoRevision.permanent_storage.is_(False),
             )
+            .all()
+        )
 
-            revisions = cursor.fetchall()
+        for revision in revisions:
+            s3_client.delete_object(Bucket=AWS_BUCKET, Key=revision.s3_key)
 
-            for revision in revisions:
-                s3_client.delete_object(Bucket=AWS_BUCKET, Key=revision[0])
+        count = len(revisions)
+        for revision in revisions:
+            session.delete(revision)
 
-            cursor.execute(
-                """
-                DELETE FROM video_revisions 
-                WHERE upload_date < %s 
-                AND permanent_storage = FALSE
-            """,
-                (two_weeks_ago,),
-            )
-
-            db.commit()
-            return {"message": f"Cleaned up {len(revisions)} old revisions"}
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+        return {"message": f"Cleaned up {count} old revisions"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/videos/{client_id}")
-async def get_client_videos(client_id: int, current_user=Depends(get_current_user)):
-    with get_db() as (db, cursor):
-        try:
-            cursor.execute(
-                """
-                SELECT v.*, vr.version, vr.upload_date as revision_date, vr.permanent_storage
-                FROM videos v
-                LEFT JOIN video_revisions vr ON v.id = vr.video_id
-                WHERE v.client_id = %s
-                ORDER BY v.upload_date DESC, vr.version DESC
-            """,
-                (client_id,),
+async def get_client_videos(
+    client_id: int,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    try:
+        rows = (
+            session.query(
+                Video,
+                VideoRevision.version,
+                VideoRevision.upload_date.label("revision_date"),
+                VideoRevision.permanent_storage,
             )
+            .outerjoin(VideoRevision, Video.id == VideoRevision.video_id)
+            .filter(Video.client_id == client_id)
+            .order_by(Video.upload_date.desc(), VideoRevision.version.desc())
+            .all()
+        )
 
-            videos = cursor.fetchall()
+        video_dict = {}
+        for video, version, revision_date, permanent_storage in rows:
+            if video.id not in video_dict:
+                video_dict[video.id] = {
+                    "id": video.id,
+                    "title": video.title,
+                    "content_type": video.content_type,
+                    "size": video.size,
+                    "upload_date": video.upload_date,
+                    "url": f"https://{AWS_CLOUDFRONT_URL}/{video.s3_key}",
+                    "revisions": [],
+                }
 
-            video_dict = {}
-            for video in videos:
-                if video[0] not in video_dict:
-                    video_dict[video[0]] = {
-                        "id": video[0],
-                        "title": video[2],
-                        "content_type": video[4],
-                        "size": video[5],
-                        "upload_date": video[6],
-                        "url": f"https://{AWS_CLOUDFRONT_URL}/{video[3]}",
-                        "revisions": [],
+            if version:
+                video_dict[video.id]["revisions"].append(
+                    {
+                        "version": version,
+                        "upload_date": revision_date,
+                        "permanent_storage": permanent_storage,
+                        "url": f"https://{AWS_CLOUDFRONT_URL}/{video.s3_key}",
                     }
+                )
 
-                if video[7]:
-                    video_dict[video[0]]["revisions"].append(
-                        {
-                            "version": video[7],
-                            "upload_date": video[8],
-                            "permanent_storage": video[9],
-                            "url": f"https://{AWS_CLOUDFRONT_URL}/{video[3]}",
-                        }
-                    )
-
-            return list(video_dict.values())
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        return list(video_dict.values())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/api/videos/revisions/{revision_id}/permanent")
 async def set_revision_permanent(
-    revision_id: int, permanent: bool, current_user=Depends(get_current_user)
+    revision_id: int,
+    permanent: bool,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
-    with get_db() as (db, cursor):
-        try:
-            cursor.execute(
-                """
-                UPDATE video_revisions
-                SET permanent_storage = %s
-                WHERE id = %s
-                RETURNING video_id
-            """,
-                (permanent, revision_id),
-            )
+    try:
+        revision = session.get(VideoRevision, revision_id)
+        if revision is None:
+            raise HTTPException(status_code=404, detail="Revision not found")
 
-            if cursor.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Revision not found")
-
-            db.commit()
-            return {"message": f"Revision permanent storage set to {permanent}"}
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+        revision.permanent_storage = permanent
+        return {"message": f"Revision permanent storage set to {permanent}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

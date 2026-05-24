@@ -5,7 +5,8 @@ import json
 import PIL.ExifTags
 from io import BytesIO
 from config import settings
-from services.database import get_db
+from db.base import session_scope
+from db.models import UserAlbumPermission
 
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
@@ -64,25 +65,25 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
 def create_album_photos_json(album_slug, file_metadata):
     album_photos = []
     for meta in file_metadata:
-        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta[2]}"  # Grid thumbnail
-        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta[2]}"  # Detailed view
+        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
+        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
         album_photos.append(
             {
                 "image": image_url,
                 "compressed_image": compressed_image_url,
                 "file_metadata": {
-                    "album_id": meta[1],
-                    "filename": meta[2],
-                    "content_type": meta[3],
-                    "size": meta[4],
-                    "width": meta[5],
-                    "height": meta[6],
-                    "upload_date": meta[7],
-                    "exif_data": meta[8],
-                    "blur_data_url": meta[9],
-                    "orientation": meta[10] if len(meta) > 10 else None,
-                    "description": meta[11] if len(meta) > 11 else None,
-                    "tags": meta[12] if len(meta) > 12 else None,
+                    "album_id": meta.album_id,
+                    "filename": meta.filename,
+                    "content_type": meta.content_type,
+                    "size": meta.size,
+                    "width": meta.width,
+                    "height": meta.height,
+                    "upload_date": meta.upload_date,
+                    "exif_data": meta.exif_data,
+                    "blur_data_url": meta.blur_data_url,
+                    "orientation": meta.orientation,
+                    "description": meta.description,
+                    "tags": meta.tags,
                 },
             }
         )
@@ -101,16 +102,12 @@ def extract_exif_data(file_content: bytes):
 
 
 def add_album_to_user(user_id, album_id):
-    with get_db() as (db, cursor):
-        cursor.execute(
-            "SELECT * FROM user_album_permissions WHERE user_id=%s AND album_id=%s",
-            (user_id, album_id),
+    with session_scope() as session:
+        existing = (
+            session.query(UserAlbumPermission)
+            .filter_by(user_id=user_id, album_id=album_id)
+            .first()
         )
-        album = cursor.fetchone()
-        if album:
+        if existing:
             return
-        cursor.execute(
-            "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
-            (user_id, album_id),
-        )
-        db.commit()
+        session.add(UserAlbumPermission(user_id=user_id, album_id=album_id))

@@ -15,10 +15,37 @@ spec:
       labels:
         app: {{ .Values.global.name }}-backend
     spec:
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.global.registry }}/{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | toString }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["sh", "-c", "python -m db.migrate && python -m db.seed"]
+          env:
+            {{- if .Values.postgres.enabled }}
+            - name: POSTGRES_HOST
+              value: {{ .Values.global.name }}-postgres
+            - name: POSTGRES_PORT
+              value: {{ .Values.postgres.port | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.username }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.passwordSecretRef }}
+                  key: {{ .Values.postgres.passwordSecretKey }}
+            {{- end }}
+          {{- if .Values.backend.secretRef }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.backend.secretRef }}
+          {{- end }}
       containers:
         - name: backend
           image: "{{ .Values.global.registry }}/{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | toString }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "{{ .Values.backend.port }}"]
           ports:
             - containerPort: {{ .Values.backend.port }}
 
@@ -60,8 +87,6 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.backend.secretRef }}
-            - secretRef:
-                name: {{ .Values.global.name }}-google-creds
           {{- end }}
 
           {{- if .Values.backend.persistence.enabled }}

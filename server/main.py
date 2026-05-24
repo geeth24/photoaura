@@ -2,10 +2,13 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from contextlib import asynccontextmanager
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func
 import os
 
 from config import settings
-from services.database import create_table
+from db.base import get_session, session_scope
+from db.models import Album, User, FileMetadata
+from sqlalchemy.orm import Session
 from dependencies import oauth2_scheme, verify_token
 from routers.auth.auth_router import router as auth_router
 from routers.user.user import router as user_router
@@ -15,57 +18,14 @@ from routers.category.category import router as category_router
 from routers.face.face_router import router as face_router
 from routers.websocket.websocket_router import router as websocket_router
 from routers.danger.danger_router import router as danger_router
-from routers.booking.booking_router import router as booking_router
 from routers.video.video_router import router as video_router
 from routers.event.event_router import router as event_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("🚀 PhotoAura API starting up...")
-
-    # Run the blur data URL migration
-    try:
-        from migration_blur_data_url import migrate_blur_data_urls
-
-        print("🔄 Running blur data URL migration...")
-        migrate_blur_data_urls()
-        print("✅ Migration completed!")
-    except Exception as e:
-        print(f"⚠️  Migration failed (this is okay if no photos need updating): {e}")
-
-    # Backfill orientation, accounting for EXIF rotation
-    try:
-        from services.database import get_db
-        with get_db() as (db, cursor):
-            # fix EXIF-rotated photos (orientation 5-8 means 90° rotation, swap dimensions)
-            cursor.execute("""
-                UPDATE file_metadata
-                SET width = height, height = width,
-                    orientation = CASE WHEN width > height THEN 'portrait' WHEN height > width THEN 'landscape' ELSE 'square' END
-                WHERE (exif_data::text LIKE '%"Orientation": 5%'
-                    OR exif_data::text LIKE '%"Orientation": 6%'
-                    OR exif_data::text LIKE '%"Orientation": 7%'
-                    OR exif_data::text LIKE '%"Orientation": 8%')
-                AND width > height
-            """)
-            if cursor.rowcount > 0:
-                print(f"🔄 Fixed {cursor.rowcount} EXIF-rotated photos")
-
-            # backfill any remaining photos missing orientation
-            cursor.execute(
-                "UPDATE file_metadata SET orientation = CASE WHEN height > width THEN 'portrait' WHEN width > height THEN 'landscape' ELSE 'square' END WHERE orientation IS NULL AND width IS NOT NULL AND height IS NOT NULL"
-            )
-            if cursor.rowcount > 0:
-                print(f"🔄 Backfilled orientation for {cursor.rowcount} photos")
-            db.commit()
-    except Exception as e:
-        print(f"⚠️  Orientation backfill skipped: {e}")
-
     yield
-
-    # Shutdown
     print("👋 PhotoAura API shutting down...")
 
 
@@ -88,13 +48,10 @@ app.include_router(websocket_router)
 app.include_router(category_router)
 app.include_router(face_router)
 app.include_router(danger_router)
-app.include_router(booking_router)
 app.include_router(video_router)
 app.include_router(event_router)
-app.mount("/api/static", StaticFiles(directory=settings.DATA_DIR), name="static")
-
-create_table()
 os.makedirs(settings.DATA_DIR, exist_ok=True)
+app.mount("/api/static", StaticFiles(directory=settings.DATA_DIR), name="static")
 
 
 @app.get("/")
@@ -107,10 +64,10 @@ async def api_root():
     return {"message": "PhotoAura API"}
 
 
-from services.database import get_db
-
 @app.get("/api/dashboard/")
-async def get_dashboard(token: str = Depends(oauth2_scheme)):
+async def get_dashboard(
+    token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -118,18 +75,12 @@ async def get_dashboard(token: str = Depends(oauth2_scheme)):
     )
     verify_token(token, credentials_exception)
 
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT COUNT(*) FROM album")
-        albums_count = cursor.fetchone()[0]
+    albums_count = session.query(func.count(Album.id)).scalar()
+    users_count = session.query(func.count(User.id)).scalar()
+    photos_count = session.query(func.count(FileMetadata.id)).scalar()
 
-        cursor.execute("SELECT COUNT(*) FROM users")
-        users_count = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM file_metadata")
-        photos_count = cursor.fetchone()[0]
-
-        return {
-            "albums": albums_count,
-            "users": users_count,
-            "photos": photos_count,
-        }
+    return {
+        "albums": albums_count,
+        "users": users_count,
+        "photos": photos_count,
+    }

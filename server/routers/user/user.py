@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 from models.user import User, UpdateUserForm
-from services.database import get_db
+from db.base import get_session, session_scope
+from db.models import User as UserModel, UserAlbumPermission, Album
 from dependencies import oauth2_scheme, get_current_user
 from routers.auth.auth_router import (
     create_token,
@@ -29,12 +31,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 
 def authenticate_user(user_name: str, user_password: str):
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM users WHERE user_name=%s", (user_name,))
-        user = cursor.fetchone()
+    with session_scope() as session:
+        user = (
+            session.query(UserModel).filter_by(user_name=user_name).first()
+        )
         if not user:
             return False
-        if not verify_password(user_password, user[2]):
+        if not verify_password(user_password, user.user_password):
             return False
 
         token = create_token(user)
@@ -44,94 +47,85 @@ def authenticate_user(user_name: str, user_password: str):
 def create_new_user(
     user_name: str, user_password: str, full_name: str, user_email: str
 ):
-    with get_db() as (db, cursor):
-        cursor.execute(
-            "INSERT INTO users (user_name, user_password, full_name, user_email) VALUES (%s, %s, %s, %s)",
-            (user_name, user_password, full_name, user_email),
+    with session_scope() as session:
+        session.add(
+            UserModel(
+                user_name=user_name,
+                user_password=user_password,
+                full_name=full_name,
+                user_email=user_email,
+            )
         )
-        db.commit()
         return {"message": "User created successfully."}
 
 
 # Protected endpoints
 @router.post("/api/create-user")
-def create_user(form_data: User):
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM users WHERE user_name=%s", (form_data.user_name,))
-        user = cursor.fetchone()
-        if user:
-            return {"message": "User already exists."}
+def create_user(form_data: User, session: Session = Depends(get_session)):
+    user = session.query(UserModel).filter_by(user_name=form_data.user_name).first()
+    if user:
+        return {"message": "User already exists."}
 
-        hashed_password = get_password_hash(form_data.user_password)
-        cursor.execute(
-            "INSERT INTO users (user_name, user_password, full_name, user_email) VALUES (%s, %s, %s, %s)",
-            (form_data.user_name, hashed_password, form_data.full_name, form_data.user_email),
+    hashed_password = get_password_hash(form_data.user_password)
+    session.add(
+        UserModel(
+            user_name=form_data.user_name,
+            user_password=hashed_password,
+            full_name=form_data.full_name,
+            user_email=form_data.user_email,
         )
-        db.commit()
-        return {"message": "User created successfully."}
-
-
-def get_all_users():
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM users")
-        users = cursor.fetchall()
-        return users
+    )
+    return {"message": "User created successfully."}
 
 
 def create_user_json(user):
     return {
-        "id": user[0],
-        "user_name": user[1],
-        "full_name": user[3],
-        "user_email": user[4],
+        "id": user.id,
+        "user_name": user.user_name,
+        "full_name": user.full_name,
+        "user_email": user.user_email,
     }
 
 
-def get_albums_for_user(user_id):
-    with get_db() as (db, cursor):
-        cursor.execute(
-            """
-            SELECT album.* FROM album
-            JOIN user_album_permissions ON album.id = user_album_permissions.album_id
-            WHERE user_album_permissions.user_id = %s
-            """,
-            (user_id,),
-        )
-        albums = cursor.fetchall()
-
-        return [
-            {
-                "id": album[0],
-                "name": album[1],
-                "slug": album[2],
-                "location": album[3],
-                "date": album[4],
-                "image_count": album[5],
-                "shared": album[6],
-            }
-            for album in albums
-        ]
+def get_albums_for_user(session: Session, user_id):
+    albums = (
+        session.query(Album)
+        .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
+        .filter(UserAlbumPermission.user_id == user_id)
+        .all()
+    )
+    return [
+        {
+            "id": album.id,
+            "name": album.name,
+            "slug": album.slug,
+            "location": album.location,
+            "date": album.date,
+            "image_count": album.image_count,
+            "shared": album.shared,
+        }
+        for album in albums
+    ]
 
 
 @router.get("/api/users/")
-def read_users(current_user = Depends(get_current_user)):
-    all_users = get_all_users()
+def read_users(
+    current_user=Depends(get_current_user), session: Session = Depends(get_session)
+):
+    all_users = session.query(UserModel).all()
     users = [create_user_json(user) for user in all_users]
     for user in users:
-        user["albums"] = get_albums_for_user(user["id"])
+        user["albums"] = get_albums_for_user(session, user["id"])
     return users
 
 
-def get_user_by_id(user_id: int):
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
-        user = cursor.fetchone()
-        return user
-
-
 @router.get("/api/users/{user_id}")
-def read_user(user_id: int, current_user = Depends(get_current_user)):
-    user = get_user_by_id(user_id)
+def read_user(
+    user_id: int,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    user = session.get(UserModel, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return create_user_json(user)
@@ -139,41 +133,32 @@ def read_user(user_id: int, current_user = Depends(get_current_user)):
 
 @router.put("/api/users/{user_id}")
 def update_user(
-    user_id: int, form_data: UpdateUserForm, current_user = Depends(get_current_user)
+    user_id: int,
+    form_data: UpdateUserForm,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
-        user = cursor.fetchone()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+    user = session.get(UserModel, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        cursor.execute(
-            "UPDATE users SET user_name=%s, full_name=%s, user_email=%s WHERE id=%s",
-            (
-                form_data.user.user_name,
-                form_data.user.full_name,
-                form_data.user.user_email,
-                user_id,
-            ),
-        )
-        db.commit()
+    user.user_name = form_data.user.user_name
+    user.full_name = form_data.user.full_name
+    user.user_email = form_data.user.user_email
 
-        cursor.execute("DELETE FROM user_album_permissions WHERE user_id=%s", (user_id,))
-        for album_id in form_data.album_ids:
-            cursor.execute(
-                "INSERT INTO user_album_permissions (user_id, album_id) VALUES (%s, %s)",
-                (user_id, album_id),
-            )
-        db.commit()
+    session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()
+    for album_id in form_data.album_ids:
+        session.add(UserAlbumPermission(user_id=user_id, album_id=album_id))
 
-        return {"message": "User updated successfully."}
+    return {"message": "User updated successfully."}
 
 
 @router.delete("/api/users/{user_id}")
-def delete_user(user_id: int, current_user = Depends(get_current_user)):
-    with get_db() as (db, cursor):
-        cursor.execute("DELETE FROM user_album_permissions WHERE user_id=%s", (user_id,))
-        db.commit()
-        cursor.execute("DELETE FROM users WHERE id=%s", (user_id,))
-        db.commit()
-        return {"message": "User deleted successfully."}
+def delete_user(
+    user_id: int,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()
+    session.query(UserModel).filter_by(id=user_id).delete()
+    return {"message": "User deleted successfully."}

@@ -3,9 +3,17 @@ from typing import Optional
 
 class Settings:
     POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT: str = os.environ.get("POSTGRES_PORT", "5432")
     POSTGRES_DB: str = os.environ.get("POSTGRES_DB", "aura")
     POSTGRES_USER: str = os.environ.get("POSTGRES_USER", "aura")
     POSTGRES_PASSWORD: str = os.environ.get("POSTGRES_PASSWORD", "aura")
+
+    @property
+    def DATABASE_URL(self) -> str:
+        return (
+            f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
     
     ROOT_USER: str = os.environ.get("ROOT_USER", "root")
     ROOT_PASSWORD: str = os.environ.get("ROOT_PASSWORD", "password")
@@ -22,7 +30,7 @@ class Settings:
     AWS_BUCKET: Optional[str] = os.environ.get("AWS_BUCKET")
     AWS_CLOUDFRONT_URL: Optional[str] = os.environ.get("AWS_CLOUDFRONT_URL")
     
-    DATA_DIR: str = "/var/aura/data"
+    DATA_DIR: str = os.environ.get("DATA_DIR", "/var/aura/data")
     
     CORS_ORIGINS: list[str] = os.environ.get("CORS_ORIGINS", "*").split(",")
 

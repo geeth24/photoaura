@@ -1,11 +1,21 @@
 from fastapi import HTTPException, APIRouter, Depends
 import os
 import logging
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from config import settings
-from services.database import get_db
+from db.base import get_session
+from db.models import (
+    Album,
+    FileMetadata,
+    UserAlbumPermission,
+    AlbumCategory,
+    PhotoFaceLink,
+    FaceData,
+    User,
+)
 from services.aws_service import s3_client, rekognition_client
 from botocore.exceptions import ClientError
-from psycopg import errors
 from utils.utils import create_album_photos_json, add_album_to_user
 
 router = APIRouter()
@@ -14,206 +24,189 @@ AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 
 @router.get("/api/album/{user_name}/{album_name}/")
-async def get_album(user_name: str, album_name: str, secret: str = None, orientation: str = None):
+async def get_album(
+    user_name: str,
+    album_name: str,
+    secret: str = None,
+    orientation: str = None,
+    session: Session = Depends(get_session),
+):
     album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM album WHERE slug=%s", (album_slug,))
-        album = cursor.fetchone()
+    album = session.query(Album).filter_by(slug=album_slug).first()
 
-        if album is None:
-            raise HTTPException(status_code=404, detail="Album not found")
+    if album is None:
+        raise HTTPException(status_code=404, detail="Album not found")
 
-        if orientation:
-            cursor.execute(
-                "SELECT * FROM file_metadata WHERE album_id=%s AND orientation=%s",
-                (album[0], orientation),
-            )
-        else:
-            cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
-        file_metadata = cursor.fetchall()
+    photos_query = session.query(FileMetadata).filter_by(album_id=album.id)
+    if orientation:
+        photos_query = photos_query.filter_by(orientation=orientation)
+    file_metadata = photos_query.all()
 
-        if not file_metadata:
-            raise HTTPException(status_code=404, detail="No images found in the album")
+    if not file_metadata:
+        raise HTTPException(status_code=404, detail="No images found in the album")
 
-        album_photos = create_album_photos_json(album_slug, file_metadata)
+    album_photos = create_album_photos_json(album_slug, file_metadata)
 
-        cursor.execute(
-            "SELECT * FROM user_album_permissions WHERE album_id=%s", (album[0],)
-        )
-        album_permissions = cursor.fetchall()
-
-        permissions_list = []
-        for perm in album_permissions:
-            cursor.execute("SELECT * FROM users WHERE id=%s", (perm[1],))
-            user = cursor.fetchone()
-            if user:
-                permissions_list.append(
-                    {
-                        "user_id": user[0],
-                        "user_name": user[1],
-                        "full_name": user[3],
-                        "user_email": user[4],
-                    }
-                )
-
-        return {
-            "album_name": album[1],
-            "slug": album[2],
-            "image_count": album[5],
-            "shared": album[6],
-            "upload": album[7],
-            "secret": album[8],
-            "face_detection": album[9],
-            "album_permissions": permissions_list,
-            "album_photos": album_photos,
-        }
-
-
-@router.get("/api/albums/")
-async def get_all_albums(user_id: int = None):
-    with get_db() as (db, cursor):
-        if user_id:
-            cursor.execute(
-                """
-                SELECT a.* FROM album a
-                JOIN user_album_permissions uap ON a.id = uap.album_id
-                WHERE uap.user_id = %s
-                """,
-                (user_id,),
-            )
-        else:
-            cursor.execute("SELECT * FROM album")
-        albums = cursor.fetchall()
-
-        all_albums = []
-        for album in albums:
-            cursor.execute(
-                "SELECT * FROM file_metadata WHERE album_id=%s LIMIT 4",
-                (album[0],),
-            )
-            file_metadata = cursor.fetchall()
-            album_photos = create_album_photos_json(album[2], file_metadata)
-
-            all_albums.append(
+    permissions = (
+        session.query(UserAlbumPermission).filter_by(album_id=album.id).all()
+    )
+    permissions_list = []
+    for perm in permissions:
+        user = session.get(User, perm.user_id)
+        if user:
+            permissions_list.append(
                 {
-                    "album_id": album[0],
-                    "album_name": album[1],
-                    "slug": album[2],
-                    "image_count": album[5],
-                    "shared": album[6],
-                    "upload": album[7],
-                    "album_photos": album_photos,
+                    "user_id": user.id,
+                    "user_name": user.user_name,
+                    "full_name": user.full_name,
+                    "user_email": user.user_email,
                 }
             )
 
-        return all_albums
+    return {
+        "album_name": album.name,
+        "slug": album.slug,
+        "image_count": album.image_count,
+        "shared": album.shared,
+        "upload": album.upload,
+        "secret": album.secret,
+        "face_detection": album.face_detection,
+        "album_permissions": permissions_list,
+        "album_photos": album_photos,
+    }
+
+
+@router.get("/api/albums/")
+async def get_all_albums(
+    user_id: int = None, session: Session = Depends(get_session)
+):
+    if user_id:
+        albums = (
+            session.query(Album)
+            .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
+            .filter(UserAlbumPermission.user_id == user_id)
+            .all()
+        )
+    else:
+        albums = session.query(Album).all()
+
+    all_albums = []
+    for album in albums:
+        file_metadata = (
+            session.query(FileMetadata).filter_by(album_id=album.id).limit(4).all()
+        )
+        album_photos = create_album_photos_json(album.slug, file_metadata)
+
+        all_albums.append(
+            {
+                "album_id": album.id,
+                "album_name": album.name,
+                "slug": album.slug,
+                "image_count": album.image_count,
+                "shared": album.shared,
+                "upload": album.upload,
+                "album_photos": album_photos,
+            }
+        )
+
+    return all_albums
 
 
 @router.get("/api/photos/")
-async def get_all_photos(user_id: int = None, orientation: str = None):
-    with get_db() as (db, cursor):
-        if user_id:
-            cursor.execute(
-                """
-                SELECT a.* FROM album a
-                JOIN user_album_permissions uap ON a.id = uap.album_id
-                WHERE uap.user_id = %s
-                """,
-                (user_id,),
-            )
-        else:
-            cursor.execute("SELECT * FROM album")
-        albums = cursor.fetchall()
+async def get_all_photos(
+    user_id: int = None,
+    orientation: str = None,
+    session: Session = Depends(get_session),
+):
+    if user_id:
+        albums = (
+            session.query(Album)
+            .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
+            .filter(UserAlbumPermission.user_id == user_id)
+            .all()
+        )
+    else:
+        albums = session.query(Album).all()
 
-        all_photos = []
-        for album in albums:
-            if orientation:
-                cursor.execute(
-                    "SELECT * FROM file_metadata WHERE album_id=%s AND orientation=%s",
-                    (album[0], orientation),
-                )
-            else:
-                cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s", (album[0],))
-            file_metadata = cursor.fetchall()
-            album_photos = create_album_photos_json(album[2], file_metadata)
-            all_photos.extend(album_photos)
+    all_photos = []
+    for album in albums:
+        photos_query = session.query(FileMetadata).filter_by(album_id=album.id)
+        if orientation:
+            photos_query = photos_query.filter_by(orientation=orientation)
+        album_photos = create_album_photos_json(album.slug, photos_query.all())
+        all_photos.extend(album_photos)
 
-        return all_photos
+    return all_photos
 
 
 @router.delete("/api/album/delete/{user_name}/{album_name}/")
-async def delete_album(user_name: str, album_name: str):
+async def delete_album(
+    user_name: str, album_name: str, session: Session = Depends(get_session)
+):
     album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
 
-    with get_db() as (db, cursor):
-        try:
-            cursor.execute("SELECT id FROM album WHERE name = %s", (album_name,))
-            album = cursor.fetchone()
-            if not album:
-                raise HTTPException(status_code=404, detail="Album not found")
-            album_id = album[0]
+    try:
+        album = session.query(Album).filter_by(name=album_name).first()
+        if not album:
+            raise HTTPException(status_code=404, detail="Album not found")
+        album_id = album.id
 
-            cursor.execute(
-                "SELECT face_id FROM photo_face_link WHERE album_id = %s", (album_id,)
+        face_ids = [
+            row[0]
+            for row in session.query(PhotoFaceLink.face_id)
+            .filter_by(album_id=album_id)
+            .all()
+        ]
+        session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
+        session.flush()
+
+        for face_id in face_ids:
+            remaining = (
+                session.query(PhotoFaceLink).filter_by(face_id=face_id).count()
             )
-            face_ids = cursor.fetchall()
-            cursor.execute("DELETE FROM photo_face_link WHERE album_id = %s", (album_id,))
-
-            for (face_id,) in face_ids:
-                cursor.execute(
-                    "SELECT COUNT(*) FROM photo_face_link WHERE face_id = %s", (face_id,)
+            if remaining == 0:
+                rekognition_client.delete_faces(
+                    CollectionId=AWS_BUCKET, FaceIds=[face_id]
                 )
-                if cursor.fetchone()[0] == 0:
-                    rekognition_client.delete_faces(
-                        CollectionId=AWS_BUCKET, FaceIds=[face_id]
-                    )
-                    cursor.execute(
-                        "DELETE FROM face_data WHERE external_id = %s", (face_id,)
-                    )
+                session.query(FaceData).filter_by(external_id=face_id).delete()
 
-                    objects_to_delete = s3_client.list_objects_v2(
-                        Bucket=AWS_BUCKET, Prefix="faces"
-                    )
-                    for obj in objects_to_delete.get("Contents", []):
-                        if str(face_id) in obj["Key"] and obj["Key"].startswith("faces/"):
-                            try:
-                                s3_client.delete_object(Bucket=AWS_BUCKET, Key=obj["Key"])
-                            except Exception as e:
-                                print(f"Failed to delete {obj['Key']} from S3: {e}")
-
-            cursor.execute(
-                "DELETE FROM user_album_permissions WHERE album_id = %s", (album_id,)
-            )
-
-            cursor.execute(
-                "DELETE FROM album_categories WHERE album_id = %s", (album_id,)
-            )
-
-            cursor.execute(
-                "SELECT filename FROM file_metadata WHERE album_id = %s", (album_id,)
-            )
-            files = cursor.fetchall()
-            for (filename,) in files:
-                s3_client.delete_object(
-                    Bucket=AWS_BUCKET, Key=f"{album_slug}/{filename}"
+                objects_to_delete = s3_client.list_objects_v2(
+                    Bucket=AWS_BUCKET, Prefix="faces"
                 )
-            cursor.execute("DELETE FROM file_metadata WHERE album_id = %s", (album_id,))
+                for obj in objects_to_delete.get("Contents", []):
+                    if str(face_id) in obj["Key"] and obj["Key"].startswith("faces/"):
+                        try:
+                            s3_client.delete_object(Bucket=AWS_BUCKET, Key=obj["Key"])
+                        except Exception as e:
+                            print(f"Failed to delete {obj['Key']} from S3: {e}")
 
-            cursor.execute("DELETE FROM album WHERE id = %s", (album_id,))
+        session.query(UserAlbumPermission).filter_by(album_id=album_id).delete()
+        session.query(AlbumCategory).filter_by(album_id=album_id).delete()
 
-            db.commit()
-            return {"message": "Album deleted successfully."}
-
-        except errors.ForeignKeyViolation as e:
-            db.rollback()
-            logging.error(f"ForeignKey violation: {e}")
-            raise HTTPException(
-                status_code=400, detail="Cannot delete data that is still referenced."
+        files = session.query(FileMetadata).filter_by(album_id=album_id).all()
+        for f in files:
+            s3_client.delete_object(
+                Bucket=AWS_BUCKET, Key=f"{album_slug}/{f.filename}"
             )
-        except Exception as e:
-            logging.error(f"Error deleting album: {e}")
-            db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+        session.query(FileMetadata).filter_by(album_id=album_id).delete()
+
+        session.query(Album).filter_by(id=album_id).delete()
+
+        session.commit()
+        return {"message": "Album deleted successfully."}
+
+    except HTTPException:
+        raise
+    except IntegrityError as e:
+        session.rollback()
+        logging.error(f"ForeignKey violation: {e}")
+        raise HTTPException(
+            status_code=400, detail="Cannot delete data that is still referenced."
+        )
+    except Exception as e:
+        logging.error(f"Error deleting album: {e}")
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/api/album/")
@@ -225,122 +218,116 @@ async def update_album(
     slug: str,
     user_id: int = None,
     action: str = None,
+    session: Session = Depends(get_session),
 ):
     user_name = slug.split("/")[0]
     new_slug = f"{user_name}/{album_new_name.lower().replace(' ', '-')}"
 
-    with get_db() as (db, cursor):
-        try:
-            cursor.execute(
-                "UPDATE album SET name=%s, shared=%s, upload=%s, location=%s, slug=%s WHERE slug=%s",
-                (
-                    album_new_name,
-                    shared,
-                    upload,
-                    os.path.join(settings.DATA_DIR, f"{user_name}/{album_new_name.lower()}"),
-                    new_slug,
-                    slug.lower(),
+    try:
+        session.query(Album).filter_by(slug=slug.lower()).update(
+            {
+                "name": album_new_name,
+                "shared": shared,
+                "upload": upload,
+                "location": os.path.join(
+                    settings.DATA_DIR, f"{user_name}/{album_new_name.lower()}"
                 ),
-            )
-            db.commit()
+                "slug": new_slug,
+            }
+        )
+        session.commit()
 
-            if album_name != album_new_name:
-                try:
-                    objects_to_rename = s3_client.list_objects_v2(
-                        Bucket=AWS_BUCKET, Prefix=f"{user_name}/{album_name.replace(' ', '-')}"
-                    )
-                    rename_keys = [
-                        {"Key": obj["Key"]} for obj in objects_to_rename.get("Contents", [])
-                    ]
+        if album_name != album_new_name:
+            try:
+                objects_to_rename = s3_client.list_objects_v2(
+                    Bucket=AWS_BUCKET,
+                    Prefix=f"{user_name}/{album_name.replace(' ', '-')}",
+                )
+                rename_keys = [
+                    {"Key": obj["Key"]}
+                    for obj in objects_to_rename.get("Contents", [])
+                ]
 
-                    if rename_keys:
-                        for key in rename_keys:
-                            new_key = key["Key"].replace(
-                                album_name.replace(" ", "-"), album_new_name.replace(" ", "-")
-                            )
-                            s3_client.copy_object(
-                                Bucket=AWS_BUCKET,
-                                CopySource=f"{AWS_BUCKET}/{key['Key']}",
-                                Key=new_key,
-                            )
-                            s3_client.delete_object(Bucket=AWS_BUCKET, Key=key["Key"])
-                except ClientError as e:
-                    raise HTTPException(
-                        status_code=500, detail=f"Failed to rename album in S3: {e}"
-                    )
-
-            if user_id is not None:
-                if action == "update":
-                    cursor.execute("SELECT * FROM album WHERE name=%s", (album_new_name,))
-                    album = cursor.fetchone()
-                    if album:
-                        add_album_to_user(user_id, album[0])
-
-                elif action == "delete":
-                    cursor.execute("SELECT * FROM album WHERE name=%s", (album_name,))
-                    album = cursor.fetchone()
-                    if album:
-                        cursor.execute(
-                            "DELETE FROM user_album_permissions WHERE user_id=%s AND album_id=%s",
-                            (user_id, album[0]),
+                if rename_keys:
+                    for key in rename_keys:
+                        new_key = key["Key"].replace(
+                            album_name.replace(" ", "-"),
+                            album_new_name.replace(" ", "-"),
                         )
-                        db.commit()
+                        s3_client.copy_object(
+                            Bucket=AWS_BUCKET,
+                            CopySource=f"{AWS_BUCKET}/{key['Key']}",
+                            Key=new_key,
+                        )
+                        s3_client.delete_object(Bucket=AWS_BUCKET, Key=key["Key"])
+            except ClientError as e:
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to rename album in S3: {e}"
+                )
 
-            return {"message": "Album updated successfully."}
-        except Exception as e:
-            logging.error(f"Database error: {e}")
-            db.rollback()
-            raise HTTPException(status_code=500, detail="Database update failed")
+        if user_id is not None:
+            if action == "update":
+                album = session.query(Album).filter_by(name=album_new_name).first()
+                if album:
+                    add_album_to_user(user_id, album.id)
+
+            elif action == "delete":
+                album = session.query(Album).filter_by(name=album_name).first()
+                if album:
+                    session.query(UserAlbumPermission).filter_by(
+                        user_id=user_id, album_id=album.id
+                    ).delete()
+                    session.commit()
+
+        return {"message": "Album updated successfully."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Database error: {e}")
+        session.rollback()
+        raise HTTPException(status_code=500, detail="Database update failed")
 
 
 @router.get("/api/shared-albums/")
-async def get_shared_albums():
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM album WHERE shared=%s", (True,))
-        albums = cursor.fetchall()
+async def get_shared_albums(session: Session = Depends(get_session)):
+    albums = session.query(Album).filter_by(shared=True).all()
 
-        all_albums = []
-        for album in albums:
-            cursor.execute(
-                "SELECT * FROM file_metadata WHERE album_id=%s LIMIT 4",
-                (album[0],),
-            )
-            file_metadata = cursor.fetchall()
-            album_photos = create_album_photos_json(album[2], file_metadata)
+    all_albums = []
+    for album in albums:
+        file_metadata = (
+            session.query(FileMetadata).filter_by(album_id=album.id).limit(4).all()
+        )
+        album_photos = create_album_photos_json(album.slug, file_metadata)
 
-            all_albums.append(
-                {
-                    "album_name": album[1],
-                    "slug": album[2],
-                    "image_count": album[5],
-                    "shared": album[6],
-                    "upload": album[7],
-                    "album_photos": album_photos,
-                }
-            )
+        all_albums.append(
+            {
+                "album_name": album.name,
+                "slug": album.slug,
+                "image_count": album.image_count,
+                "shared": album.shared,
+                "upload": album.upload,
+                "album_photos": album_photos,
+            }
+        )
 
-        return all_albums
+    return all_albums
 
 
 @router.delete("/api/photo/delete/")
-async def delete_photo(slug: str, photo_name: str):
-    with get_db() as (db, cursor):
-        cursor.execute("SELECT * FROM album WHERE slug=%s", (slug,))
-        album = cursor.fetchone()
+async def delete_photo(
+    slug: str, photo_name: str, session: Session = Depends(get_session)
+):
+    album = session.query(Album).filter_by(slug=slug).first()
 
-        if album is None:
-            raise HTTPException(status_code=404, detail="Album not found")
+    if album is None:
+        raise HTTPException(status_code=404, detail="Album not found")
 
-        cursor.execute(
-            "DELETE FROM file_metadata WHERE album_id=%s AND filename=%s",
-            (album[0], photo_name),
-        )
-        db.commit()
+    session.query(FileMetadata).filter_by(
+        album_id=album.id, filename=photo_name
+    ).delete()
+    session.flush()
 
-        cursor.execute(
-            "UPDATE album SET image_count=%s WHERE slug=%s",
-            (album[5] - 1, slug),
-        )
-        db.commit()
+    album.image_count = album.image_count - 1
+    session.commit()
 
-        return {"message": "Photo deleted successfully."}
+    return {"message": "Photo deleted successfully."}
