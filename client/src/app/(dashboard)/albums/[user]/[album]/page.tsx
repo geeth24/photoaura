@@ -24,6 +24,7 @@ import {
 import { Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
+import Link from "next/link"
 
 export default function AlbumDetailPage({
   params,
@@ -175,18 +176,22 @@ export default function AlbumDetailPage({
       <div className="columns-2 gap-4 sm:columns-3 lg:columns-4">
         {album.album_photos.map((photo) => (
           <div key={photo.file_metadata.filename} className="group relative mb-4 break-inside-avoid">
-            <div className="overflow-hidden rounded-sm bg-muted">
+            <Link
+              href={`/albums/${userName}/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}`}
+              className="block cursor-zoom-in overflow-hidden rounded-sm bg-muted"
+              scroll={false}
+            >
               <Image
                 src={photo.compressed_image}
                 alt={photo.file_metadata.description || photo.file_metadata.filename}
                 width={photo.file_metadata.width}
                 height={photo.file_metadata.height}
-                className="w-full h-auto"
+                className="h-auto w-full transition-opacity hover:opacity-90"
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 placeholder={photo.file_metadata.blur_data_url ? "blur" : "empty"}
                 blurDataURL={photo.file_metadata.blur_data_url || undefined}
               />
-            </div>
+            </Link>
             <AlertDialog>
               <AlertDialogTrigger
                 render={
