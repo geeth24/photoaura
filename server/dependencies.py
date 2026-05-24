@@ -3,7 +3,6 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
 import jwt
 from config import settings
-from services.database import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -31,13 +30,4 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
         headers={"WWW-Authenticate": "Bearer"},
     )
     return verify_token(token, credentials_exception)
-
-
-def get_db_connection():
-    db, cursor = get_db()
-    try:
-        yield db, cursor
-    finally:
-        cursor.close()
-        db.close()
 

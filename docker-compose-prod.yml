@@ -24,7 +24,7 @@ services:
       - postgres  # Ensure the backend waits for PostgreSQL to be ready
     networks:
       - app-network
-    command: uvicorn main:app --host 0.0.0.0 --reload --port 8000  # or any other command to start your FastAPI backend
+    command: sh -c "python -m db.migrate && python -m db.seed && uvicorn main:app --host 0.0.0.0 --reload --port 8000"
     env_file:
       - .env.production
 

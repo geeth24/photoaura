@@ -1,9 +1,11 @@
 import io
 import os
 from PIL import Image
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from config import settings
 from services.aws_service import s3_client, rekognition_client as rekognition
-from services.database import get_db
+from db.base import session_scope
+from db.models import FaceData, PhotoFaceLink
 
 AWS_BUCKET = settings.AWS_BUCKET
 
@@ -26,7 +28,7 @@ def is_face_forward(
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
-    with get_db() as (db, cursor):
+    with session_scope() as session:
         original_image = s3_client.get_object(Bucket=bucket, Key=file_path)
         img = Image.open(io.BytesIO(original_image["Body"].read()))
 
@@ -110,14 +112,14 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
 
             os.remove(temp_face_image_path)
 
-            cursor.execute(
-                "INSERT INTO face_data (external_id) VALUES (%s) ON CONFLICT (external_id) DO NOTHING",
-                (face_id,),
+            session.execute(
+                pg_insert(FaceData)
+                .values(external_id=face_id)
+                .on_conflict_do_nothing(index_elements=["external_id"])
             )
-            cursor.execute(
-                "INSERT INTO photo_face_link (photo_id, face_id, album_id) VALUES (%s, %s, %s)",
-                (photo_id, face_id, album_id),
+            session.add(
+                PhotoFaceLink(photo_id=photo_id, face_id=face_id, album_id=album_id)
             )
 
-            db.commit()
+            session.commit()
         return "Faces processed and stored."

@@ -4,8 +4,10 @@ import os
 from typing import List
 import json
 from uuid import uuid4
+from sqlalchemy.orm import Session
 from config import settings
-from services.database import get_db
+from db.base import get_session, session_scope
+from db.models import Album, FileMetadata, User
 from services.aws_service import s3_client
 from utils.face_recog import detect_and_store_faces
 from utils.utils import get_file_metadata, add_album_to_user
@@ -30,7 +32,8 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
     face_detection: bool = False,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
 
     # Send upload progress to client
@@ -52,114 +55,98 @@ async def create_upload_files(
         # Reset file pointer if necessary
         file.file.seek(0)
 
-    with get_db() as (db, cursor):
-        user_name = None
-        if user_id:
-            cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
-            user = cursor.fetchone()
-            if user:
-                user_name = user[1]
-        else:
-            user_name = slug.split("/")[0]
+    user_name = None
+    if user_id:
+        user = session.get(User, user_id)
+        if user:
+            user_name = user.user_name
+    else:
+        user_name = slug.split("/")[0]
 
-        album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
-        cursor.execute("SELECT * FROM album WHERE slug = %s", (album_slug,))
-        album = cursor.fetchone()
+    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
+    album = session.query(Album).filter_by(slug=album_slug).first()
 
-        if not album:
-            cursor.execute(
-                "INSERT INTO album (name, slug, location, date, image_count, shared, upload, secret, face_detection) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (
-                    album_name,
-                    album_slug,
-                    os.path.join(settings.DATA_DIR, album_slug),
-                    datetime.now(),
-                    len(files),
-                    False,
-                    False,
-                    str(uuid4()),
-                    face_detection,
-                ),
+    if not album:
+        album = Album(
+            name=album_name,
+            slug=album_slug,
+            location=os.path.join(settings.DATA_DIR, album_slug),
+            date=datetime.now(),
+            image_count=len(files),
+            shared=False,
+            upload=False,
+            secret=str(uuid4()),
+            face_detection=face_detection,
+        )
+        session.add(album)
+        session.commit()
+        session.refresh(album)
+    else:
+        update = True
+
+    if user_id and album:
+        add_album_to_user(user_id, album.id)
+
+    for file in files:
+        content = await file.read()
+
+        album_dir = os.path.join(settings.DATA_DIR, album_slug)
+        if not os.path.exists(album_dir):
+            os.makedirs(album_dir)
+
+        with open(os.path.join(album_dir, file.filename), "wb") as f:
+            f.write(content)
+
+        s3_filename = f"{album_slug}/{file.filename}"
+        s3_client.put_object(
+            Bucket=AWS_BUCKET,
+            Key=s3_filename,
+            Body=content,
+            ContentType=file.content_type,
+        )
+
+        file_metadata = get_file_metadata(
+            album.id, os.path.join(album_dir, file.filename), file
+        )
+
+        uploaded_file_metadata = FileMetadata(
+            album_id=album.id,
+            filename=file.filename,
+            content_type=file.content_type,
+            size=file_metadata["size"],
+            width=file_metadata["width"],
+            height=file_metadata["height"],
+            upload_date=datetime.now(),
+            exif_data=file_metadata["exif_data"],
+            orientation=file_metadata["orientation"],
+        )
+        session.add(uploaded_file_metadata)
+        session.commit()
+        session.refresh(uploaded_file_metadata)
+
+        if face_detection and uploaded_file_metadata:
+            detect_and_store_faces(
+                s3_filename,
+                uploaded_file_metadata.id,
+                album.id,
+                AWS_BUCKET,
             )
-            db.commit()
-            cursor.execute("SELECT id FROM album WHERE slug = %s", (album_slug,))
-            album = cursor.fetchone()
-        else:
-            update = True
 
-        if user_id and album:
-            add_album_to_user(user_id, album[0])
+        os.remove(os.path.join(album_dir, file.filename))
 
-        for file in files:
-            content = await file.read()
+        if update:
+            images_count = len(files) + album.image_count
+            if album.image_count != images_count:
+                album.image_count = images_count
+                session.commit()
 
-            album_dir = os.path.join(settings.DATA_DIR, album_slug)
-            if not os.path.exists(album_dir):
-                os.makedirs(album_dir)
+        blur_data_url = generate_blur_data_url(content)
 
-            with open(os.path.join(album_dir, file.filename), "wb") as f:
-                f.write(content)
+        if uploaded_file_metadata:
+            uploaded_file_metadata.blur_data_url = blur_data_url
+            session.commit()
 
-            s3_filename = f"{album_slug}/{file.filename}"
-            s3_client.put_object(
-                Bucket=AWS_BUCKET,
-                Key=s3_filename,
-                Body=content,
-                ContentType=file.content_type,
-            )
-
-            file_metadata = get_file_metadata(
-                album[0], os.path.join(album_dir, file.filename), file
-            )
-
-            cursor.execute(
-                "INSERT INTO file_metadata (album_id, filename, content_type, size, width, height, upload_date, exif_data, orientation) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (
-                    album[0],
-                    file.filename,
-                    file.content_type,
-                    file_metadata["size"],
-                    file_metadata["width"],
-                    file_metadata["height"],
-                    datetime.now(),
-                    json.dumps(file_metadata["exif_data"]),
-                    file_metadata["orientation"],
-                ),
-            )
-            db.commit()
-
-            cursor.execute("SELECT * FROM file_metadata WHERE album_id=%s ORDER BY id DESC LIMIT 1", (album[0],))
-            uploaded_file_metadata = cursor.fetchone()
-
-            if face_detection and uploaded_file_metadata:
-                detect_and_store_faces(
-                    s3_filename,
-                    uploaded_file_metadata[0],
-                    album[0],
-                    AWS_BUCKET,
-                )
-
-            os.remove(os.path.join(album_dir, file.filename))
-
-            if update:
-                images_count = len(files) + album[5]
-                if album[5] != images_count:
-                    cursor.execute(
-                        "UPDATE album SET image_count=%s WHERE name=%s",
-                        (images_count, album_name),
-                    )
-                    db.commit()
-
-            blur_data_url = generate_blur_data_url(content)
-
-            if uploaded_file_metadata:
-                cursor.execute(
-                    "UPDATE file_metadata SET blur_data_url=%s WHERE id=%s",
-                    (blur_data_url, uploaded_file_metadata[0]),
-                )
-                db.commit()
-
-        return {"filenames": [file.filename for file in files]}
+    return {"filenames": [file.filename for file in files]}
 
 
 @router.post("/api/label-photos")
@@ -167,32 +154,36 @@ async def label_all_photos(current_user=Depends(get_current_user)):
     """batch label all photos that don't have descriptions yet"""
 
     async def stream():
-        with get_db() as (db, cursor):
-            cursor.execute(
-                "SELECT id, album_id, filename FROM file_metadata WHERE description IS NULL"
+        with session_scope() as session:
+            unlabeled = (
+                session.query(
+                    FileMetadata.id, FileMetadata.album_id, FileMetadata.filename
+                )
+                .filter(FileMetadata.description.is_(None))
+                .all()
             )
-            unlabeled = cursor.fetchall()
             total = len(unlabeled)
             yield json.dumps({"status": "started", "total": total}) + "\n"
 
             for i, (photo_id, album_id, filename) in enumerate(unlabeled):
-                cursor.execute("SELECT slug FROM album WHERE id = %s", (album_id,))
-                album = cursor.fetchone()
+                album = session.get(Album, album_id)
                 if not album:
                     continue
 
-                s3_key = f"{album[0]}/{filename}"
+                s3_key = f"{album.slug}/{filename}"
                 try:
                     obj = s3_client.get_object(Bucket=AWS_BUCKET, Key=s3_key)
                     image_bytes = obj["Body"].read()
 
                     result = analyze_image(image_bytes)
 
-                    cursor.execute(
-                        "UPDATE file_metadata SET description = %s, tags = %s WHERE id = %s",
-                        (result["description"], result["tags"], photo_id),
+                    session.query(FileMetadata).filter_by(id=photo_id).update(
+                        {
+                            "description": result["description"],
+                            "tags": result["tags"],
+                        }
                     )
-                    db.commit()
+                    session.commit()
 
                     yield json.dumps({
                         "progress": i + 1,
@@ -202,6 +193,7 @@ async def label_all_photos(current_user=Depends(get_current_user)):
                         "tags": result["tags"],
                     }) + "\n"
                 except Exception as e:
+                    session.rollback()
                     yield json.dumps({
                         "progress": i + 1,
                         "total": total,
@@ -218,32 +210,35 @@ async def label_all_photos(current_user=Depends(get_current_user)):
 
 
 @router.post("/api/label-photo/{photo_id}")
-async def label_single_photo(photo_id: int, current_user=Depends(get_current_user)):
+async def label_single_photo(
+    photo_id: int,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
     """label a single photo by id"""
-    with get_db() as (db, cursor):
-        cursor.execute(
-            "SELECT fm.id, fm.filename, a.slug FROM file_metadata fm JOIN album a ON fm.album_id = a.id WHERE fm.id = %s",
-            (photo_id,),
-        )
-        photo = cursor.fetchone()
-        if not photo:
-            raise HTTPException(status_code=404, detail="Photo not found")
+    row = (
+        session.query(FileMetadata.id, FileMetadata.filename, Album.slug)
+        .join(Album, FileMetadata.album_id == Album.id)
+        .filter(FileMetadata.id == photo_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Photo not found")
 
-        s3_key = f"{photo[2]}/{photo[1]}"
-        obj = s3_client.get_object(Bucket=AWS_BUCKET, Key=s3_key)
-        image_bytes = obj["Body"].read()
+    _, filename, slug = row
+    s3_key = f"{slug}/{filename}"
+    obj = s3_client.get_object(Bucket=AWS_BUCKET, Key=s3_key)
+    image_bytes = obj["Body"].read()
 
-        result = analyze_image(image_bytes)
+    result = analyze_image(image_bytes)
 
-        cursor.execute(
-            "UPDATE file_metadata SET description = %s, tags = %s WHERE id = %s",
-            (result["description"], result["tags"], photo_id),
-        )
-        db.commit()
+    session.query(FileMetadata).filter_by(id=photo_id).update(
+        {"description": result["description"], "tags": result["tags"]}
+    )
 
-        return {
-            "id": photo_id,
-            "filename": photo[1],
-            "description": result["description"],
-            "tags": result["tags"],
-        }
+    return {
+        "id": photo_id,
+        "filename": filename,
+        "description": result["description"],
+        "tags": result["tags"],
+    }

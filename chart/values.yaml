@@ -50,7 +50,6 @@ backend:
     AWS_REGION: us-east-1
     AWS_BUCKET: photoaura
     AWS_CLOUDFRONT_URL: aura-cdn.reactiveshots.com
-    GOOGLE_CALENDAR_ID: primary
 
   # Secrets loaded from K8s secret
   secretRef: photoaura-secrets

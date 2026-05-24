@@ -1,7 +1,8 @@
 import boto3
 from botocore.exceptions import ClientError
 import os
-from services.database import get_db
+from sqlalchemy import text
+from db.base import session_scope
 from services.aws_service import rekognition_client
 from services.aws_service import s3_client as s3
 
@@ -35,33 +36,28 @@ def delete_files_in_s3_bucket():
 
 
 def delete_tables_in_database():
-    db, cursor = get_db()
-
     try:
-        # Query to retrieve all table names in the public schema
-        cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
-        tables = cursor.fetchall()
+        with session_scope() as session:
+            # Query to retrieve all table names in the public schema
+            tables = session.execute(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
+            ).fetchall()
 
-        # Disable foreign key checks to avoid issues when dropping tables with dependencies
-        cursor.execute("SET session_replication_role = 'replica';")
+            # Disable foreign key checks to avoid issues when dropping dependent tables
+            session.execute(text("SET session_replication_role = 'replica';"))
 
-        # Loop through the list of tables and drop each one
-        for table in tables:
-            cursor.execute(f"DROP TABLE IF EXISTS {table[0]} CASCADE;")
-            print(f"Dropped table {table[0]}")
+            # Loop through the list of tables and drop each one
+            for table in tables:
+                session.execute(text(f'DROP TABLE IF EXISTS {table[0]} CASCADE;'))
+                print(f"Dropped table {table[0]}")
 
-        # Re-enable foreign key checks
-        cursor.execute("SET session_replication_role = 'origin';")
+            # Re-enable foreign key checks
+            session.execute(text("SET session_replication_role = 'origin';"))
 
-        db.commit()
         print("All tables in the database have been deleted.")
 
     except Exception as e:
         print(f"Unexpected error: {e}")
-        db.rollback()
-    finally:
-        cursor.close()
-        db.close()
 
 
 def delete_faces_in_rekognition_collection():

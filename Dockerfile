@@ -19,5 +19,6 @@ RUN apt-get update -o Acquire::Check-Valid-Until=false && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run migrations then start the application
+RUN chmod +x /app/entrypoint.sh
+CMD ["/app/entrypoint.sh"]

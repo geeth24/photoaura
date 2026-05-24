@@ -1,56 +1,30 @@
-import type { Metadata } from 'next';
-import { Lato } from 'next/font/google';
-import localFont from 'next/font/local';
-import './globals.css';
-import { AuthProvider } from '@/context/AuthContext';
-import { Toaster } from '@/components/ui/sonner';
-import { ThemeProvider } from '@/components/theme-provider';
-import Header from '@/components/Header';
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import "./globals.css"
+import { Toaster } from "@/components/ui/sonner"
 
-const blackMud = localFont({
-  src: './Blackmud-VGoOx.ttf',
-  display: 'swap',
-  variable: '--font-blackmud',
-});
-
-const lato = Lato({
-  subsets: ['latin'],
-  display: 'swap',
-  weight: ['100', '300', '400', '700', '900'],
-});
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+})
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_CLIENT_URL || 'https://aura.reactiveshots.com'),
-  title: 'PhotoAura',
-  description: 'All your photos in one place',
-  openGraph: {
-    images: [
-      {
-        url: 'https://aura.reactiveshots.com/images/Logo-Banner.png',
-      },
-    ],
-  },
-};
+  title: "PhotoAura",
+  description: "Photo management dashboard",
+  icons: { icon: "/images/logo-color.png" },
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      {/* <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests"></meta>  */}
-      <link rel="icon" href="/images/logo-color.png" />
-
-      <body className={`${blackMud.variable} ${lato.className}`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            {children}
-            <Toaster richColors />
-          </AuthProvider>
-        </ThemeProvider>
+    <html lang="en" className="dark">
+      <body className={`${inter.variable} font-sans antialiased min-h-dvh`}>
+        {children}
+        <Toaster richColors />
       </body>
     </html>
-  );
+  )
 }
