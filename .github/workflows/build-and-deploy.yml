@@ -1,64 +1,59 @@
-# Build and deploy to ArgoCD/K3s
+# Build the backend image and deploy via the centralized Rad-Soft/argocd repo.
 #
-# Required GitHub Secrets:
-#   (none - registry.rsft.co has no auth)
+# 1. Builds + pushes registry.rsft.co/photoaura:<sha>
+# 2. Bumps the image tag in Rad-Soft/argocd values/photoaura.yaml (cross-repo)
+# 3. ArgoCD reconciles and rolls out; the image entrypoint runs DB migrations
 #
-# How it works:
-#   1. Builds your Docker image
-#   2. Pushes to registry.rsft.co
-#   3. Updates the image tag in chart/values.yaml
-#   4. ArgoCD detects the change and deploys automatically
+# Repo secrets required: RAD_SOFT_ARGOCD_APP_ID, RAD_SOFT_ARGOCD_PRIVATE_KEY
 
-name: Build and Deploy
+name: Build & Deploy
 
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "client/**"]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
-env:
-  REGISTRY: registry.rsft.co
-  IMAGE_NAME: photoaura
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-
+  build-and-deploy:
+    runs-on: [self-hosted, universal]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Generate image metadata
-        id: meta
+      - name: Build & Push
         run: |
-          echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          docker build -t registry.rsft.co/photoaura:latest -t registry.rsft.co/photoaura:${GITHUB_SHA} .
+          docker push registry.rsft.co/photoaura:latest
+          docker push registry.rsft.co/photoaura:${GITHUB_SHA}
 
-      - name: Build and Push
-        uses: docker/build-push-action@v5
+      - name: Mint argocd repo token
+        id: argocd-token
+        uses: actions/create-github-app-token@v1
         with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.short_sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          app-id: ${{ secrets.RAD_SOFT_ARGOCD_APP_ID }}
+          private-key: ${{ secrets.RAD_SOFT_ARGOCD_PRIVATE_KEY }}
+          owner: Rad-Soft
+          repositories: argocd
 
-      - name: Update image tag in chart
+      - name: Bump tag in argocd repo
+        env:
+          GITHUB_TOKEN: ${{ steps.argocd-token.outputs.token }}
         run: |
-          sed -i 's/tag: .*/tag: "${{ steps.meta.outputs.short_sha }}"/' chart/values.yaml
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add chart/values.yaml
-          git diff --staged --quiet || git commit -m "chore: update image tag to ${{ steps.meta.outputs.short_sha }}"
-          git push
+          WORKDIR=$(mktemp -d)
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/Rad-Soft/argocd.git "$WORKDIR"
+          cd "$WORKDIR"
+          SHORT_SHA=${GITHUB_SHA::7}
+          sed -i "s|tag:.*# backend-tag|tag: ${GITHUB_SHA} # backend-tag|" values/photoaura.yaml
+          git config user.name "rad-soft-argocd[bot]"
+          git config user.email "rad-soft-argocd[bot]@users.noreply.github.com"
+          git add values/photoaura.yaml
+          if git diff --cached --quiet; then
+            echo "No tag change — skipping commit"
+          else
+            git commit -m "deploy photoaura: ${SHORT_SHA}"
+            git push
+          fi
