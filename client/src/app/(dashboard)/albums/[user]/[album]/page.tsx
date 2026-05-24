@@ -66,13 +66,18 @@ export default function AlbumDetailPage({
   }
 
   const handleDelete = async () => {
+    if (!album) return
     setDeleting(true)
     try {
-      await apiFetch(`/album/${userName}/${albumSlug}/`, { method: "DELETE" })
+      // delete endpoint looks up by album NAME and lives under /album/delete/
+      await apiFetch(
+        `/album/delete/${userName}/${encodeURIComponent(album.album_name)}/`,
+        { method: "DELETE" }
+      )
       toast.success("Album deleted")
       router.push("/albums")
-    } catch {
-      toast.error("Failed to delete album")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete album")
       setDeleting(false)
     }
   }
