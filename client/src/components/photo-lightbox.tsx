@@ -22,38 +22,24 @@ const slide = {
   exit: (dir: number) => ({ x: dir < 0 ? 480 : -480, opacity: 0 }),
 }
 
-// Progressive image: the 720px version is already cached from the album grid,
-// so it paints instantly and defines the (aspect-correct) box — the blur shows
-// only inside the image, not fullscreen. The full-res fades in on top once decoded.
+// Sized to the photo's own aspect (not `fill`), so the blur placeholder stays
+// inside the image instead of covering the whole screen. The tiny baked-in blur
+// shows instantly; the full-res (pre-warmed on upload) fades in once decoded.
 function LightboxImage({ photo }: { photo: Photo }) {
-  const [loaded, setLoaded] = useState(false)
   const m = photo.file_metadata
   return (
-    <div className="relative flex max-h-[82vh] max-w-[92vw]">
-      <Image
-        src={photo.compressed_image}
-        alt={m.description || m.filename}
-        width={m.width || 1600}
-        height={m.height || 1067}
-        sizes="92vw"
-        className="max-h-[82vh] w-auto max-w-[92vw] object-contain"
-        placeholder={m.blur_data_url ? "blur" : "empty"}
-        blurDataURL={m.blur_data_url || undefined}
-      />
-      <Image
-        src={photo.image}
-        alt=""
-        aria-hidden
-        fill
-        sizes="92vw"
-        loading="eager"
-        fetchPriority="high"
-        onLoad={() => setLoaded(true)}
-        className={`object-contain transition-opacity duration-300 ${
-          loaded ? "opacity-100" : "opacity-0"
-        }`}
-      />
-    </div>
+    <Image
+      src={photo.image}
+      alt={m.description || m.filename}
+      width={m.width || 1600}
+      height={m.height || 1067}
+      sizes="92vw"
+      className="max-h-[82vh] w-auto max-w-[92vw] object-contain"
+      placeholder={m.blur_data_url ? "blur" : "empty"}
+      blurDataURL={m.blur_data_url || undefined}
+      loading="eager"
+      fetchPriority="high"
+    />
   )
 }
 

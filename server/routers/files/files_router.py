@@ -1,4 +1,13 @@
-from fastapi import UploadFile, File, Query, APIRouter, Depends, HTTPException, status
+from fastapi import (
+    UploadFile,
+    File,
+    Query,
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    BackgroundTasks,
+)
 from datetime import datetime
 import os
 from typing import List
@@ -12,6 +21,7 @@ from services.aws_service import s3_client
 from utils.face_recog import detect_and_store_faces
 from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
+from services.cdn_warm import warm_keys
 from routers.websocket.websocket_router import manager
 from dependencies import oauth2_scheme, get_current_user
 from services.gemini_service import analyze_image
@@ -32,6 +42,7 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
     face_detection: bool = False,
+    background_tasks: BackgroundTasks = None,
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -137,6 +148,11 @@ async def create_upload_files(
         session.query(FileMetadata).filter_by(album_id=album.id).count()
     )
     session.commit()
+
+    # pre-warm CDN derivatives so the first view isn't a cold SIH render
+    if background_tasks is not None:
+        keys = [f"{album_slug}/{file.filename}" for file in files]
+        background_tasks.add_task(warm_keys, keys)
 
     return {"filenames": [file.filename for file in files]}
 
