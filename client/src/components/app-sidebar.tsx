@@ -18,6 +18,7 @@ import {
   Users,
   Smile,
   Globe,
+  UserCircle,
   LogOut,
 } from "lucide-react"
 import Link from "next/link"
@@ -26,17 +27,20 @@ import { useAuth } from "@/context/auth-context"
 import Image from "next/image"
 
 const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Albums", href: "/albums", icon: FolderOpen },
-  { title: "Photos", href: "/photos", icon: Images },
-  { title: "Users", href: "/users", icon: Users },
-  { title: "Faces", href: "/faces", icon: Smile },
-  { title: "Website", href: "/website", icon: Globe },
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
+  { title: "Albums", href: "/albums", icon: FolderOpen, adminOnly: false },
+  { title: "Photos", href: "/photos", icon: Images, adminOnly: false },
+  { title: "Users", href: "/users", icon: Users, adminOnly: true },
+  { title: "Faces", href: "/faces", icon: Smile, adminOnly: true },
+  { title: "Website", href: "/website", icon: Globe, adminOnly: true },
+  { title: "Profile", href: "/profile", icon: UserCircle, adminOnly: false },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const isAdmin = user?.role !== "client"
+  const items = navItems.filter((i) => isAdmin || !i.adminOnly)
 
   // initials for the footer avatar
   const initials = user?.full_name
@@ -50,7 +54,7 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border-subtle bg-surface-elevated">
       {/* brand */}
       <SidebarHeader className="border-b border-border-subtle p-6">
-        <Link href="/dashboard" className="group flex items-center gap-3">
+        <Link href={isAdmin ? "/dashboard" : "/albums"} className="group flex items-center gap-3">
           <Image src="/images/logo.png" alt="PhotoAura" width={32} height={32} />
           <span className="font-body text-lg font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
             PhotoAura
@@ -70,7 +74,7 @@ export function AppSidebar() {
 
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
-              {navItems.map((item) => {
+              {items.map((item) => {
                 const active =
                   pathname === item.href || pathname.startsWith(item.href + "/")
                 return (

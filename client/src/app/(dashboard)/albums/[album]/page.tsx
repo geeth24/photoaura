@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { UploadAlbumDialog } from "@/components/upload-album-dialog"
 import { AlbumFaces } from "@/components/album-faces"
 import { PhotoMasonry } from "@/components/photo-masonry"
+import { InviteClientDialog } from "@/components/invite-client-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +34,7 @@ export default function AlbumDetailPage({
   const { album: albumSlug } = use(params)
   const router = useRouter()
   const { user } = useAuth()
+  const isAdmin = user?.role !== "client"
   const [album, setAlbum] = useState<Album | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -44,6 +46,7 @@ export default function AlbumDetailPage({
 
   const onPageDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    if (!isAdmin) return
     setDragDepth(0)
     const media = Array.from(e.dataTransfer.files).filter(
       (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
@@ -156,7 +159,7 @@ export default function AlbumDetailPage({
       className="relative space-y-12"
       onDragEnter={(e) => {
         e.preventDefault()
-        if (Array.from(e.dataTransfer.types).includes("Files")) {
+        if (isAdmin && Array.from(e.dataTransfer.types).includes("Files")) {
           setDragDepth((d) => d + 1)
         }
       }}
@@ -211,7 +214,9 @@ export default function AlbumDetailPage({
           </div>
         </div>
 
-        <div className="flex gap-3">
+        {isAdmin && (
+        <div className="flex flex-wrap gap-3">
+          <InviteClientDialog albumSlug={albumSlug} albumName={album.album_name} />
           {user && (
             <UploadAlbumDialog
               mode="existing"
@@ -263,6 +268,7 @@ export default function AlbumDetailPage({
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        )}
       </div>
 
       {/* people */}
@@ -273,7 +279,7 @@ export default function AlbumDetailPage({
         photos={visiblePhotos}
         albumSlug={albumSlug}
         selectedFace={selectedFace}
-        onDelete={handleDeletePhoto}
+        onDelete={isAdmin ? handleDeletePhoto : undefined}
       />
     </div>
   )

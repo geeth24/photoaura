@@ -20,7 +20,7 @@ router = APIRouter()
 class InviteClientBody(BaseModel):
     full_name: str
     email: str
-    album_id: int
+    album_slug: str
 
 
 @router.post("/api/clients/invite")
@@ -29,7 +29,7 @@ def invite_client(
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    album = session.get(Album, body.album_id)
+    album = session.query(Album).filter_by(slug=body.album_slug).first()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 

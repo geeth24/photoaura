@@ -3,6 +3,7 @@ export type User = {
   user_name: string
   full_name: string
   user_email: string
+  role?: "admin" | "client"
   albums?: Album[]
 }
 

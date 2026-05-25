@@ -7,8 +7,9 @@ import { motion, AnimatePresence, MotionConfig } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import cdnImageLoader from "@/lib/cdn-image-loader"
 import { LightboxImage, slide, FULL_WIDTH } from "@/components/lightbox-image"
+import { downloadPhoto } from "@/lib/download"
 import type { Album, AlbumFace, Photo } from "@/lib/types"
-import { X, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Download } from "lucide-react"
 
 type Props = {
   slug: string
@@ -125,13 +126,27 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
         <span className="text-sm text-white/60">
           {index >= 0 && photos ? `${index + 1} / ${photos.length}` : ""}
         </span>
-        <button
-          onClick={onClose}
-          className="rounded-full p-2 transition-colors hover:bg-white/10"
-          aria-label="Close"
-        >
-          <X className="size-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {current && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                downloadPhoto(current)
+              }}
+              className="rounded-full p-2 transition-colors hover:bg-white/10"
+              aria-label="Download"
+            >
+              <Download className="size-5" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="rounded-full p-2 transition-colors hover:bg-white/10"
+            aria-label="Close"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
       </div>
 
       {/* image + side nav */}
