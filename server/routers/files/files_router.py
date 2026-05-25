@@ -22,7 +22,7 @@ from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
 from routers.websocket.websocket_router import manager
-from dependencies import oauth2_scheme, get_current_user
+from dependencies import oauth2_scheme, get_current_user, require_admin
 from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
 import asyncio
@@ -54,7 +54,7 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
     face_detection: bool = False,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     album_slug = album_name.lower().replace(" ", "-")
@@ -178,7 +178,7 @@ async def create_upload_files(
 
 
 @router.post("/api/label-photos")
-async def label_all_photos(current_user=Depends(get_current_user)):
+async def label_all_photos(current_user=Depends(require_admin)):
     """batch label all photos that don't have descriptions yet"""
 
     async def stream():
@@ -240,7 +240,7 @@ async def label_all_photos(current_user=Depends(get_current_user)):
 @router.post("/api/label-photo/{photo_id}")
 async def label_single_photo(
     photo_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     """label a single photo by id"""

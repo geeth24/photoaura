@@ -28,6 +28,21 @@ class User(Base):
     user_password: Mapped[Optional[str]] = mapped_column(String(255))
     full_name: Mapped[Optional[str]] = mapped_column(String(255))
     user_email: Mapped[Optional[str]] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(20), server_default="client")
+
+
+class MagicLink(Base):
+    __tablename__ = "magic_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    token: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    purpose: Mapped[str] = mapped_column(String(20), server_default="login")
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP)
+    used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class Album(Base):

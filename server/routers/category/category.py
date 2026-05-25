@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from db.base import get_session
 from db.models import Category, AlbumCategory, Album, FileMetadata
 from utils.utils import create_album_photos_json
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin
 
 router = APIRouter()
 
@@ -24,7 +24,7 @@ async def get_categories(
 @router.post("/api/categories")
 async def create_category(
     name: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     slug = name.lower().replace(" ", "-")
@@ -36,7 +36,7 @@ async def create_category(
 @router.delete("/api/categories/{category_id}")
 async def delete_category(
     category_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     session.query(AlbumCategory).filter_by(category_id=category_id).delete()
@@ -49,7 +49,7 @@ async def delete_category(
 async def link_album_to_category(
     album_id: int,
     category_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     session.add(AlbumCategory(album_id=album_id, category_id=category_id))
@@ -61,7 +61,7 @@ async def link_album_to_category(
 async def unlink_album_from_category(
     album_id: int,
     category_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     session.query(AlbumCategory).filter_by(

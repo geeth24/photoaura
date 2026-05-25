@@ -5,7 +5,7 @@ from db.base import get_session
 from db.models import Video, VideoRevision
 from services.aws_service import s3_client
 from datetime import datetime, timedelta
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -16,7 +16,7 @@ AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 async def upload_video(
     file: UploadFile = File(...),
     client_id: int = None,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     if not file.content_type.startswith("video/"):

@@ -1,17 +1,68 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from models.user import User, UpdateUserForm
 from db.base import get_session, session_scope
 from db.models import User as UserModel, UserAlbumPermission, Album
-from dependencies import oauth2_scheme, get_current_user
+from dependencies import oauth2_scheme, get_current_user, require_admin
 from routers.auth.auth_router import (
     create_token,
     get_password_hash,
     verify_password,
+    issue_magic_link,
 )
+from services.email_service import send_invite
 
 router = APIRouter()
+
+
+class InviteClientBody(BaseModel):
+    full_name: str
+    email: str
+    album_id: int
+
+
+@router.post("/api/clients/invite")
+def invite_client(
+    body: InviteClientBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    album = session.get(Album, body.album_id)
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    email = body.email.strip().lower()
+    user = session.query(UserModel).filter_by(user_email=email).first()
+    if not user:
+        user = UserModel(
+            user_name=email,
+            full_name=body.full_name.strip(),
+            user_email=email,
+            role="client",
+        )
+        session.add(user)
+        session.flush()
+
+    # grant access to the album (idempotent)
+    exists = (
+        session.query(UserAlbumPermission)
+        .filter_by(user_id=user.id, album_id=album.id)
+        .first()
+    )
+    if not exists:
+        session.add(UserAlbumPermission(user_id=user.id, album_id=album.id))
+
+    token = issue_magic_link(session, user, "invite")
+    import os
+
+    client_url = os.environ.get(
+        "NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com"
+    )
+    link = f"{client_url}/auth/verify?token={token}"
+    sent = send_invite(user.user_email, user.full_name, link, album.name)
+    return {"message": "Invite sent" if sent else "Client added (email not sent)"}
 
 
 @router.post("/api/login")
@@ -61,7 +112,11 @@ def create_new_user(
 
 # Protected endpoints
 @router.post("/api/create-user")
-def create_user(form_data: User, session: Session = Depends(get_session)):
+def create_user(
+    form_data: User,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
     user = session.query(UserModel).filter_by(user_name=form_data.user_name).first()
     if user:
         return {"message": "User already exists."}
@@ -84,6 +139,7 @@ def create_user_json(user):
         "user_name": user.user_name,
         "full_name": user.full_name,
         "user_email": user.user_email,
+        "role": getattr(user, "role", "client"),
     }
 
 
@@ -135,7 +191,7 @@ def read_user(
 def update_user(
     user_id: int,
     form_data: UpdateUserForm,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     user = session.get(UserModel, user_id)
@@ -156,7 +212,7 @@ def update_user(
 @router.delete("/api/users/{user_id}")
 def delete_user(
     user_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()

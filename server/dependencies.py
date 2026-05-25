@@ -8,8 +8,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 class TokenData:
-    def __init__(self, user_name: str):
+    def __init__(self, user_name: str, role: str = "client"):
         self.user_name = user_name
+        self.role = role
 
 
 def verify_token(token: str, credentials_exception: HTTPException) -> TokenData:
@@ -18,7 +19,7 @@ def verify_token(token: str, credentials_exception: HTTPException) -> TokenData:
         user_name: Optional[str] = payload.get("sub")
         if user_name is None:
             raise credentials_exception
-        return TokenData(user_name=user_name)
+        return TokenData(user_name=user_name, role=payload.get("role", "client"))
     except jwt.PyJWTError:
         raise credentials_exception
 
@@ -30,4 +31,10 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
         headers={"WWW-Authenticate": "Bearer"},
     )
     return verify_token(token, credentials_exception)
+
+
+def require_admin(current_user: TokenData = Depends(get_current_user)) -> TokenData:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 

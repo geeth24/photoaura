@@ -17,6 +17,7 @@ from db.models import (
 from services.aws_service import s3_client, rekognition_client
 from botocore.exceptions import ClientError
 from utils.utils import create_album_photos_json, add_album_to_user
+from dependencies import require_admin
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -139,7 +140,9 @@ async def get_all_photos(
 
 @router.delete("/api/album/delete/{album_slug}/")
 async def delete_album(
-    album_slug: str, session: Session = Depends(get_session)
+    album_slug: str,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
 ):
     try:
         album = session.query(Album).filter_by(slug=album_slug).first()
@@ -214,6 +217,7 @@ async def update_album(
     slug: str,
     user_id: int = None,
     action: str = None,
+    _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     old_slug = slug.lower()
@@ -300,7 +304,10 @@ async def get_shared_albums(session: Session = Depends(get_session)):
 
 @router.delete("/api/photo/delete/")
 async def delete_photo(
-    slug: str, photo_name: str, session: Session = Depends(get_session)
+    slug: str,
+    photo_name: str,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
 ):
     album = session.query(Album).filter_by(slug=slug).first()
 
