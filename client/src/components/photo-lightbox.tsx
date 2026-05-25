@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { motion, AnimatePresence, MotionConfig } from "motion/react"
 import { apiFetch } from "@/lib/api"
@@ -11,20 +10,20 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Props = {
   slug: string
-  photo: string // filename
+  photo: string // initial filename
   onClose: () => void
 }
 
 // direction-aware slide (matches the nextjsconf gallery flow)
 const slide = {
-  enter: (dir: number) => ({ x: dir > 0 ? 480 : -480, opacity: 0 }),
+  enter: (dir: number) => ({ x: dir > 0 ? 420 : -420, opacity: 0 }),
   center: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir < 0 ? 480 : -480, opacity: 0 }),
+  exit: (dir: number) => ({ x: dir < 0 ? 420 : -420, opacity: 0 }),
 }
 
 // The width/height attrs reserve the aspect-correct box before load, so the
 // blur background fills it instantly (no empty frame). The full-res is requested
-// at a single fixed width (2048) that the upload warmer pre-generates, so it's a
+// at a single fixed width (2048) the upload warmer pre-generates, so it's a
 // CloudFront cache hit instead of a cold render. It fades in once decoded.
 const FULL_WIDTH = 2048
 
@@ -61,32 +60,47 @@ function LightboxImage({ photo }: { photo: Photo }) {
 }
 
 export function PhotoLightbox({ slug, photo, onClose }: Props) {
-  const router = useRouter()
   const [photos, setPhotos] = useState<Photo[] | null>(null)
+  const [index, setIndex] = useState(-1)
   const [direction, setDirection] = useState(0)
   const stripRef = useRef<HTMLDivElement>(null)
+  // the photo the modal opened on — captured once, used to pick the start index
+  const [initialPhoto] = useState(photo)
 
   useEffect(() => {
     apiFetch<Album>(`/album/${slug}/`)
-      .then((a) => setPhotos(a.album_photos))
-      .catch(() => setPhotos([]))
-  }, [slug])
+      .then((a) => {
+        setPhotos(a.album_photos)
+        const i = a.album_photos.findIndex(
+          (p) => p.file_metadata.filename === initialPhoto
+        )
+        setIndex(i >= 0 ? i : 0)
+      })
+      .catch(() => {
+        setPhotos([])
+        setIndex(-1)
+      })
+  }, [slug, initialPhoto])
 
-  const index = photos?.findIndex((p) => p.file_metadata.filename === photo) ?? -1
-  const current = index >= 0 ? photos![index] : null
+  const current = photos && index >= 0 ? photos[index] : null
   const hasPrev = index > 0
   const hasNext = photos != null && index >= 0 && index < photos.length - 1
 
+  // navigate internally (no router push) so the slide animation isn't fighting a
+  // route re-render; keep the URL in sync via the History API (no re-render).
   const goto = useCallback(
     (i: number) => {
       if (!photos || i < 0 || i >= photos.length) return
       setDirection(i > index ? 1 : -1)
+      setIndex(i)
       const name = photos[i].file_metadata.filename
-      router.replace(`/albums/${slug}/${encodeURIComponent(name)}`, {
-        scroll: false,
-      })
+      window.history.replaceState(
+        null,
+        "",
+        `/albums/${slug}/${encodeURIComponent(name)}`
+      )
     },
-    [photos, router, slug, index]
+    [photos, index, slug]
   )
 
   // keyboard nav + body scroll lock
@@ -121,8 +135,6 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
     }
   }, [photos, index])
 
-  const meta = current?.file_metadata
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -146,36 +158,23 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
       </div>
 
       {/* image + side nav */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-2">
-        {hasPrev && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              goto(index - 1)
-            }}
-            className="absolute left-3 z-10 rounded-full bg-black/40 p-2 text-white/90 transition-colors hover:bg-black/70"
-            aria-label="Previous"
-          >
-            <ChevronLeft className="size-6" />
-          </button>
-        )}
-
+      <div className="relative flex-1 overflow-hidden px-4 pb-2">
         <MotionConfig
           transition={{
             x: { type: "spring", stiffness: 300, damping: 30 },
             opacity: { duration: 0.2 },
           }}
         >
-          <AnimatePresence initial={false} custom={direction} mode="popLayout">
-            {current && meta && (
+          <AnimatePresence initial={false} custom={direction}>
+            {current && (
               <motion.div
-                key={meta.filename}
+                key={index}
                 custom={direction}
                 variants={slide}
                 initial="enter"
                 animate="center"
                 exit="exit"
-                className="flex items-center justify-center"
+                className="absolute inset-0 flex items-center justify-center px-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <LightboxImage photo={current} />
@@ -184,13 +183,25 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
           </AnimatePresence>
         </MotionConfig>
 
+        {hasPrev && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              goto(index - 1)
+            }}
+            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white/90 transition-colors hover:bg-black/70"
+            aria-label="Previous"
+          >
+            <ChevronLeft className="size-6" />
+          </button>
+        )}
         {hasNext && (
           <button
             onClick={(e) => {
               e.stopPropagation()
               goto(index + 1)
             }}
-            className="absolute right-3 z-10 rounded-full bg-black/40 p-2 text-white/90 transition-colors hover:bg-black/70"
+            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white/90 transition-colors hover:bg-black/70"
             aria-label="Next"
           >
             <ChevronRight className="size-6" />
