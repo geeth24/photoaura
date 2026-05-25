@@ -26,14 +26,21 @@ def is_face_forward(yaw, pitch, yaw_threshold=45, pitch_threshold=45):
 
 
 def face_score(face):
-    """Higher = better key photo: a large, front-facing, sharp face."""
+    """Higher = better key photo. Facing the camera dominates; eyes open, decent
+    size, and sharpness break ties. Size is capped so a big looking-away close-up
+    can't beat a smaller head-on shot."""
     box = face["BoundingBox"]
     area = box["Width"] * box["Height"]
-    sharp = face.get("Quality", {}).get("Sharpness") or 0
-    yaw = abs(face["Pose"]["Yaw"])
-    pitch = abs(face["Pose"]["Pitch"])
-    frontal = max(0.0, 1.0 - (yaw + pitch) / 90.0)
-    return area * 100 + frontal * 10 + sharp * 0.05
+    pose = face["Pose"]
+    yaw, pitch, roll = abs(pose["Yaw"]), abs(pose["Pitch"]), abs(pose.get("Roll", 0))
+    # looking up/down (pitch) and turning (yaw) both hurt; pitch weighted hardest
+    frontal = max(0.0, 1.0 - yaw / 40 - pitch / 25 - roll / 60)
+    q = face.get("Quality", {})
+    sharp = (q.get("Sharpness") or 0) / 100
+    eyes = face.get("EyesOpen", {})
+    eyes_open = 1.0 if eyes.get("Value") and (eyes.get("Confidence") or 0) > 80 else 0.0
+    size = min(area, 0.06) / 0.06  # reward up to ~6% of the frame, then cap
+    return frontal * 100 + size * 25 + sharp * 15 + eyes_open * 10
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
