@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { motion } from "motion/react"
 import { useAuth } from "@/context/auth-context"
-import { apiFetch, apiStream } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
 import type { Photo } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Sparkles, ImageOff } from "lucide-react"
-import Image from "next/image"
+import { PhotoMasonry } from "@/components/photo-masonry"
+import { LibraryLightbox } from "@/components/library-lightbox"
+import { ImageOff } from "lucide-react"
 
 type OrientationFilter = "all" | "portrait" | "landscape"
 
@@ -16,13 +16,10 @@ export default function PhotosPage() {
   const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState(true)
   const [orientation, setOrientation] = useState<OrientationFilter>("all")
-  const [labeling, setLabeling] = useState(false)
-  const [labelProgress, setLabelProgress] = useState(0)
-  const [labelTotal, setLabelTotal] = useState(0)
+  const [viewer, setViewer] = useState<number | null>(null)
 
   const fetchPhotos = useCallback(() => {
     if (!user) return
-    setLoading(true)
     const params = orientation === "all" ? "" : `&orientation=${orientation}`
     apiFetch<Photo[]>(`/photos/?user_id=${user.id}${params}`)
       .then(setPhotos)
@@ -33,20 +30,6 @@ export default function PhotosPage() {
   useEffect(() => {
     fetchPhotos()
   }, [fetchPhotos])
-
-  const handleLabelPhotos = async () => {
-    setLabeling(true)
-    setLabelProgress(0)
-    setLabelTotal(0)
-
-    await apiStream("/label-photos", (data) => {
-      if (data.total) setLabelTotal(data.total as number)
-      if (data.progress) setLabelProgress(data.progress as number)
-    })
-
-    setLabeling(false)
-    fetchPhotos()
-  }
 
   const filters: { label: string; value: OrientationFilter }[] = [
     { label: "All", value: "all" },
@@ -74,10 +57,7 @@ export default function PhotosPage() {
               : `${photos.length} ${photos.length === 1 ? "photo" : "photos"}`}
           </p>
         </div>
-      </div>
 
-      {/* toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
         {/* orientation segmented control */}
         <div className="flex border border-border-default">
           {filters.map((f, i) => {
@@ -99,42 +79,15 @@ export default function PhotosPage() {
             )
           })}
         </div>
-
-        <button
-          onClick={handleLabelPhotos}
-          disabled={labeling}
-          className="group flex h-9 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Sparkles className="size-3.5" />
-          {labeling ? "Labeling..." : "AI Label"}
-        </button>
       </div>
 
-      {/* labeling progress */}
-      {labeling && labelTotal > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-[11px] uppercase tracking-[0.2em] text-text-muted">
-            <span>Labeling photos</span>
-            <span>
-              {labelProgress}/{labelTotal}
-            </span>
-          </div>
-          <div className="h-px w-full bg-border-default">
-            <div
-              className="h-px bg-brand transition-all duration-300"
-              style={{ width: `${(labelProgress / labelTotal) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-
       {loading ? (
-        <div className="columns-2 gap-3 space-y-3 sm:columns-3 lg:columns-4 xl:columns-5">
+        <div className="flex flex-wrap gap-2">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton
               key={i}
-              className="w-full break-inside-avoid"
-              style={{ aspectRatio: i % 2 === 0 ? "3/4" : "4/3" }}
+              className="h-[260px] grow"
+              style={{ flexBasis: `${220 + (i % 3) * 90}px` }}
             />
           ))}
         </div>
@@ -147,38 +100,15 @@ export default function PhotosPage() {
           </p>
         </div>
       ) : (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="columns-2 gap-3 space-y-3 sm:columns-3 lg:columns-4 xl:columns-5"
-        >
-          {photos.map((photo) => {
-            const { width, height } = photo.file_metadata
-            return (
-              <div
-                key={photo.compressed_image}
-                className="group relative break-inside-avoid overflow-hidden border border-border-subtle bg-surface-elevated"
-              >
-                <Image
-                  src={photo.compressed_image}
-                  alt={photo.file_metadata.description || photo.file_metadata.filename}
-                  width={width}
-                  height={height}
-                  className="w-full transition-transform duration-700 group-hover:scale-105"
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                  placeholder={photo.file_metadata.blur_data_url ? "blur" : "empty"}
-                  blurDataURL={photo.file_metadata.blur_data_url || undefined}
-                />
-                {photo.file_metadata.description && (
-                  <div className="absolute inset-x-0 bottom-0 translate-y-full border-t border-border-subtle bg-surface/85 p-3 text-xs leading-relaxed text-text-secondary backdrop-blur transition-transform duration-300 group-hover:translate-y-0">
-                    {photo.file_metadata.description}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </motion.div>
+        <PhotoMasonry photos={photos} onOpen={(i) => setViewer(i)} />
+      )}
+
+      {viewer !== null && (
+        <LibraryLightbox
+          photos={photos}
+          start={viewer}
+          onClose={() => setViewer(null)}
+        />
       )}
     </div>
   )

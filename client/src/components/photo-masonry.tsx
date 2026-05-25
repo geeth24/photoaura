@@ -20,9 +20,12 @@ import type { Photo } from "@/lib/types"
 
 type Props = {
   photos: Photo[]
-  albumSlug: string
-  selectedFace: string | null
-  onDelete: (filename: string) => void
+  // album mode: tiles link into the album's lightbox route
+  albumSlug?: string
+  selectedFace?: string | null
+  onDelete?: (filename: string) => void
+  // library mode: tiles call back with the clicked index instead of linking
+  onOpen?: (index: number) => void
 }
 
 const GAP = 8
@@ -59,7 +62,13 @@ function buildRows(photos: Photo[], width: number, targetH: number): Tile[][] {
   return rows
 }
 
-export function PhotoMasonry({ photos, albumSlug, selectedFace, onDelete }: Props) {
+export function PhotoMasonry({
+  photos,
+  albumSlug,
+  selectedFace,
+  onDelete,
+  onOpen,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
 
@@ -96,52 +105,73 @@ export function PhotoMasonry({ photos, albumSlug, selectedFace, onDelete }: Prop
                 className="group relative shrink-0"
                 style={{ width: w, height: h }}
               >
-                <Link
-                  href={`/albums/${albumSlug}/${encodeURIComponent(m.filename)}${
-                    selectedFace ? `?face=${selectedFace}` : ""
-                  }`}
-                  className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
-                  scroll={false}
-                >
-                  <Image
-                    src={photo.compressed_image}
-                    alt={m.description || m.filename}
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
-                    className="object-cover transition-transform duration-700 group-hover:scale-105"
-                    placeholder={m.blur_data_url ? "blur" : "empty"}
-                    blurDataURL={m.blur_data_url || undefined}
-                  />
-                </Link>
-                <AlertDialog>
-                  <AlertDialogTrigger
-                    render={
-                      <button
-                        className="absolute right-2 top-2 border border-border-strong bg-surface/70 p-1.5 text-text-secondary opacity-0 backdrop-blur transition-all hover:text-destructive group-hover:opacity-100"
-                        aria-label="Delete photo"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    }
-                  />
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete photo?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This permanently removes this photo from the album.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => onDelete(m.filename)}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                {onOpen ? (
+                  <button
+                    onClick={() => onOpen(i)}
+                    className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
+                  >
+                    <span className="relative block size-full">
+                      <Image
+                        src={photo.compressed_image}
+                        alt={m.description || m.filename}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
+                        placeholder={m.blur_data_url ? "blur" : "empty"}
+                        blurDataURL={m.blur_data_url || undefined}
+                      />
+                    </span>
+                  </button>
+                ) : (
+                  <Link
+                    href={`/albums/${albumSlug}/${encodeURIComponent(m.filename)}${
+                      selectedFace ? `?face=${selectedFace}` : ""
+                    }`}
+                    className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
+                    scroll={false}
+                  >
+                    <Image
+                      src={photo.compressed_image}
+                      alt={m.description || m.filename}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
+                      className="object-cover transition-transform duration-700 group-hover:scale-105"
+                      placeholder={m.blur_data_url ? "blur" : "empty"}
+                      blurDataURL={m.blur_data_url || undefined}
+                    />
+                  </Link>
+                )}
+                {onDelete && (
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <button
+                          className="absolute right-2 top-2 border border-border-strong bg-surface/70 p-1.5 text-text-secondary opacity-0 backdrop-blur transition-all hover:text-destructive group-hover:opacity-100"
+                          aria-label="Delete photo"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      }
+                    />
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete photo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This permanently removes this photo from the album.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
+                          onClick={() => onDelete(m.filename)}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </motion.div>
             )
           })}

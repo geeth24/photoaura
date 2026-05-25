@@ -6,6 +6,7 @@ import Image from "next/image"
 import { motion, AnimatePresence, MotionConfig } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import cdnImageLoader from "@/lib/cdn-image-loader"
+import { LightboxImage, slide, FULL_WIDTH } from "@/components/lightbox-image"
 import type { Album, AlbumFace, Photo } from "@/lib/types"
 import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -13,51 +14,6 @@ type Props = {
   slug: string
   photo: string // initial filename
   onClose: () => void
-}
-
-// direction-aware slide (matches the nextjsconf gallery flow)
-const slide = {
-  enter: (dir: number) => ({ x: dir > 0 ? 420 : -420, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir < 0 ? 420 : -420, opacity: 0 }),
-}
-
-// The width/height attrs reserve the aspect-correct box before load, so the
-// blur background fills it instantly (no empty frame). The full-res is requested
-// at a single fixed width (2048) the upload warmer pre-generates, so it's a
-// CloudFront cache hit instead of a cold render. It fades in once decoded.
-const FULL_WIDTH = 2048
-
-function LightboxImage({ photo }: { photo: Photo }) {
-  const [loaded, setLoaded] = useState(false)
-  const m = photo.file_metadata
-  const src = cdnImageLoader({ src: photo.image, width: FULL_WIDTH })
-  return (
-    <div
-      className="relative overflow-hidden bg-white/5"
-      style={
-        m.blur_data_url
-          ? {
-              backgroundImage: `url("${m.blur_data_url}")`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }
-          : undefined
-      }
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        width={m.width || 1600}
-        height={m.height || 1067}
-        alt={m.description || m.filename}
-        onLoad={() => setLoaded(true)}
-        className={`block h-auto max-h-[82vh] w-auto max-w-[92vw] object-contain transition-opacity duration-300 ${
-          loaded ? "opacity-100" : "opacity-0"
-        }`}
-      />
-    </div>
-  )
 }
 
 export function PhotoLightbox({ slug, photo, onClose }: Props) {
