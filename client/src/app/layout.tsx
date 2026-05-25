@@ -1,11 +1,26 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { DM_Serif_Display, Outfit } from "next/font/google"
+import localFont from "next/font/local"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
 
-const inter = Inter({
+const dmSerif = DM_Serif_Display({
   subsets: ["latin"],
-  variable: "--font-sans",
+  weight: "400",
+  variable: "--font-dm-serif",
+  display: "swap",
+})
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
+  display: "swap",
+})
+
+const blackMud = localFont({
+  src: "./Blackmud-VGoOx.ttf",
+  display: "swap",
+  variable: "--font-blackmud-face",
 })
 
 export const metadata: Metadata = {
@@ -20,8 +35,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased min-h-dvh`}>
+    <html
+      lang="en"
+      className={`dark ${dmSerif.variable} ${outfit.variable} ${blackMud.variable}`}
+    >
+      <body className="font-body antialiased min-h-dvh">
         {children}
         <Toaster richColors />
       </body>

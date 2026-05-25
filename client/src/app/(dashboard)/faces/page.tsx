@@ -1,12 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import type { Face, Photo } from "@/lib/types"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Sheet,
@@ -15,7 +13,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import { Pencil, ArrowLeft } from "lucide-react"
+import { Pencil, ArrowLeft, ImageOff, UserRound } from "lucide-react"
 import Image from "next/image"
 import { toast } from "sonner"
 
@@ -85,46 +83,82 @@ export default function FacesPage() {
   // detail view for a face
   if (selected) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon-sm" onClick={() => setSelected(null)}>
-            <ArrowLeft className="size-4" />
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {selected.name || "Unknown"}
-          </h1>
-          <Button variant="ghost" size="icon-sm" onClick={() => openEdit(selected)}>
+      <div className="space-y-12">
+        {/* header */}
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <button
+              onClick={() => setSelected(null)}
+              className="group mb-4 flex items-center gap-4 text-text-muted transition-colors hover:text-text-primary"
+            >
+              <span className="block h-px w-12 bg-brand" />
+              <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.35em]">
+                <ArrowLeft className="size-3 transition-transform group-hover:-translate-x-0.5" />
+                Faces
+              </span>
+            </button>
+
+            <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
+              {selected.name || "Unknown"}
+            </h1>
+
+            <p className="mt-3 text-sm font-light text-text-secondary">
+              {photosLoading
+                ? "Loading photos…"
+                : `${facePhotos.length} ${facePhotos.length === 1 ? "photo" : "photos"}`}
+            </p>
+          </div>
+
+          <button
+            onClick={() => openEdit(selected)}
+            className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+          >
             <Pencil className="size-3.5" />
-          </Button>
+            Edit Name
+          </button>
         </div>
 
+        {/* photo grid */}
         {photosLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="aspect-square w-full" />
             ))}
           </div>
+        ) : facePhotos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-24 text-center">
+            <ImageOff className="size-7 text-text-faint" />
+            <p className="mt-4 font-heading text-xl text-text-primary">
+              No photos for this face
+            </p>
+            <p className="mt-1 text-sm font-light text-text-muted">
+              This person has not appeared in any photos yet.
+            </p>
+          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {facePhotos.map((photo) => (
-              <div
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {facePhotos.map((photo, i) => (
+              <motion.div
                 key={photo.compressed_image}
-                className="relative aspect-square overflow-hidden rounded-sm bg-muted"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.5,
+                  delay: Math.min(i * 0.02, 0.3),
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="group relative aspect-square overflow-hidden border border-border-subtle bg-surface-elevated"
               >
                 <Image
                   src={photo.compressed_image}
                   alt=""
                   fill
-                  className="object-cover"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 />
-              </div>
+              </motion.div>
             ))}
           </div>
-        )}
-
-        {!photosLoading && facePhotos.length === 0 && (
-          <p className="py-8 text-center text-muted-foreground">No photos for this face</p>
         )}
 
         <EditSheet
@@ -140,66 +174,98 @@ export default function FacesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Faces</h1>
+    <div className="space-y-12">
+      {/* header */}
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <div className="mb-4 flex items-center gap-4">
+            <span className="block h-px w-12 bg-brand" />
+            <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
+              People
+            </span>
+          </div>
+          <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
+            Faces
+          </h1>
+          <p className="mt-3 text-sm font-light text-text-secondary">
+            {loading
+              ? "Loading people…"
+              : `${faces.length} ${faces.length === 1 ? "person" : "people"}`}
+          </p>
+        </div>
+      </div>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {Array.from({ length: 10 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <Skeleton className="aspect-square w-full" />
-              <div className="p-3">
-                <Skeleton className="h-4 w-2/3" />
-              </div>
-            </Card>
+            <Skeleton key={i} className="aspect-square w-full" />
           ))}
+        </div>
+      ) : faces.length === 0 ? (
+        <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-24 text-center">
+          <UserRound className="size-7 text-text-faint" />
+          <p className="mt-4 font-heading text-xl text-text-primary">No faces found</p>
+          <p className="mt-1 text-sm font-light text-text-muted">
+            Faces appear here once your photos have been processed.
+          </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {faces.map((face) => (
-            <Card
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {faces.map((face, i) => (
+            <motion.div
               key={face.external_id}
-              className="group cursor-pointer overflow-hidden transition-colors hover:bg-muted/50"
-              onClick={() => viewFace(face)}
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.5,
+                delay: Math.min(i * 0.05, 0.4),
+                ease: [0.22, 1, 0.36, 1],
+              }}
             >
-              <div className="relative aspect-square w-full overflow-hidden bg-muted">
-                {face.image_url ? (
-                  <Image
-                    src={face.image_url}
-                    alt={face.name || "Unknown face"}
-                    fill
-                    className="object-cover transition-transform group-hover:scale-105"
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-muted-foreground">
-                    No image
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-between p-3">
-                <p className="truncate text-sm font-medium">
-                  {face.name || "Unknown"}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openEdit(face)
-                  }}
-                >
-                  <Pencil className="size-3" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+              <button
+                onClick={() => viewFace(face)}
+                className="group block w-full text-left"
+              >
+                <div className="relative aspect-square w-full overflow-hidden border border-border-subtle bg-surface-elevated">
+                  {face.image_url ? (
+                    <Image
+                      src={face.image_url}
+                      alt={face.name || "Unknown face"}
+                      fill
+                      className="object-cover transition-transform duration-700 group-hover:scale-105"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-text-faint">
+                      <UserRound className="size-6" />
+                    </div>
+                  )}
 
-      {!loading && faces.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <p>No faces found</p>
+                  <div className="absolute inset-0 bg-gradient-to-t from-surface/90 via-surface/15 to-transparent" />
+
+                  {/* edit pencil reveals on hover */}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEdit(face)
+                    }}
+                    className="absolute right-3 top-3 border border-border-strong bg-surface/70 p-1.5 text-text-secondary opacity-0 backdrop-blur transition-all hover:text-text-primary group-hover:opacity-100"
+                    aria-label="Edit name"
+                  >
+                    <Pencil className="size-3" />
+                  </span>
+
+                  <div className="absolute inset-x-0 bottom-0 p-4">
+                    <h2 className="line-clamp-1 font-heading text-lg leading-tight tracking-tight text-text-primary">
+                      {face.name || "Unknown"}
+                    </h2>
+                  </div>
+                </div>
+              </button>
+            </motion.div>
+          ))}
         </div>
       )}
 
@@ -234,21 +300,31 @@ function EditSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>Edit Face</SheetTitle>
-          <SheetDescription>Update the name for this face.</SheetDescription>
+          <SheetTitle className="font-heading text-xl text-text-primary">
+            Edit Face
+          </SheetTitle>
+          <SheetDescription className="text-sm font-light text-text-secondary">
+            Update the name for this face.
+          </SheetDescription>
         </SheetHeader>
-        <div className="grid gap-3 p-4">
-          <div className="grid gap-1.5">
-            <Label>Name</Label>
+        <div className="grid gap-4 p-4">
+          <div className="grid gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
+              Name
+            </span>
             <Input
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
               placeholder="Person name"
             />
           </div>
-          <Button onClick={onSave} disabled={saving}>
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="flex h-10 items-center justify-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:opacity-60 disabled:hover:bg-brand disabled:hover:shadow-none"
+          >
             {saving ? "Saving..." : "Save"}
-          </Button>
+          </button>
         </div>
       </SheetContent>
     </Sheet>

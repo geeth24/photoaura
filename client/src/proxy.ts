@@ -5,7 +5,7 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/albums") || pathname.startsWith("/photos") || pathname.startsWith("/users") || pathname.startsWith("/faces") || pathname.startsWith("/cms")) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/albums") || pathname.startsWith("/photos") || pathname.startsWith("/users") || pathname.startsWith("/faces") || pathname.startsWith("/website")) {
     if (!token) {
       return NextResponse.redirect(new URL("/login", request.url))
     }
@@ -25,7 +25,7 @@ export const config = {
     "/photos/:path*",
     "/users/:path*",
     "/faces/:path*",
-    "/cms/:path*",
+    "/website/:path*",
     "/login",
   ],
 }
