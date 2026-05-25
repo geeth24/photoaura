@@ -29,9 +29,9 @@ import Link from "next/link"
 export default function AlbumDetailPage({
   params,
 }: {
-  params: Promise<{ user: string; album: string }>
+  params: Promise<{ album: string }>
 }) {
-  const { user: userName, album: albumSlug } = use(params)
+  const { album: albumSlug } = use(params)
   const router = useRouter()
   const { user } = useAuth()
   const [album, setAlbum] = useState<Album | null>(null)
@@ -39,11 +39,11 @@ export default function AlbumDetailPage({
   const [deleting, setDeleting] = useState(false)
 
   const fetchAlbum = useCallback(() => {
-    apiFetch<Album>(`/album/${userName}/${albumSlug}/`)
+    apiFetch<Album>(`/album/${albumSlug}/`)
       .then(setAlbum)
       .catch(() => setAlbum(null))
       .finally(() => setLoading(false))
-  }, [userName, albumSlug])
+  }, [albumSlug])
 
   useEffect(() => {
     fetchAlbum()
@@ -70,11 +70,7 @@ export default function AlbumDetailPage({
     if (!album) return
     setDeleting(true)
     try {
-      // delete endpoint looks up by album NAME and lives under /album/delete/
-      await apiFetch(
-        `/album/delete/${userName}/${encodeURIComponent(album.album_name)}/`,
-        { method: "DELETE" }
-      )
+      await apiFetch(`/album/delete/${albumSlug}/`, { method: "DELETE" })
       toast.success("Album deleted")
       router.push("/albums")
     } catch (e) {
@@ -177,7 +173,7 @@ export default function AlbumDetailPage({
         {album.album_photos.map((photo) => (
           <div key={photo.file_metadata.filename} className="group relative mb-4 break-inside-avoid">
             <Link
-              href={`/albums/${userName}/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}`}
+              href={`/albums/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}`}
               className="block cursor-zoom-in overflow-hidden rounded-sm bg-muted"
               scroll={false}
             >

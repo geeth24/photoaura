@@ -55,15 +55,7 @@ async def create_upload_files(
         # Reset file pointer if necessary
         file.file.seek(0)
 
-    user_name = None
-    if user_id:
-        user = session.get(User, user_id)
-        if user:
-            user_name = user.user_name
-    else:
-        user_name = slug.split("/")[0]
-
-    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
+    album_slug = album_name.lower().replace(" ", "-")
     album = session.query(Album).filter_by(slug=album_slug).first()
 
     if not album:
