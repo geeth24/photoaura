@@ -22,24 +22,41 @@ const slide = {
   exit: (dir: number) => ({ x: dir < 0 ? 480 : -480, opacity: 0 }),
 }
 
-// Sized to the photo's own aspect (not `fill`), so the blur placeholder stays
-// inside the image instead of covering the whole screen. The tiny baked-in blur
-// shows instantly; the full-res (pre-warmed on upload) fades in once decoded.
+// The width/height attrs reserve the aspect-correct box before load, so the
+// blur background fills it instantly (no empty frame). The full-res is requested
+// at a single fixed width (2048) that the upload warmer pre-generates, so it's a
+// CloudFront cache hit instead of a cold render. It fades in once decoded.
+const FULL_WIDTH = 2048
+
 function LightboxImage({ photo }: { photo: Photo }) {
+  const [loaded, setLoaded] = useState(false)
   const m = photo.file_metadata
+  const src = cdnImageLoader({ src: photo.image, width: FULL_WIDTH })
   return (
-    <Image
-      src={photo.image}
-      alt={m.description || m.filename}
-      width={m.width || 1600}
-      height={m.height || 1067}
-      sizes="92vw"
-      className="max-h-[82vh] w-auto max-w-[92vw] object-contain"
-      placeholder={m.blur_data_url ? "blur" : "empty"}
-      blurDataURL={m.blur_data_url || undefined}
-      loading="eager"
-      fetchPriority="high"
-    />
+    <div
+      className="relative overflow-hidden bg-white/5"
+      style={
+        m.blur_data_url
+          ? {
+              backgroundImage: `url("${m.blur_data_url}")`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : undefined
+      }
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        width={m.width || 1600}
+        height={m.height || 1067}
+        alt={m.description || m.filename}
+        onLoad={() => setLoaded(true)}
+        className={`block h-auto max-h-[82vh] w-auto max-w-[92vw] object-contain transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </div>
   )
 }
 
@@ -100,7 +117,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
     for (const i of [index - 1, index + 1]) {
       if (i < 0 || i >= photos.length) continue
       const img = new window.Image()
-      img.src = cdnImageLoader({ src: photos[i].image, width: 1920, quality: 75 })
+      img.src = cdnImageLoader({ src: photos[i].image, width: FULL_WIDTH })
     }
   }, [photos, index])
 

@@ -35,7 +35,12 @@ def _edit_url(key: str, width: int) -> str:
         "key": key,
         "edits": {"rotate": None, "resize": {"width": width, "fit": "inside"}},
     }
-    token = base64.b64encode(json.dumps(payload).encode()).decode()
+    # compact separators so the base64 byte-for-byte matches the JS client's
+    # JSON.stringify output — otherwise CloudFront caches a different key and
+    # the warm never hits what the browser requests.
+    token = base64.b64encode(
+        json.dumps(payload, separators=(",", ":")).encode()
+    ).decode()
     return f"https://{CDN}/{token}"
 
 

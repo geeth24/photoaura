@@ -6,6 +6,10 @@
 // We also resize per requested width; AutoWebP is negotiated via the Accept header.
 //
 // Non-CDN sources (local /images, raw face/video keys) pass through unchanged.
+//
+// Edits are kept canonical ({rotate, resize}) — no quality — so the URL matches
+// the server-side upload warmer byte-for-byte and hits the warmed CloudFront
+// cache. SIH applies its default quality + AutoWebP via the Accept header.
 
 type LoaderArgs = { src: string; width: number; quality?: number }
 
@@ -20,17 +24,13 @@ function b64(s: string): string {
     : btoa(s)
 }
 
-export default function cdnImageLoader({ src, width, quality }: LoaderArgs): string {
+export default function cdnImageLoader({ src, width }: LoaderArgs): string {
   const m = src.match(THUMBOR)
   if (!m) return src
   const key = decodeURIComponent(m[1])
-  const edits: Record<string, unknown> = {
+  const edits = {
     rotate: null, // auto-orient from EXIF, then strip
     resize: { width, fit: "inside" },
-  }
-  if (quality) {
-    edits.webp = { quality }
-    edits.jpeg = { quality }
   }
   return `${CDN}/${b64(JSON.stringify({ bucket: BUCKET, key, edits }))}`
 }
