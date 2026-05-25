@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation"
 import { motion } from "motion/react"
 import { apiFetch, deletePhoto } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
-import type { Album } from "@/lib/types"
+import type { Album, AlbumFace } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { UploadAlbumDialog } from "@/components/upload-album-dialog"
+import { AlbumFaces } from "@/components/album-faces"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,8 @@ export default function AlbumDetailPage({
   const [uploadOpen, setUploadOpen] = useState(false)
   const [droppedFiles, setDroppedFiles] = useState<File[]>([])
   const [dragDepth, setDragDepth] = useState(0)
+  const [faces, setFaces] = useState<AlbumFace[]>([])
+  const [selectedFace, setSelectedFace] = useState<string | null>(null)
 
   const onPageDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -59,9 +62,20 @@ export default function AlbumDetailPage({
       .finally(() => setLoading(false))
   }, [albumSlug])
 
-  useEffect(() => {
+  const fetchFaces = useCallback(() => {
+    apiFetch<AlbumFace[]>(`/album/${albumSlug}/faces`)
+      .then(setFaces)
+      .catch(() => setFaces([]))
+  }, [albumSlug])
+
+  const refresh = useCallback(() => {
     fetchAlbum()
-  }, [fetchAlbum])
+    fetchFaces()
+  }, [fetchAlbum, fetchFaces])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
 
   const handleDeletePhoto = async (filename: string) => {
     if (!album) return
@@ -131,6 +145,16 @@ export default function AlbumDetailPage({
       </div>
     )
   }
+
+  const selectedFilenames =
+    selectedFace != null
+      ? new Set(faces.find((f) => f.face_id === selectedFace)?.filenames ?? [])
+      : null
+  const visiblePhotos = selectedFilenames
+    ? album.album_photos.filter((p) =>
+        selectedFilenames.has(p.file_metadata.filename)
+      )
+    : album.album_photos
 
   return (
     <div
@@ -205,7 +229,7 @@ export default function AlbumDetailPage({
               }}
               initialFiles={droppedFiles}
               lockFaceDetection={!!album.face_detection}
-              onUploaded={fetchAlbum}
+              onUploaded={refresh}
               trigger={
                 <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
                   <Upload className="size-3.5" />
@@ -246,9 +270,12 @@ export default function AlbumDetailPage({
         </div>
       </div>
 
+      {/* people */}
+      <AlbumFaces faces={faces} selected={selectedFace} onSelect={setSelectedFace} />
+
       {/* photo grid */}
       <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
-        {album.album_photos.map((photo, i) => (
+        {visiblePhotos.map((photo, i) => (
           <motion.div
             key={photo.file_metadata.filename}
             initial={{ opacity: 0, y: 16 }}

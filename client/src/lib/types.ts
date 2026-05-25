@@ -80,3 +80,11 @@ export type Face = {
   image_url?: string
   face_photos?: Photo[]
 }
+
+export type AlbumFace = {
+  face_id: string
+  name: string | null
+  image_url: string
+  count: number
+  filenames: string[]
+}

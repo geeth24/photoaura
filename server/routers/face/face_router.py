@@ -79,6 +79,46 @@ async def get_faces(
     ]
 
 
+@router.get("/api/album/{album_slug}/faces")
+async def get_album_faces(
+    album_slug: str,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Distinct people detected in an album, each with a key face crop and the
+    filenames of the photos they appear in (so the client can filter the grid)."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    links = session.query(PhotoFaceLink).filter_by(album_id=album.id).all()
+
+    by_face: dict[str, list[str]] = {}
+    for link in links:
+        photo = session.get(FileMetadata, link.photo_id)
+        if not photo:
+            continue
+        by_face.setdefault(link.face_id, []).append(photo.filename)
+
+    faces = []
+    for face_id, filenames in by_face.items():
+        face = session.query(FaceData).filter_by(external_id=face_id).first()
+        faces.append(
+            {
+                "face_id": face_id,
+                "name": face.name if face else None,
+                # thumbor form so the client loader can resize the crop
+                "image_url": f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/faces/{face_id}.jpg",
+                "count": len(filenames),
+                "filenames": filenames,
+            }
+        )
+
+    # most-photographed people first
+    faces.sort(key=lambda f: f["count"], reverse=True)
+    return faces
+
+
 @router.get("/api/face/{face_id}")
 async def get_face(
     face_id: str,
