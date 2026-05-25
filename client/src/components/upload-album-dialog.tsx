@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
-import { uploadAlbum } from "@/lib/api"
+import { uploadAlbum, type UploadStage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { UploadCloud, X, ImageIcon } from "lucide-react"
+import { UploadCloud, ImageIcon } from "lucide-react"
 import { toast } from "sonner"
 
 type Props = {
@@ -28,6 +28,28 @@ type Props = {
   trigger: React.ReactNode
 }
 
+const STAGE_LABEL: Record<UploadStage["stage"], string> = {
+  uploading: "Uploading photos",
+  saving: "Saving",
+  faces: "Detecting faces",
+  warming: "Optimizing images",
+  done: "Finishing up",
+}
+
+function stagePct(s: UploadStage): number {
+  if (s.stage === "uploading") return s.pct ?? 0
+  if (s.stage === "done") return 100
+  if (s.total) return Math.round(((s.current ?? 0) / s.total) * 100)
+  return 0
+}
+
+function stageDetail(s: UploadStage): string {
+  if (s.stage === "uploading") return `${s.pct ?? 0}%`
+  if (s.stage === "done") return ""
+  if (s.total) return `${s.current ?? 0}/${s.total}`
+  return ""
+}
+
 export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
@@ -35,14 +57,14 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
   const [faceDetection, setFaceDetection] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [stage, setStage] = useState<UploadStage | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
     setName("")
     setFiles([])
     setFaceDetection(false)
-    setProgress(0)
+    setStage(null)
     setUploading(false)
   }
 
@@ -52,19 +74,17 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
     setFiles((prev) => [...prev, ...imgs])
   }, [])
 
-  const removeFile = (i: number) => setFiles((prev) => prev.filter((_, idx) => idx !== i))
-
   const resolvedName = mode === "new" ? name.trim() : albumName ?? ""
   const canUpload = resolvedName.length > 0 && files.length > 0 && !uploading
 
   const handleUpload = async () => {
     if (!canUpload) return
     setUploading(true)
-    setProgress(0)
+    setStage({ stage: "uploading", pct: 0 })
     try {
       await uploadAlbum(
         { files, albumName: resolvedName, userId, faceDetection },
-        setProgress
+        setStage
       )
       toast.success(
         mode === "new"
@@ -77,6 +97,7 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed")
       setUploading(false)
+      setStage(null)
     }
   }
 
@@ -148,44 +169,22 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
           </div>
 
           {files.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <ImageIcon className="size-3.5" />
-                  {files.length} photo{files.length === 1 ? "" : "s"} selected
+            <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2.5 text-sm">
+              <span className="flex items-center gap-2">
+                <ImageIcon className="size-4 text-muted-foreground" />
+                <span className="font-medium">{files.length}</span>
+                <span className="text-muted-foreground">
+                  photo{files.length === 1 ? "" : "s"} ready
                 </span>
-                {!uploading && (
-                  <button
-                    onClick={() => setFiles([])}
-                    className="hover:text-foreground"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
-                {files.map((f, i) => (
-                  <div key={i} className="group relative size-14 overflow-hidden rounded-md bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={URL.createObjectURL(f)}
-                      alt={f.name}
-                      className="size-full object-cover"
-                    />
-                    {!uploading && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeFile(i)
-                        }}
-                        className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+              </span>
+              {!uploading && (
+                <button
+                  onClick={() => setFiles([])}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           )}
 
@@ -202,12 +201,13 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
             />
           </div>
 
-          {uploading && (
+          {uploading && stage && (
             <div className="space-y-1.5">
-              <Progress value={progress} />
-              <p className="text-center text-xs text-muted-foreground">
-                Uploading… {progress}%
-              </p>
+              <Progress value={stagePct(stage)} />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{STAGE_LABEL[stage.stage]}…</span>
+                <span>{stageDetail(stage)}</span>
+              </div>
             </div>
           )}
         </div>
@@ -221,7 +221,11 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
             }
           />
           <Button onClick={handleUpload} disabled={!canUpload}>
-            {uploading ? "Uploading…" : mode === "new" ? "Create album" : "Upload"}
+            {uploading
+              ? `${STAGE_LABEL[stage?.stage ?? "uploading"]}…`
+              : mode === "new"
+                ? "Create album"
+                : "Upload"}
           </Button>
         </DialogFooter>
       </DialogContent>

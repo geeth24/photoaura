@@ -6,7 +6,6 @@ from fastapi import (
     Depends,
     HTTPException,
     status,
-    BackgroundTasks,
 )
 from datetime import datetime
 import os
@@ -21,7 +20,7 @@ from services.aws_service import s3_client
 from utils.face_recog import detect_and_store_faces
 from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
-from services.cdn_warm import warm_keys
+from services.cdn_warm import warm_key
 from routers.websocket.websocket_router import manager
 from dependencies import oauth2_scheme, get_current_user
 from services.gemini_service import analyze_image
@@ -33,6 +32,19 @@ router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
+
+async def _notify(stage: str, current: int = 0, total: int = 0):
+    """Push a live stage update to the upload dialog over the websocket."""
+    conns = manager.active_connections
+    if not conns:
+        return
+    payload = json.dumps({"stage": stage, "current": current, "total": total})
+    try:
+        await conns[0].send_text(payload)
+    except Exception:
+        pass
+
+
 # Upload files and handle DB logic
 @router.post("/api/upload-files/")
 async def create_upload_files(
@@ -42,30 +54,9 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
     face_detection: bool = False,
-    background_tasks: BackgroundTasks = None,
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-
-    # Send upload progress to client
-    websocket = manager.active_connections[0]
-    total_bytes = 0
-    for file in files:
-        content = await file.read()
-        total_bytes += len(content)
-        # Rewind the file pointer if you plan to read the file again later
-        file.file.seek(0)  # Reset the file pointer to the beginning after reading
-    uploaded_bytes = 0
-    for file in files:
-        content = await file.read()
-        uploaded_bytes += len(content)
-        # Send progress update to the WebSocket connection
-        await websocket.send_text(
-            json.dumps({"uploaded_bytes": uploaded_bytes, "total_bytes": total_bytes})
-        )
-        # Reset file pointer if necessary
-        file.file.seek(0)
-
     album_slug = album_name.lower().replace(" ", "-")
     album = session.query(Album).filter_by(slug=album_slug).first()
 
@@ -90,7 +81,13 @@ async def create_upload_files(
     if user_id and album:
         add_album_to_user(user_id, album.id)
 
-    for file in files:
+    total = len(files)
+    # (s3_key, file_metadata_id) for the faces pass
+    face_targets = []
+    keys = []
+
+    # stage 1: save each file to S3 + record metadata + blur
+    for i, file in enumerate(files):
         content = await file.read()
 
         album_dir = os.path.join(settings.DATA_DIR, album_slug)
@@ -107,6 +104,7 @@ async def create_upload_files(
             Body=content,
             ContentType=file.content_type,
         )
+        keys.append(s3_filename)
 
         file_metadata = get_file_metadata(
             album.id, os.path.join(album_dir, file.filename), file
@@ -127,21 +125,15 @@ async def create_upload_files(
         session.commit()
         session.refresh(uploaded_file_metadata)
 
-        if face_detection and uploaded_file_metadata:
-            detect_and_store_faces(
-                s3_filename,
-                uploaded_file_metadata.id,
-                album.id,
-                AWS_BUCKET,
-            )
+        blur_data_url = generate_blur_data_url(content)
+        uploaded_file_metadata.blur_data_url = blur_data_url
+        session.commit()
+
+        if face_detection:
+            face_targets.append((s3_filename, uploaded_file_metadata.id))
 
         os.remove(os.path.join(album_dir, file.filename))
-
-        blur_data_url = generate_blur_data_url(content)
-
-        if uploaded_file_metadata:
-            uploaded_file_metadata.blur_data_url = blur_data_url
-            session.commit()
+        await _notify("saving", i + 1, total)
 
     # keep image_count exact (= actual stored rows), regardless of new/append
     album.image_count = (
@@ -149,10 +141,25 @@ async def create_upload_files(
     )
     session.commit()
 
-    # pre-warm CDN derivatives so the first view isn't a cold SIH render
-    if background_tasks is not None:
-        keys = [f"{album_slug}/{file.filename}" for file in files]
-        background_tasks.add_task(warm_keys, keys)
+    # stage 2: detect + index faces (off the event loop so progress can flush)
+    if face_targets:
+        n = len(face_targets)
+        for i, (s3_key, meta_id) in enumerate(face_targets):
+            await asyncio.to_thread(
+                detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
+            )
+            await _notify("faces", i + 1, n)
+
+    # stage 3: pre-warm CDN derivatives so the first view isn't a cold SIH render
+    done = 0
+    tasks = [asyncio.create_task(asyncio.to_thread(warm_key, k)) for k in keys]
+    await _notify("warming", 0, total)
+    for task in asyncio.as_completed(tasks):
+        await task
+        done += 1
+        await _notify("warming", done, total)
+
+    await _notify("done", total, total)
 
     return {"filenames": [file.filename for file in files]}
 

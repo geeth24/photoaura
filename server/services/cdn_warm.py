@@ -49,17 +49,25 @@ def _urls_for(key: str):
     ]
 
 
+def _get(url):
+    try:
+        requests.get(url, headers=_HEADERS, timeout=20)
+    except Exception:
+        pass
+
+
+def warm_key(key: str):
+    """Warm every derivative for a single S3 key (blocking). Swallows errors."""
+    if not CDN or not BUCKET or not key:
+        return
+    for url in _urls_for(key):
+        _get(url)
+
+
 def warm_keys(keys):
-    """Fire a GET for every derivative so CloudFront caches it. Swallows errors."""
+    """Warm derivatives for many keys in parallel. Swallows errors."""
     if not CDN or not BUCKET or not keys:
         return
     urls = [u for k in keys for u in _urls_for(k)]
-
-    def _get(u):
-        try:
-            requests.get(u, headers=_HEADERS, timeout=20)
-        except Exception:
-            pass
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
         list(ex.map(_get, urls))

@@ -83,19 +83,31 @@ export type UploadOptions = {
   faceDetection?: boolean
 }
 
+export type UploadStage = {
+  stage: "uploading" | "saving" | "faces" | "warming" | "done"
+  pct?: number // for "uploading" (network)
+  current?: number // for server stages
+  total?: number
+}
+
 /**
- * Upload photos to a new or existing album. The backend streams byte progress
- * over a websocket, so we open one for the duration of the upload.
+ * Upload photos to a new or existing album.
+ *
+ * Two live signals drive the dialog: XHR upload progress for the network
+ * transfer ("uploading"), and websocket stage events from the server for the
+ * post-upload work ("saving" -> "faces" -> "warming" -> "done"). The promise
+ * resolves only once the server has finished everything (incl. cache warming).
  */
 export function uploadAlbum(
   opts: UploadOptions,
-  onProgress?: (pct: number) => void
+  onStage?: (s: UploadStage) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const token = getToken()
     const wsUrl = API_URL.replace(/^http/, "ws") + "/ws/"
     const ws = new WebSocket(wsUrl)
     let settled = false
+    let started = false
 
     const finish = (err?: Error) => {
       if (settled) return
@@ -109,15 +121,16 @@ export function uploadAlbum(
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data)
-        if (d.total_bytes && onProgress) {
-          onProgress(Math.min(99, Math.round((d.uploaded_bytes / d.total_bytes) * 100)))
+        if (d.stage) {
+          onStage?.({ stage: d.stage, current: d.current, total: d.total })
         }
       } catch {}
     }
 
-    ws.onerror = () => finish(new Error("Could not connect for upload progress"))
+    const doUpload = () => {
+      if (started) return
+      started = true
 
-    ws.onopen = async () => {
       const form = new FormData()
       opts.files.forEach((f) => form.append("files", f))
       const params = new URLSearchParams({
@@ -125,22 +138,38 @@ export function uploadAlbum(
         user_id: String(opts.userId),
         face_detection: String(!!opts.faceDetection),
       })
-      try {
-        const res = await fetch(`${API_URL}/upload-files/?${params.toString()}`, {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: form,
-        })
-        if (!res.ok) {
-          const error = await res.json().catch(() => ({ detail: res.statusText }))
-          throw new Error(error.detail || "Upload failed")
+
+      const xhr = new XMLHttpRequest()
+      xhr.open("POST", `${API_URL}/upload-files/?${params.toString()}`)
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          onStage?.({
+            stage: "uploading",
+            pct: Math.round((ev.loaded / ev.total) * 100),
+          })
         }
-        onProgress?.(100)
-        finish()
-      } catch (err) {
-        finish(err instanceof Error ? err : new Error("Upload failed"))
       }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          finish()
+        } else {
+          let msg = "Upload failed"
+          try {
+            msg = JSON.parse(xhr.responseText).detail || msg
+          } catch {}
+          finish(new Error(msg))
+        }
+      }
+      xhr.onerror = () => finish(new Error("Upload failed"))
+      xhr.send(form)
     }
+
+    // start once the ws is open so we don't miss stage events; if the ws can't
+    // connect, upload anyway (just without the server-side stage updates).
+    ws.onopen = doUpload
+    ws.onerror = () => doUpload()
   })
 }
 
