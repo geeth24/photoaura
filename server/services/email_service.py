@@ -7,7 +7,9 @@ import resend
 from config import settings
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
-FROM = "Reactive Shots <noreply@inquiry.reactiveshots.com>"
+# must be a domain verified on the Resend account the key belongs to.
+# override with EMAIL_FROM to switch to a reactiveshots.com sender later.
+FROM = os.environ.get("EMAIL_FROM", "Reactive Shots <noreply@contact.geeth.co>")
 CLIENT_URL = getattr(settings, "NEXT_PUBLIC_CLIENT_URL", None) or os.environ.get(
     "NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com"
 )
