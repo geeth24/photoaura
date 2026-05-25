@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { motion, AnimatePresence, MotionConfig } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import cdnImageLoader from "@/lib/cdn-image-loader"
-import type { Album, Photo } from "@/lib/types"
+import type { Album, AlbumFace, Photo } from "@/lib/types"
 import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Props = {
@@ -60,7 +61,11 @@ function LightboxImage({ photo }: { photo: Photo }) {
 }
 
 export function PhotoLightbox({ slug, photo, onClose }: Props) {
-  const [photos, setPhotos] = useState<Photo[] | null>(null)
+  const searchParams = useSearchParams()
+  const faceId = searchParams.get("face")
+
+  const [allPhotos, setAllPhotos] = useState<Photo[] | null>(null)
+  const [faceFilenames, setFaceFilenames] = useState<Set<string> | null>(null)
   const [index, setIndex] = useState(-1)
   const [direction, setDirection] = useState(0)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -69,18 +74,34 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
 
   useEffect(() => {
     apiFetch<Album>(`/album/${slug}/`)
-      .then((a) => {
-        setPhotos(a.album_photos)
-        const i = a.album_photos.findIndex(
-          (p) => p.file_metadata.filename === initialPhoto
-        )
-        setIndex(i >= 0 ? i : 0)
+      .then((a) => setAllPhotos(a.album_photos))
+      .catch(() => setAllPhotos([]))
+  }, [slug])
+
+  // opened from a person filter -> scope navigation to that person's photos
+  useEffect(() => {
+    if (!faceId) return
+    apiFetch<AlbumFace[]>(`/album/${slug}/faces`)
+      .then((faces) => {
+        const f = faces.find((x) => x.face_id === faceId)
+        setFaceFilenames(new Set(f?.filenames ?? []))
       })
-      .catch(() => {
-        setPhotos([])
-        setIndex(-1)
-      })
-  }, [slug, initialPhoto])
+      .catch(() => setFaceFilenames(new Set()))
+  }, [slug, faceId])
+
+  const photos = useMemo(() => {
+    if (!allPhotos) return null
+    if (faceId && !faceFilenames) return null // wait for the filter to load
+    if (faceFilenames)
+      return allPhotos.filter((p) => faceFilenames.has(p.file_metadata.filename))
+    return allPhotos
+  }, [allPhotos, faceId, faceFilenames])
+
+  // pick the starting photo once the (possibly filtered) set is ready
+  if (photos && index === -1) {
+    const i = photos.findIndex((p) => p.file_metadata.filename === initialPhoto)
+    setIndex(i >= 0 ? i : 0)
+  }
 
   const current = photos && index >= 0 ? photos[index] : null
   const hasPrev = index > 0
@@ -97,10 +118,10 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
       window.history.replaceState(
         null,
         "",
-        `/albums/${slug}/${encodeURIComponent(name)}`
+        `/albums/${slug}/${encodeURIComponent(name)}${faceId ? `?face=${faceId}` : ""}`
       )
     },
-    [photos, index, slug]
+    [photos, index, slug, faceId]
   )
 
   // keyboard nav + body scroll lock

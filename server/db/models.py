@@ -5,6 +5,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Float,
     ForeignKey,
     Integer,
     Numeric,
@@ -109,6 +110,8 @@ class FaceData(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[Optional[str]] = mapped_column(String(255))
     external_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+    # quality of the chosen key-face crop (faces/{external_id}.jpg); higher = better
+    key_score: Mapped[Optional[float]] = mapped_column(Float)
 
 
 class PhotoFaceLink(Base):

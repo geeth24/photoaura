@@ -284,7 +284,9 @@ export default function AlbumDetailPage({
             className="group relative aspect-square"
           >
             <Link
-              href={`/albums/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}`}
+              href={`/albums/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}${
+                selectedFace ? `?face=${selectedFace}` : ""
+              }`}
               className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
               scroll={false}
             >

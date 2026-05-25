@@ -25,6 +25,17 @@ def is_face_forward(yaw, pitch, yaw_threshold=45, pitch_threshold=45):
     return abs(yaw) <= yaw_threshold and abs(pitch) <= pitch_threshold
 
 
+def face_score(face):
+    """Higher = better key photo: a large, front-facing, sharp face."""
+    box = face["BoundingBox"]
+    area = box["Width"] * box["Height"]
+    sharp = face.get("Quality", {}).get("Sharpness") or 0
+    yaw = abs(face["Pose"]["Yaw"])
+    pitch = abs(face["Pose"]["Pitch"])
+    frontal = max(0.0, 1.0 - (yaw + pitch) / 90.0)
+    return area * 100 + frontal * 10 + sharp * 0.05
+
+
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
     with session_scope() as session:
         original_image = s3_client.get_object(Bucket=bucket, Key=file_path)
@@ -79,7 +90,7 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                     CollectionId=AWS_BUCKET,
                     Image={"S3Object": {"Bucket": bucket, "Name": temp_face_image_path}},
                     MaxFaces=1,
-                    FaceMatchThreshold=70,
+                    FaceMatchThreshold=80,
                 )
 
                 if search_response["FaceMatches"]:
@@ -98,21 +109,38 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                 print(f"Error processing face {index + 1}: {e}")
                 continue
 
-            permanent_face_image_path = f"faces/{face_id}.jpg"
-            s3_client.upload_file(
-                Filename=temp_face_image_path,
-                Bucket=bucket,
-                Key=permanent_face_image_path,
-                ExtraArgs={"ContentType": "image/jpeg"},
-            )
-
-            os.remove(temp_face_image_path)
-
+            # upsert the person, bumping the key-face score only when this crop
+            # is a better shot than the one we already kept
+            score = face_score(face)
             session.execute(
                 pg_insert(FaceData)
-                .values(external_id=face_id)
-                .on_conflict_do_nothing(index_elements=["external_id"])
+                .values(external_id=face_id, key_score=score)
+                .on_conflict_do_update(
+                    index_elements=["external_id"],
+                    set_={"key_score": score},
+                    where=(FaceData.key_score.is_(None))
+                    | (FaceData.key_score < score),
+                )
             )
+            session.flush()
+
+            # if this crop won (or first), it becomes the person's key photo
+            fd = session.query(FaceData).filter_by(external_id=face_id).first()
+            if fd and fd.key_score == score:
+                s3_client.upload_file(
+                    Filename=temp_face_image_path,
+                    Bucket=bucket,
+                    Key=f"faces/{face_id}.jpg",
+                    ExtraArgs={"ContentType": "image/jpeg"},
+                )
+
+            # drop the scratch crop — only needed for the rekognition search
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=temp_face_image_path)
+            except Exception:
+                pass
+            os.remove(temp_face_image_path)
+
             session.add(
                 PhotoFaceLink(photo_id=photo_id, face_id=face_id, album_id=album_id)
             )
