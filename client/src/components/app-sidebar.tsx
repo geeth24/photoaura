@@ -6,7 +6,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -18,7 +17,7 @@ import {
   FolderOpen,
   Users,
   Smile,
-  Settings,
+  Globe,
   LogOut,
 } from "lucide-react"
 import Link from "next/link"
@@ -32,56 +31,96 @@ const navItems = [
   { title: "Photos", href: "/photos", icon: Images },
   { title: "Users", href: "/users", icon: Users },
   { title: "Faces", href: "/faces", icon: Smile },
-  { title: "CMS", href: "/cms", icon: Settings },
+  { title: "Website", href: "/website", icon: Globe },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
 
+  // initials for the footer avatar
+  const initials = user?.full_name
+    ?.split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4">
-        <Link href="/dashboard" className="flex items-center gap-3">
+    <Sidebar className="border-r border-border-subtle bg-surface-elevated">
+      {/* brand */}
+      <SidebarHeader className="border-b border-border-subtle p-6">
+        <Link href="/dashboard" className="group flex items-center gap-3">
           <Image src="/images/logo.png" alt="PhotoAura" width={32} height={32} />
-          <span className="text-lg font-semibold tracking-tight">PhotoAura</span>
+          <span className="font-body text-lg font-semibold tracking-tight text-text-primary transition-colors group-hover:text-brand">
+            PhotoAura
+          </span>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+      <SidebarContent className="px-3 py-6">
+        <SidebarGroup className="p-0">
+          {/* eyebrow section label */}
+          <div className="mb-4 flex items-center gap-3 px-3">
+            <span className="block h-px w-8 bg-brand" />
+            <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
+              Menu
+            </span>
+          </div>
+
           <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    isActive={pathname === item.href || pathname.startsWith(item.href + "/")}
-                    render={<Link href={item.href} />}
-                  >
-                    <item.icon className="size-4" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+            <SidebarMenu className="gap-1">
+              {navItems.map((item) => {
+                const active =
+                  pathname === item.href || pathname.startsWith(item.href + "/")
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      isActive={active}
+                      className={`relative h-11 gap-3 px-3 text-[13px] font-body tracking-wide transition-colors data-active:bg-surface-hover data-active:font-medium data-active:text-text-primary ${
+                        active
+                          ? "text-text-primary"
+                          : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
+                      }`}
+                      render={<Link href={item.href} />}
+                    >
+                      {active && (
+                        <span className="absolute inset-y-0 left-0 w-0.5 bg-brand" />
+                      )}
+                      <item.icon
+                        className={`size-4 transition-colors ${active ? "text-brand" : "text-text-muted group-hover/menu-button:text-text-secondary"}`}
+                      />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col text-sm">
-            <span className="font-medium">{user?.full_name}</span>
-            <span className="text-xs text-muted-foreground">{user?.user_email}</span>
+      <SidebarFooter className="border-t border-border-subtle p-4">
+        <div className="flex items-center gap-3 px-1 py-1">
+          <div className="flex size-9 shrink-0 items-center justify-center bg-brand/10 text-[11px] font-medium uppercase tracking-wider text-brand">
+            {initials || "?"}
           </div>
-          <button
-            onClick={logout}
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <LogOut className="size-4" />
-          </button>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-[13px] font-medium text-text-primary">
+              {user?.full_name}
+            </span>
+            <span className="truncate text-[11px] text-text-muted">
+              {user?.user_email}
+            </span>
+          </div>
         </div>
+        <button
+          onClick={logout}
+          className="group mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-[12px] font-medium uppercase tracking-[0.15em] text-text-muted transition-colors hover:bg-surface-hover hover:text-brand"
+        >
+          <LogOut className="size-4 transition-colors group-hover:text-brand" />
+          Sign out
+        </button>
       </SidebarFooter>
     </Sidebar>
   )
