@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { motion, AnimatePresence } from "motion/react"
 import { apiFetch } from "@/lib/api"
+import cdnImageLoader from "@/lib/cdn-image-loader"
 import type { Album, Photo } from "@/lib/types"
 import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -12,6 +13,40 @@ type Props = {
   slug: string
   photo: string // filename
   onClose: () => void
+}
+
+// Progressive image: the 720px version is already cached from the album grid,
+// so it paints instantly and the full-res fades in on top once decoded —
+// no blur wait. Keyed by filename upstream, so it remounts (and resets) per photo.
+function LightboxImage({ photo }: { photo: Photo }) {
+  const [loaded, setLoaded] = useState(false)
+  const m = photo.file_metadata
+  return (
+    <>
+      <Image
+        src={photo.compressed_image}
+        alt=""
+        fill
+        sizes="100vw"
+        className="object-contain"
+        placeholder={m.blur_data_url ? "blur" : "empty"}
+        blurDataURL={m.blur_data_url || undefined}
+        aria-hidden
+      />
+      <Image
+        src={photo.image}
+        alt={m.description || m.filename}
+        fill
+        sizes="100vw"
+        loading="eager"
+        fetchPriority="high"
+        onLoad={() => setLoaded(true)}
+        className={`object-contain transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </>
+  )
 }
 
 export function PhotoLightbox({ slug, photo, onClose }: Props) {
@@ -63,6 +98,16 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
   }, [index])
 
+  // warm the full-res of the neighbors so arrow nav lands instantly
+  useEffect(() => {
+    if (!photos || index < 0) return
+    for (const i of [index - 1, index + 1]) {
+      if (i < 0 || i >= photos.length) continue
+      const img = new window.Image()
+      img.src = cdnImageLoader({ src: photos[i].image, width: 1920, quality: 75 })
+    }
+  }, [photos, index])
+
   const meta = current?.file_metadata
 
   return (
@@ -113,16 +158,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
               className="relative flex h-full w-full items-center justify-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <Image
-                src={current.image}
-                alt={meta.description || meta.filename}
-                fill
-                className="object-contain"
-                sizes="100vw"
-                placeholder={meta.blur_data_url ? "blur" : "empty"}
-                blurDataURL={meta.blur_data_url || undefined}
-                priority
-              />
+              <LightboxImage photo={current} />
             </motion.div>
           )}
         </AnimatePresence>
