@@ -115,13 +115,9 @@ export default function AlbumDetailPage({
           <Skeleton className="h-12 w-72" />
           <Skeleton className="h-4 w-40" />
         </div>
-        <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton
-              key={i}
-              className="mb-3 w-full"
-              style={{ height: `${200 + (i % 3) * 80}px` }}
-            />
+            <Skeleton key={i} className="aspect-square w-full" />
           ))}
         </div>
       </div>
@@ -273,8 +269,8 @@ export default function AlbumDetailPage({
       {/* people */}
       <AlbumFaces faces={faces} selected={selectedFace} onSelect={setSelectedFace} />
 
-      {/* photo grid */}
-      <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
+      {/* photo grid — uniform tiles so it stays clean when filtered to a few */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {visiblePhotos.map((photo, i) => (
           <motion.div
             key={photo.file_metadata.filename}
@@ -285,19 +281,18 @@ export default function AlbumDetailPage({
               delay: Math.min(i * 0.02, 0.3),
               ease: [0.22, 1, 0.36, 1],
             }}
-            className="group relative mb-3 break-inside-avoid"
+            className="group relative aspect-square"
           >
             <Link
               href={`/albums/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}`}
-              className="block cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
+              className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
               scroll={false}
             >
               <Image
                 src={photo.compressed_image}
                 alt={photo.file_metadata.description || photo.file_metadata.filename}
-                width={photo.file_metadata.width}
-                height={photo.file_metadata.height}
-                className="h-auto w-full transition-transform duration-700 group-hover:scale-105"
+                fill
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 placeholder={photo.file_metadata.blur_data_url ? "blur" : "empty"}
                 blurDataURL={photo.file_metadata.blur_data_url || undefined}
