@@ -17,7 +17,6 @@ import {
   Images,
   FolderOpen,
   Users,
-  CalendarDays,
   Smile,
   Settings,
   LogOut,
@@ -32,7 +31,6 @@ const navItems = [
   { title: "Albums", href: "/albums", icon: FolderOpen },
   { title: "Photos", href: "/photos", icon: Images },
   { title: "Users", href: "/users", icon: Users },
-  { title: "Events", href: "/events", icon: CalendarDays },
   { title: "Faces", href: "/faces", icon: Smile },
   { title: "CMS", href: "/cms", icon: Settings },
 ]

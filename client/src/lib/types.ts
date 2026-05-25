@@ -80,23 +80,3 @@ export type Face = {
   image_url?: string
   face_photos?: Photo[]
 }
-
-export type EventType = {
-  id: number
-  name: string
-  priority: number
-  created_at: string
-}
-
-export type Event = {
-  id: number
-  name: string
-  event_type_id: number
-  event_type: string
-  event_date: string
-  location: string
-  description: string
-  created_by: number
-  created_by_name: string
-  created_at: string
-}

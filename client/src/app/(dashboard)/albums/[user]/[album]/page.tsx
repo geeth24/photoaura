@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { use } from "react"
 import { useRouter } from "next/navigation"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, deletePhoto } from "@/lib/api"
+import { useAuth } from "@/context/auth-context"
 import type { Album } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { UploadAlbumDialog } from "@/components/upload-album-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,9 +21,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2 } from "lucide-react"
+import { Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
+import Link from "next/link"
 
 export default function AlbumDetailPage({
   params,
@@ -30,25 +33,52 @@ export default function AlbumDetailPage({
 }) {
   const { user: userName, album: albumSlug } = use(params)
   const router = useRouter()
+  const { user } = useAuth()
   const [album, setAlbum] = useState<Album | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
+  const fetchAlbum = useCallback(() => {
     apiFetch<Album>(`/album/${userName}/${albumSlug}/`)
       .then(setAlbum)
       .catch(() => setAlbum(null))
       .finally(() => setLoading(false))
   }, [userName, albumSlug])
 
+  useEffect(() => {
+    fetchAlbum()
+  }, [fetchAlbum])
+
+  const handleDeletePhoto = async (filename: string) => {
+    if (!album) return
+    try {
+      await deletePhoto(album.slug, filename)
+      setAlbum({
+        ...album,
+        album_photos: album.album_photos.filter(
+          (p) => p.file_metadata.filename !== filename
+        ),
+        image_count: Math.max(0, album.image_count - 1),
+      })
+      toast.success("Photo deleted")
+    } catch {
+      toast.error("Failed to delete photo")
+    }
+  }
+
   const handleDelete = async () => {
+    if (!album) return
     setDeleting(true)
     try {
-      await apiFetch(`/album/${userName}/${albumSlug}/`, { method: "DELETE" })
+      // delete endpoint looks up by album NAME and lives under /album/delete/
+      await apiFetch(
+        `/album/delete/${userName}/${encodeURIComponent(album.album_name)}/`,
+        { method: "DELETE" }
+      )
       toast.success("Album deleted")
       router.push("/albums")
-    } catch {
-      toast.error("Failed to delete album")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete album")
       setDeleting(false)
     }
   }
@@ -96,6 +126,21 @@ export default function AlbumDetailPage({
           </div>
         </div>
 
+        <div className="flex gap-2">
+        {user && (
+          <UploadAlbumDialog
+            mode="existing"
+            userId={user.id}
+            albumName={album.album_name}
+            onUploaded={fetchAlbum}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Upload className="size-4" />
+                Upload
+              </Button>
+            }
+          />
+        )}
         <AlertDialog>
           <AlertDialogTrigger
             render={
@@ -125,41 +170,57 @@ export default function AlbumDetailPage({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </div>
 
       <div className="columns-2 gap-4 sm:columns-3 lg:columns-4">
         {album.album_photos.map((photo) => (
-          <div key={photo.file_metadata.filename} className="mb-4 break-inside-avoid">
-            <div className="overflow-hidden rounded-sm bg-muted">
+          <div key={photo.file_metadata.filename} className="group relative mb-4 break-inside-avoid">
+            <Link
+              href={`/albums/${userName}/${albumSlug}/${encodeURIComponent(photo.file_metadata.filename)}`}
+              className="block cursor-zoom-in overflow-hidden rounded-sm bg-muted"
+              scroll={false}
+            >
               <Image
                 src={photo.compressed_image}
                 alt={photo.file_metadata.description || photo.file_metadata.filename}
                 width={photo.file_metadata.width}
                 height={photo.file_metadata.height}
-                className="w-full h-auto"
+                className="h-auto w-full transition-opacity hover:opacity-90"
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 placeholder={photo.file_metadata.blur_data_url ? "blur" : "empty"}
                 blurDataURL={photo.file_metadata.blur_data_url || undefined}
               />
-            </div>
-            {(photo.file_metadata.description || photo.file_metadata.tags?.length) && (
-              <div className="mt-1.5 space-y-1">
-                {photo.file_metadata.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {photo.file_metadata.description}
-                  </p>
-                )}
-                {photo.file_metadata.tags && photo.file_metadata.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {photo.file_metadata.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            </Link>
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={
+                  <button
+                    className="absolute right-2 top-2 rounded-md bg-background/80 p-1.5 text-muted-foreground opacity-0 backdrop-blur transition-opacity hover:text-destructive group-hover:opacity-100"
+                    aria-label="Delete photo"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                }
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete photo?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently removes this photo from the album.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => handleDeletePhoto(photo.file_metadata.filename)}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         ))}
       </div>
