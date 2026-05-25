@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { UploadCloud, ImageIcon } from "lucide-react"
+import { UploadCloud, ImageIcon, ScanFace } from "lucide-react"
 import { toast } from "sonner"
 
 type Props = {
@@ -25,7 +25,14 @@ type Props = {
   userId: number
   albumName?: string
   onUploaded: () => void
-  trigger: React.ReactNode
+  trigger?: React.ReactNode
+  // controlled open (e.g. opened by a page-level drop)
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  // seed the dialog with files (from a drop) when it opens
+  initialFiles?: File[]
+  // album already has face detection -> always on, don't ask
+  lockFaceDetection?: boolean
 }
 
 const STAGE_LABEL: Record<UploadStage["stage"], string> = {
@@ -50,8 +57,19 @@ function stageDetail(s: UploadStage): string {
   return ""
 }
 
-export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger }: Props) {
-  const [open, setOpen] = useState(false)
+export function UploadAlbumDialog({
+  mode,
+  userId,
+  albumName,
+  onUploaded,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+  initialFiles,
+  lockFaceDetection = false,
+}: Props) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
   const [name, setName] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [faceDetection, setFaceDetection] = useState(false)
@@ -68,6 +86,21 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
     setUploading(false)
   }
 
+  const setOpen = (o: boolean) => {
+    if (uploading) return
+    if (onOpenChange) onOpenChange(o)
+    else setInternalOpen(o)
+    if (!o) reset()
+  }
+
+  // seed dropped files when opened with them — render-time state adjustment
+  // (the sanctioned React pattern), guarded so it runs once per new drop
+  const [seededFor, setSeededFor] = useState<File[] | null>(null)
+  if (open && initialFiles && initialFiles.length && seededFor !== initialFiles) {
+    setSeededFor(initialFiles)
+    setFiles(initialFiles)
+  }
+
   const addFiles = useCallback((incoming: FileList | null) => {
     if (!incoming) return
     const imgs = Array.from(incoming).filter((f) => f.type.startsWith("image/"))
@@ -75,6 +108,7 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
   }, [])
 
   const resolvedName = mode === "new" ? name.trim() : albumName ?? ""
+  const faces = lockFaceDetection || faceDetection
   const canUpload = resolvedName.length > 0 && files.length > 0 && !uploading
 
   const handleUpload = async () => {
@@ -83,7 +117,7 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
     setStage({ stage: "uploading", pct: 0 })
     try {
       await uploadAlbum(
-        { files, albumName: resolvedName, userId, faceDetection },
+        { files, albumName: resolvedName, userId, faceDetection: faces },
         setStage
       )
       toast.success(
@@ -93,7 +127,6 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
       )
       onUploaded()
       setOpen(false)
-      reset()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed")
       setUploading(false)
@@ -102,15 +135,8 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (uploading) return
-        setOpen(o)
-        if (!o) reset()
-      }}
-    >
-      <DialogTrigger render={trigger as React.ReactElement} />
+    <Dialog open={open} onOpenChange={setOpen}>
+      {trigger && <DialogTrigger render={trigger as React.ReactElement} />}
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "new" ? "New album" : `Upload to ${albumName}`}</DialogTitle>
@@ -188,18 +214,25 @@ export function UploadAlbumDialog({ mode, userId, albumName, onUploaded, trigger
             </div>
           )}
 
-          <div className="flex items-center justify-between rounded-lg border border-input p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="face-detection" className="text-sm">Face detection</Label>
-              <p className="text-xs text-muted-foreground">Detect and index faces on upload</p>
+          {lockFaceDetection ? (
+            <div className="flex items-center gap-2 rounded-lg border border-input p-3 text-sm text-muted-foreground">
+              <ScanFace className="size-4" />
+              Face detection is on for this album — new photos are indexed automatically.
             </div>
-            <Switch
-              id="face-detection"
-              checked={faceDetection}
-              onCheckedChange={setFaceDetection}
-              disabled={uploading}
-            />
-          </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border border-input p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="face-detection" className="text-sm">Face detection</Label>
+                <p className="text-xs text-muted-foreground">Detect and index faces on upload</p>
+              </div>
+              <Switch
+                id="face-detection"
+                checked={faceDetection}
+                onCheckedChange={setFaceDetection}
+                disabled={uploading}
+              />
+            </div>
+          )}
 
           {uploading && stage && (
             <div className="space-y-1.5">

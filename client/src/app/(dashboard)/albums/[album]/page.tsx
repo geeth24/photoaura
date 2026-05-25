@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Upload } from "lucide-react"
+import { Trash2, Upload, UploadCloud } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import Link from "next/link"
@@ -37,6 +37,21 @@ export default function AlbumDetailPage({
   const [album, setAlbum] = useState<Album | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([])
+  const [dragDepth, setDragDepth] = useState(0)
+
+  const onPageDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragDepth(0)
+    const imgs = Array.from(e.dataTransfer.files).filter((f) =>
+      f.type.startsWith("image/")
+    )
+    if (imgs.length) {
+      setDroppedFiles(imgs)
+      setUploadOpen(true)
+    }
+  }
 
   const fetchAlbum = useCallback(() => {
     apiFetch<Album>(`/album/${albumSlug}/`)
@@ -109,7 +124,28 @@ export default function AlbumDetailPage({
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className="relative space-y-6"
+      onDragEnter={(e) => {
+        e.preventDefault()
+        if (Array.from(e.dataTransfer.types).includes("Files")) {
+          setDragDepth((d) => d + 1)
+        }
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={(e) => {
+        e.preventDefault()
+        setDragDepth((d) => Math.max(0, d - 1))
+      }}
+      onDrop={onPageDrop}
+    >
+      {dragDepth > 0 && (
+        <div className="pointer-events-none fixed inset-3 z-40 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-primary bg-background/80 text-primary backdrop-blur-sm">
+          <UploadCloud className="size-10" />
+          <p className="text-lg font-medium">Drop photos to add to {album.album_name}</p>
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{album.album_name}</h1>
@@ -128,6 +164,13 @@ export default function AlbumDetailPage({
             mode="existing"
             userId={user.id}
             albumName={album.album_name}
+            open={uploadOpen}
+            onOpenChange={(o) => {
+              setUploadOpen(o)
+              if (!o) setDroppedFiles([])
+            }}
+            initialFiles={droppedFiles}
+            lockFaceDetection={!!album.face_detection}
             onUploaded={fetchAlbum}
             trigger={
               <Button variant="outline" size="sm">
