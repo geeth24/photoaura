@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { motion, AnimatePresence } from "motion/react"
+import { motion, AnimatePresence, MotionConfig } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import cdnImageLoader from "@/lib/cdn-image-loader"
 import type { Album, Photo } from "@/lib/types"
@@ -15,29 +15,37 @@ type Props = {
   onClose: () => void
 }
 
+// direction-aware slide (matches the nextjsconf gallery flow)
+const slide = {
+  enter: (dir: number) => ({ x: dir > 0 ? 480 : -480, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir: number) => ({ x: dir < 0 ? 480 : -480, opacity: 0 }),
+}
+
 // Progressive image: the 720px version is already cached from the album grid,
-// so it paints instantly and the full-res fades in on top once decoded —
-// no blur wait. Keyed by filename upstream, so it remounts (and resets) per photo.
+// so it paints instantly and defines the (aspect-correct) box — the blur shows
+// only inside the image, not fullscreen. The full-res fades in on top once decoded.
 function LightboxImage({ photo }: { photo: Photo }) {
   const [loaded, setLoaded] = useState(false)
   const m = photo.file_metadata
   return (
-    <>
+    <div className="relative flex max-h-[82vh] max-w-[92vw]">
       <Image
         src={photo.compressed_image}
-        alt=""
-        fill
-        sizes="100vw"
-        className="object-contain"
+        alt={m.description || m.filename}
+        width={m.width || 1600}
+        height={m.height || 1067}
+        sizes="92vw"
+        className="max-h-[82vh] w-auto max-w-[92vw] object-contain"
         placeholder={m.blur_data_url ? "blur" : "empty"}
         blurDataURL={m.blur_data_url || undefined}
-        aria-hidden
       />
       <Image
         src={photo.image}
-        alt={m.description || m.filename}
+        alt=""
+        aria-hidden
         fill
-        sizes="100vw"
+        sizes="92vw"
         loading="eager"
         fetchPriority="high"
         onLoad={() => setLoaded(true)}
@@ -45,13 +53,14 @@ function LightboxImage({ photo }: { photo: Photo }) {
           loaded ? "opacity-100" : "opacity-0"
         }`}
       />
-    </>
+    </div>
   )
 }
 
 export function PhotoLightbox({ slug, photo, onClose }: Props) {
   const router = useRouter()
   const [photos, setPhotos] = useState<Photo[] | null>(null)
+  const [direction, setDirection] = useState(0)
   const stripRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -68,12 +77,13 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
   const goto = useCallback(
     (i: number) => {
       if (!photos || i < 0 || i >= photos.length) return
+      setDirection(i > index ? 1 : -1)
       const name = photos[i].file_metadata.filename
       router.replace(`/albums/${slug}/${encodeURIComponent(name)}`, {
         scroll: false,
       })
     },
-    [photos, router, slug]
+    [photos, router, slug, index]
   )
 
   // keyboard nav + body scroll lock
@@ -147,21 +157,29 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
           </button>
         )}
 
-        <AnimatePresence mode="wait">
-          {current && meta && (
-            <motion.div
-              key={meta.filename}
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
-              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-              className="relative flex h-full w-full items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <LightboxImage photo={current} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <MotionConfig
+          transition={{
+            x: { type: "spring", stiffness: 300, damping: 30 },
+            opacity: { duration: 0.2 },
+          }}
+        >
+          <AnimatePresence initial={false} custom={direction} mode="popLayout">
+            {current && meta && (
+              <motion.div
+                key={meta.filename}
+                custom={direction}
+                variants={slide}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                className="flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <LightboxImage photo={current} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </MotionConfig>
 
         {hasNext && (
           <button
