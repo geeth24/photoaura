@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "motion/react"
-import { Trash2 } from "lucide-react"
+import { Trash2, Play } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import type { Photo } from "@/lib/types"
+import { isVideo, type Photo } from "@/lib/types"
 
 type Props = {
   photos: Photo[]
@@ -92,6 +92,33 @@ export function PhotoMasonry({
           {row.map(({ photo, w, h }) => {
             const i = n++
             const m = photo.file_metadata
+            const video = isVideo(photo)
+            const media = video ? (
+              <>
+                <video
+                  src={photo.image}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  className="size-full object-cover"
+                />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <span className="flex size-9 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur">
+                    <Play className="size-4" />
+                  </span>
+                </span>
+              </>
+            ) : (
+              <Image
+                src={photo.compressed_image}
+                alt={m.description || m.filename}
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                placeholder={m.blur_data_url ? "blur" : "empty"}
+                blurDataURL={m.blur_data_url || undefined}
+              />
+            )
             return (
               <motion.div
                 key={m.filename}
@@ -108,37 +135,19 @@ export function PhotoMasonry({
                 {onOpen ? (
                   <button
                     onClick={() => onOpen(i)}
-                    className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
+                    className="relative block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
                   >
-                    <span className="relative block size-full">
-                      <Image
-                        src={photo.compressed_image}
-                        alt={m.description || m.filename}
-                        fill
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
-                        className="object-cover transition-transform duration-700 group-hover:scale-105"
-                        placeholder={m.blur_data_url ? "blur" : "empty"}
-                        blurDataURL={m.blur_data_url || undefined}
-                      />
-                    </span>
+                    {media}
                   </button>
                 ) : (
                   <Link
                     href={`/albums/${albumSlug}/${encodeURIComponent(m.filename)}${
                       selectedFace ? `?face=${selectedFace}` : ""
                     }`}
-                    className="block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
+                    className="relative block size-full cursor-zoom-in overflow-hidden border border-border-subtle bg-surface-elevated"
                     scroll={false}
                   >
-                    <Image
-                      src={photo.compressed_image}
-                      alt={m.description || m.filename}
-                      fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
-                      className="object-cover transition-transform duration-700 group-hover:scale-105"
-                      placeholder={m.blur_data_url ? "blur" : "empty"}
-                      blurDataURL={m.blur_data_url || undefined}
-                    />
+                    {media}
                   </Link>
                 )}
                 {onDelete && (

@@ -103,8 +103,10 @@ export function UploadAlbumDialog({
 
   const addFiles = useCallback((incoming: FileList | null) => {
     if (!incoming) return
-    const imgs = Array.from(incoming).filter((f) => f.type.startsWith("image/"))
-    setFiles((prev) => [...prev, ...imgs])
+    const media = Array.from(incoming).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
+    )
+    setFiles((prev) => [...prev, ...media])
   }, [])
 
   const resolvedName = mode === "new" ? name.trim() : albumName ?? ""
@@ -183,11 +185,11 @@ export function UploadAlbumDialog({
               <span className="font-medium text-foreground">Click to choose</span>
               <span className="text-muted-foreground"> or drag photos here</span>
             </div>
-            <p className="text-xs text-muted-foreground">PNG, JPG, HEIC</p>
+            <p className="text-xs text-muted-foreground">PNG, JPG, HEIC, MP4, MOV</p>
             <input
               ref={inputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               multiple
               className="hidden"
               onChange={(e) => addFiles(e.target.files)}

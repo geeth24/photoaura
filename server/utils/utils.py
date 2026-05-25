@@ -7,8 +7,10 @@ from io import BytesIO
 from config import settings
 from db.base import session_scope
 from db.models import UserAlbumPermission
+from services.aws_service import s3_client
 
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
+AWS_BUCKET = settings.AWS_BUCKET
 
 
 def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
@@ -65,8 +67,18 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
 def create_album_photos_json(album_slug, file_metadata):
     album_photos = []
     for meta in file_metadata:
-        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
-        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
+        if (meta.content_type or "").startswith("video/"):
+            # SIH can't transform video — serve the raw object via a presigned URL
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": AWS_BUCKET, "Key": f"{album_slug}/{meta.filename}"},
+                ExpiresIn=21600,
+            )
+            compressed_image_url = url
+            image_url = url
+        else:
+            compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
+            image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
         album_photos.append(
             {
                 "image": image_url,

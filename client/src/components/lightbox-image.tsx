@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import cdnImageLoader from "@/lib/cdn-image-loader"
-import type { Photo } from "@/lib/types"
+import { isVideo, type Photo } from "@/lib/types"
 
 // direction-aware slide (nextjsconf gallery flow)
 export const slide = {
@@ -19,6 +19,19 @@ export const FULL_WIDTH = 2048
 export function LightboxImage({ photo }: { photo: Photo }) {
   const [loaded, setLoaded] = useState(false)
   const m = photo.file_metadata
+
+  if (isVideo(photo)) {
+    return (
+      <video
+        src={photo.image}
+        controls
+        autoPlay
+        playsInline
+        className="max-h-[82vh] max-w-[92vw] bg-black"
+      />
+    )
+  }
+
   const src = cdnImageLoader({ src: photo.image, width: FULL_WIDTH })
   return (
     <div

@@ -45,11 +45,11 @@ export default function AlbumDetailPage({
   const onPageDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragDepth(0)
-    const imgs = Array.from(e.dataTransfer.files).filter((f) =>
-      f.type.startsWith("image/")
+    const media = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
     )
-    if (imgs.length) {
-      setDroppedFiles(imgs)
+    if (media.length) {
+      setDroppedFiles(media)
       setUploadOpen(true)
     }
   }

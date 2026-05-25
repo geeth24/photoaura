@@ -84,17 +84,19 @@ async def create_upload_files(
     total = len(files)
     # (s3_key, file_metadata_id) for the faces pass
     face_targets = []
-    keys = []
+    keys = []  # image keys to warm (videos aren't transformed/warmed)
 
-    # stage 1: save each file to S3 + record metadata + blur
+    # stage 1: save each file to S3 + (for images) record metadata + blur
     for i, file in enumerate(files):
         content = await file.read()
+        is_video = (file.content_type or "").startswith("video/")
 
         album_dir = os.path.join(settings.DATA_DIR, album_slug)
         if not os.path.exists(album_dir):
             os.makedirs(album_dir)
 
-        with open(os.path.join(album_dir, file.filename), "wb") as f:
+        local_path = os.path.join(album_dir, file.filename)
+        with open(local_path, "wb") as f:
             f.write(content)
 
         s3_filename = f"{album_slug}/{file.filename}"
@@ -104,35 +106,46 @@ async def create_upload_files(
             Body=content,
             ContentType=file.content_type,
         )
-        keys.append(s3_filename)
 
-        file_metadata = get_file_metadata(
-            album.id, os.path.join(album_dir, file.filename), file
-        )
+        if is_video:
+            # videos: store as-is, no image metadata / blur / faces / warming
+            uploaded_file_metadata = FileMetadata(
+                album_id=album.id,
+                filename=file.filename,
+                content_type=file.content_type,
+                size=len(content),
+                width=0,
+                height=0,
+                upload_date=datetime.now(),
+            )
+            session.add(uploaded_file_metadata)
+            session.commit()
+        else:
+            keys.append(s3_filename)
+            file_metadata = get_file_metadata(album.id, local_path, file)
+            uploaded_file_metadata = FileMetadata(
+                album_id=album.id,
+                filename=file.filename,
+                content_type=file.content_type,
+                size=file_metadata["size"],
+                width=file_metadata["width"],
+                height=file_metadata["height"],
+                upload_date=datetime.now(),
+                exif_data=file_metadata["exif_data"],
+                orientation=file_metadata["orientation"],
+            )
+            session.add(uploaded_file_metadata)
+            session.commit()
+            session.refresh(uploaded_file_metadata)
 
-        uploaded_file_metadata = FileMetadata(
-            album_id=album.id,
-            filename=file.filename,
-            content_type=file.content_type,
-            size=file_metadata["size"],
-            width=file_metadata["width"],
-            height=file_metadata["height"],
-            upload_date=datetime.now(),
-            exif_data=file_metadata["exif_data"],
-            orientation=file_metadata["orientation"],
-        )
-        session.add(uploaded_file_metadata)
-        session.commit()
-        session.refresh(uploaded_file_metadata)
+            blur_data_url = generate_blur_data_url(content)
+            uploaded_file_metadata.blur_data_url = blur_data_url
+            session.commit()
 
-        blur_data_url = generate_blur_data_url(content)
-        uploaded_file_metadata.blur_data_url = blur_data_url
-        session.commit()
+            if face_detection:
+                face_targets.append((s3_filename, uploaded_file_metadata.id))
 
-        if face_detection:
-            face_targets.append((s3_filename, uploaded_file_metadata.id))
-
-        os.remove(os.path.join(album_dir, file.filename))
+        os.remove(local_path)
         await _notify("saving", i + 1, total)
 
     # keep image_count exact (= actual stored rows), regardless of new/append
