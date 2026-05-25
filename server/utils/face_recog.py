@@ -15,16 +15,14 @@ def ensure_directory_exists(directory):
         os.makedirs(directory)
 
 
-def is_face_forward(
-    yaw, pitch, width, height, yaw_threshold=30, pitch_threshold=30, ratio_threshold=0.6
-):
-    """Returns True if the face is within yaw, pitch, and bounding box width/height ratio thresholds."""
-    face_ratio = width / height  # Ratio of bounding box width to height
-    return (
-        abs(yaw) <= yaw_threshold
-        and abs(pitch) <= pitch_threshold
-        and face_ratio > ratio_threshold
-    )
+def is_face_forward(yaw, pitch, yaw_threshold=45, pitch_threshold=45):
+    """Skip only steeply turned/tilted faces, which match poorly across photos.
+
+    The old version also checked BoundingBox.Width / BoundingBox.Height, but those
+    are fractions of the *image* dimensions — so on landscape photos the ratio was
+    artificially low and rejected perfectly good faces (e.g. whole group shots).
+    """
+    return abs(yaw) <= yaw_threshold and abs(pitch) <= pitch_threshold
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
@@ -46,10 +44,8 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         for index, face in enumerate(face_details):
             yaw = face["Pose"]["Yaw"]
             pitch = face["Pose"]["Pitch"]
-            width = face["BoundingBox"]["Width"]
-            height = face["BoundingBox"]["Height"]
 
-            if not is_face_forward(yaw, pitch, width, height):
+            if not is_face_forward(yaw, pitch):
                 continue
 
             box = face["BoundingBox"]
