@@ -23,15 +23,13 @@ AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 
-@router.get("/api/album/{user_name}/{album_name}/")
+@router.get("/api/album/{album_slug}/")
 async def get_album(
-    user_name: str,
-    album_name: str,
+    album_slug: str,
     secret: str = None,
     orientation: str = None,
     session: Session = Depends(get_session),
 ):
-    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
     album = session.query(Album).filter_by(slug=album_slug).first()
 
     if album is None:
@@ -139,14 +137,12 @@ async def get_all_photos(
     return all_photos
 
 
-@router.delete("/api/album/delete/{user_name}/{album_name}/")
+@router.delete("/api/album/delete/{album_slug}/")
 async def delete_album(
-    user_name: str, album_name: str, session: Session = Depends(get_session)
+    album_slug: str, session: Session = Depends(get_session)
 ):
-    album_slug = f"{user_name}/{album_name.lower().replace(' ', '-')}"
-
     try:
-        album = session.query(Album).filter_by(name=album_name).first()
+        album = session.query(Album).filter_by(slug=album_slug).first()
         if not album:
             raise HTTPException(status_code=404, detail="Album not found")
         album_id = album.id
@@ -220,46 +216,35 @@ async def update_album(
     action: str = None,
     session: Session = Depends(get_session),
 ):
-    user_name = slug.split("/")[0]
-    new_slug = f"{user_name}/{album_new_name.lower().replace(' ', '-')}"
+    old_slug = slug.lower()
+    new_slug = album_new_name.lower().replace(" ", "-")
 
     try:
-        session.query(Album).filter_by(slug=slug.lower()).update(
+        session.query(Album).filter_by(slug=old_slug).update(
             {
                 "name": album_new_name,
                 "shared": shared,
                 "upload": upload,
-                "location": os.path.join(
-                    settings.DATA_DIR, f"{user_name}/{album_new_name.lower()}"
-                ),
+                "location": os.path.join(settings.DATA_DIR, new_slug),
                 "slug": new_slug,
             }
         )
         session.commit()
 
-        if album_name != album_new_name:
+        if old_slug != new_slug:
             try:
                 objects_to_rename = s3_client.list_objects_v2(
-                    Bucket=AWS_BUCKET,
-                    Prefix=f"{user_name}/{album_name.replace(' ', '-')}",
+                    Bucket=AWS_BUCKET, Prefix=f"{old_slug}/"
                 )
-                rename_keys = [
-                    {"Key": obj["Key"]}
-                    for obj in objects_to_rename.get("Contents", [])
-                ]
-
-                if rename_keys:
-                    for key in rename_keys:
-                        new_key = key["Key"].replace(
-                            album_name.replace(" ", "-"),
-                            album_new_name.replace(" ", "-"),
-                        )
-                        s3_client.copy_object(
-                            Bucket=AWS_BUCKET,
-                            CopySource=f"{AWS_BUCKET}/{key['Key']}",
-                            Key=new_key,
-                        )
-                        s3_client.delete_object(Bucket=AWS_BUCKET, Key=key["Key"])
+                for obj in objects_to_rename.get("Contents", []):
+                    old_key = obj["Key"]
+                    new_key = new_slug + old_key[len(old_slug):]
+                    s3_client.copy_object(
+                        Bucket=AWS_BUCKET,
+                        CopySource=f"{AWS_BUCKET}/{old_key}",
+                        Key=new_key,
+                    )
+                    s3_client.delete_object(Bucket=AWS_BUCKET, Key=old_key)
             except ClientError as e:
                 raise HTTPException(
                     status_code=500, detail=f"Failed to rename album in S3: {e}"

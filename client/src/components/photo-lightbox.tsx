@@ -9,22 +9,21 @@ import type { Album, Photo } from "@/lib/types"
 import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Props = {
-  user: string
-  album: string
+  slug: string
   photo: string // filename
   onClose: () => void
 }
 
-export function PhotoLightbox({ user, album, photo, onClose }: Props) {
+export function PhotoLightbox({ slug, photo, onClose }: Props) {
   const router = useRouter()
   const [photos, setPhotos] = useState<Photo[] | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    apiFetch<Album>(`/album/${user}/${album}/`)
+    apiFetch<Album>(`/album/${slug}/`)
       .then((a) => setPhotos(a.album_photos))
       .catch(() => setPhotos([]))
-  }, [user, album])
+  }, [slug])
 
   const index = photos?.findIndex((p) => p.file_metadata.filename === photo) ?? -1
   const current = index >= 0 ? photos![index] : null
@@ -35,11 +34,11 @@ export function PhotoLightbox({ user, album, photo, onClose }: Props) {
     (i: number) => {
       if (!photos || i < 0 || i >= photos.length) return
       const name = photos[i].file_metadata.filename
-      router.replace(`/albums/${user}/${album}/${encodeURIComponent(name)}`, {
+      router.replace(`/albums/${slug}/${encodeURIComponent(name)}`, {
         scroll: false,
       })
     },
-    [photos, router, user, album]
+    [photos, router, slug]
   )
 
   // keyboard nav + body scroll lock

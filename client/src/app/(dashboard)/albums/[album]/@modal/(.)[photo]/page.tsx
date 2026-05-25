@@ -7,14 +7,13 @@ import { PhotoLightbox } from "@/components/photo-lightbox"
 export default function InterceptedPhotoModal({
   params,
 }: {
-  params: Promise<{ user: string; album: string; photo: string }>
+  params: Promise<{ album: string; photo: string }>
 }) {
-  const { user, album, photo } = use(params)
+  const { album, photo } = use(params)
   const router = useRouter()
   return (
     <PhotoLightbox
-      user={user}
-      album={album}
+      slug={album}
       photo={decodeURIComponent(photo)}
       onClose={() => router.back()}
     />
