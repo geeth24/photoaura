@@ -66,14 +66,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  icons: {
-    icon: [
-      { url: "/logo-color.png", sizes: "any" },
-      { url: "/logo-color.png", type: "image/png" },
-    ],
-    shortcut: "/logo-color.png",
-    apple: "/logo-color.png",
-  },
+  // icons come from src/app/favicon.ico + icon.png + apple-icon.png (Next file conventions)
   manifest: "/manifest.webmanifest",
   openGraph: {
     type: "website",
