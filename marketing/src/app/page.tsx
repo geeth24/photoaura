@@ -1,5 +1,6 @@
 import { Hero } from "@/components/hero"
 import { Features } from "@/components/features"
+import { Ship } from "@/components/ship"
 import { Cta } from "@/components/cta"
 
 export default function Home() {
@@ -7,6 +8,7 @@ export default function Home() {
     <>
       <Hero />
       <Features />
+      <Ship />
       <Cta />
     </>
   )

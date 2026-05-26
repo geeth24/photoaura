@@ -37,3 +37,11 @@ Defined in `src/app/globals.css` (dark default + `.light`). Corners are sharp ev
 - Short, humanized comments only — no "this fixes X" preamble
 - **lucide-react v1.x removed brand icons** — for GitHub etc., use the inline mark in `src/components/icons.tsx` (or add new inline SVGs there)
 - next-themes `attribute="class"` with `defaultTheme="dark"` — dark is the showcase; `.light` overrides cover the light pass
+- **Heading descenders gotcha:** at tight `leading-[0.85]`, "y / g / p" descenders clip under the box. Either use `leading-[0.95]` or add `pb-[0.15em]` to the clipping container.
+
+## SEO infrastructure
+- **Metadata:** all site-wide tags in `src/app/layout.tsx` (title template, description, keywords, openGraph, twitter card, robots, alternates canonical). Override per page with `export const metadata` when adding routes.
+- **Structured data:** `src/components/structured-data.tsx` renders Organization + SoftwareApplication + WebSite JSON-LD; mounted in the root layout.
+- **Convention files** (Next 16 file conventions): `src/app/robots.ts`, `src/app/sitemap.ts`, `src/app/manifest.ts`, `src/app/opengraph-image.tsx` (dynamic 1200×630 via `next/og` ImageResponse).
+- **Adding a new page:** add an entry to `sitemap.ts`, give it `export const metadata`, and use semantic headings (one `<h1>` per page).
+- **Copy target:** photographers / photography studios. Primary CTA is "Talk to us" (mailto to `info@radsoftinc.com`); secondary is GitHub for self-hosting.

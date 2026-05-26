@@ -7,32 +7,32 @@ const features = [
   {
     icon: FolderOpen,
     title: "Editorial galleries",
-    body: "Albums that feel like a portfolio, not a dump folder. Built for photographers who care how their work shows up.",
+    body: "Client-ready albums that read like a portfolio, not a folder dump. Built for studios that care how their work shows up.",
   },
   {
     icon: ScanFace,
     title: "Face recognition",
-    body: "Find everyone in your library — birthdays, weddings, the family album — without sending a single frame off your server.",
-  },
-  {
-    icon: Lock,
-    title: "Self-hosted, end to end",
-    body: "Runs on your hardware. Your photos never touch a third-party cloud unless you tell them to.",
-  },
-  {
-    icon: Cloud,
-    title: "S3 or your own disk",
-    body: "Backed by AWS S3 or anything S3-compatible. Or just point it at a drive — it's flexible by design.",
+    body: "Find everyone in your library — weddings, events, the family album — without sending a single frame to anyone else.",
   },
   {
     icon: Share2,
-    title: "Shareable albums",
-    body: "Per-album sharing links and upload-enabled albums for clients and family — without giving them an account.",
+    title: "Client galleries",
+    body: "Per-album sharing links, upload-enabled albums, and password protection — share with clients without giving them an account.",
+  },
+  {
+    icon: Lock,
+    title: "Your domain, your data",
+    body: "Runs on your hardware or ours. Your client work never lives on a stranger's server unless you decide it does.",
+  },
+  {
+    icon: Cloud,
+    title: "S3 or any disk",
+    body: "Backed by AWS S3, R2, MinIO, or a plain drive. Bring the storage you already pay for.",
   },
   {
     icon: Sparkles,
     title: "AI photo labels",
-    body: "Auto-generated captions and tags make a decade-deep library searchable in seconds.",
+    body: "Auto-generated captions and tags make a decade-deep client archive searchable in seconds.",
   },
 ]
 
@@ -49,7 +49,7 @@ export function Features() {
           <div className="mb-6 flex items-center gap-4">
             <span className="block h-px w-12 bg-brand" />
             <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-              What it does
+              Built for studios
             </span>
           </div>
           <h2 className="font-heading text-[clamp(2.5rem,6vw,4.5rem)] leading-[0.95] tracking-tight text-text-primary">

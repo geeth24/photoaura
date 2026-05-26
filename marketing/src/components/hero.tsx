@@ -22,16 +22,17 @@ export function Hero() {
           <div className="mb-6 flex items-center gap-4">
             <span className="block h-px w-12 bg-brand" />
             <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-              Open Source · Self-Hosted
+              For Photographers · Open Source
             </span>
           </div>
 
-          <h1 className="overflow-hidden">
+          {/* pb leaves room for descenders so "y" and "g" don't clip on tight leading */}
+          <h1 className="overflow-hidden pb-[0.15em]">
             <motion.span
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="block font-heading text-[clamp(3rem,9vw,7rem)] leading-[0.85] tracking-tight text-text-primary"
+              className="block font-heading text-[clamp(3rem,9vw,7rem)] leading-[0.95] tracking-tight text-text-primary"
             >
               Your photos,
             </motion.span>
@@ -39,7 +40,7 @@ export function Hero() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               transition={{ duration: 1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="block font-heading text-[clamp(3rem,9vw,7rem)] leading-[0.85] tracking-tight text-brand"
+              className="block font-heading text-[clamp(3rem,9vw,7rem)] leading-[0.95] tracking-tight text-brand"
             >
               beautifully managed.
             </motion.span>
@@ -51,32 +52,32 @@ export function Hero() {
             transition={{ duration: 0.8, delay: 0.8 }}
             className="mt-8 max-w-xl text-[15px] font-light leading-[1.8] text-text-secondary"
           >
-            A quiet, editorial home for the photos you actually care about.
-            Self-hosted on your hardware. Face recognition, galleries, and shared
-            albums — without the surveillance.
+            An editorial photo home built for working photographers. Client
+            galleries, face recognition, branded shared albums — on your domain,
+            on your terms. Hosted by us, or self-host the source.
           </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 1 }}
-            className="mt-10 flex flex-wrap items-center gap-4"
+            className="mt-10 flex flex-wrap items-center gap-3"
           >
+            <Link
+              href="mailto:info@radsoftinc.com?subject=PhotoAura%20for%20my%20studio"
+              className="group flex h-12 items-center justify-center gap-2 bg-brand px-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_50px_rgba(0,166,251,0.3)]"
+            >
+              Talk to us
+              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+            </Link>
             <Link
               href="https://github.com/geeth24/photoaura"
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex h-12 items-center justify-center gap-2 bg-brand px-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_50px_rgba(0,166,251,0.3)]"
+              className="flex h-12 items-center justify-center gap-2 border border-border-default px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
             >
               <GithubMark className="size-4" />
-              Get Started
-              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-            </Link>
-            <Link
-              href="/#features"
-              className="flex h-12 items-center justify-center px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-text-muted transition-colors hover:text-text-primary"
-            >
-              See features
+              Self-host
             </Link>
           </motion.div>
         </motion.div>
