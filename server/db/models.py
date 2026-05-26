@@ -40,6 +40,23 @@ class MagicLink(Base):
     purpose: Mapped[str] = mapped_column(String(20), server_default="login")
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    # for verify-email links, which user_emails row to mark verified
+    user_email_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user_emails.id"), nullable=True
+    )
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class UserEmail(Base):
+    __tablename__ = "user_emails"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     created_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
     )

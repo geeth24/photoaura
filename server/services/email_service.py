@@ -69,3 +69,10 @@ def send_invite(to_email: str, full_name: str, link: str, album_name: str) -> bo
     if not payload:
         return False
     return _send(to_email, payload["subject"], payload["html"])
+
+
+def send_verify_email(to_email: str, full_name: str, link: str) -> bool:
+    payload = _render("verify-email", {"fullName": full_name, "link": link})
+    if not payload:
+        return False
+    return _send(to_email, payload["subject"], payload["html"])

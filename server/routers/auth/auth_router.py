@@ -15,7 +15,7 @@ import bcrypt
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session
-from db.models import User as UserModel, MagicLink
+from db.models import User as UserModel, MagicLink, UserEmail
 from services.email_service import send_login_link
 from dependencies import oauth2_scheme, verify_token
 
@@ -91,7 +91,12 @@ def _user_json(u) -> dict:
     }
 
 
-def issue_magic_link(session: Session, user, purpose: str = "login") -> str:
+def issue_magic_link(
+    session: Session,
+    user,
+    purpose: str = "login",
+    user_email_id: Optional[int] = None,
+) -> str:
     """Create a single-use magic-link token for a user."""
     token = _secrets.token_urlsafe(32)
     session.add(
@@ -100,6 +105,7 @@ def issue_magic_link(session: Session, user, purpose: str = "login") -> str:
             token=token,
             purpose=purpose,
             expires_at=datetime.now() + timedelta(minutes=MAGIC_TTL_MIN),
+            user_email_id=user_email_id,
         )
     )
     session.flush()
@@ -108,13 +114,21 @@ def issue_magic_link(session: Session, user, purpose: str = "login") -> str:
 
 @router.post("/api/auth/request-link")
 def request_link(body: EmailBody, session: Session = Depends(get_session)):
-    user = (
-        session.query(UserModel).filter_by(user_email=body.email.strip()).first()
+    email = body.email.strip().lower()
+    # any verified user_emails row → that user; fall back to legacy user_email column
+    ue = (
+        session.query(UserEmail)
+        .filter(UserEmail.email == email, UserEmail.verified_at.isnot(None))
+        .first()
     )
+    user = session.get(UserModel, ue.user_id) if ue else None
+    if not user:
+        user = session.query(UserModel).filter_by(user_email=email).first()
     if user:
         token = issue_magic_link(session, user, "login")
         link = f"{CLIENT_URL}/auth/verify?token={token}"
-        send_login_link(user.user_email, user.full_name, link)
+        # send to the email the user typed, not necessarily their primary
+        send_login_link(email, user.full_name, link)
     # don't reveal whether the email has an account
     return {"message": "If that email has access, a login link is on its way."}
 
@@ -128,6 +142,11 @@ def verify_link(body: TokenBody, session: Session = Depends(get_session)):
     user = session.get(UserModel, ml.user_id)
     if not user:
         raise HTTPException(status_code=400, detail="Account not found.")
+    # if this was a verify-email link, also mark the address verified
+    if ml.purpose == "verify-email" and ml.user_email_id:
+        ue = session.get(UserEmail, ml.user_email_id)
+        if ue and ue.user_id == user.id and ue.verified_at is None:
+            ue.verified_at = datetime.now()
     token = create_token(user, minutes=SESSION_MINUTES)
     return {
         "access_token": token["access_token"],

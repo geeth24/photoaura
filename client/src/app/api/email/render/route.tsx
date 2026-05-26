@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { render } from "@react-email/render"
 import LoginLinkEmail, { loginLinkSubject } from "@/emails/login-link"
 import ClientInviteEmail, { clientInviteSubject } from "@/emails/client-invite"
+import VerifyEmail, { verifyEmailSubject } from "@/emails/verify-email"
 
 // templates registered for the backend to render. add new ones here.
 const templates = {
@@ -12,6 +13,10 @@ const templates = {
   "client-invite": {
     component: ClientInviteEmail,
     subject: (p: { albumName: string }) => clientInviteSubject(p.albumName),
+  },
+  "verify-email": {
+    component: VerifyEmail,
+    subject: () => verifyEmailSubject(),
   },
 } as const
 

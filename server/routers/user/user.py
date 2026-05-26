@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from models.user import User, UpdateUserForm
 from db.base import get_session, session_scope
-from db.models import User as UserModel, UserAlbumPermission, Album
+from db.models import User as UserModel, UserAlbumPermission, Album, UserEmail
 from dependencies import oauth2_scheme, get_current_user, require_admin
 from routers.auth.auth_router import (
     create_token,
@@ -12,7 +12,7 @@ from routers.auth.auth_router import (
     verify_password,
     issue_magic_link,
 )
-from services.email_service import send_invite
+from services.email_service import send_invite, send_verify_email
 
 router = APIRouter()
 
@@ -21,6 +21,97 @@ class InviteClientBody(BaseModel):
     full_name: str
     email: str
     album_slug: str
+
+
+class AddEmailBody(BaseModel):
+    email: str
+
+
+def _me(session: Session, current_user) -> UserModel:
+    u = (
+        session.query(UserModel).filter_by(user_name=current_user.user_name).first()
+    )
+    if not u:
+        raise HTTPException(status_code=401, detail="Account not found")
+    return u
+
+
+@router.get("/api/me/emails")
+def list_my_emails(
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    me = _me(session, current_user)
+    rows = (
+        session.query(UserEmail)
+        .filter_by(user_id=me.id)
+        .order_by(UserEmail.is_primary.desc(), UserEmail.id)
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "email": r.email,
+            "verified_at": r.verified_at,
+            "is_primary": r.is_primary,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/api/me/emails")
+def add_my_email(
+    body: AddEmailBody,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    import os
+
+    me = _me(session, current_user)
+    email = body.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Enter a valid email.")
+
+    existing = session.query(UserEmail).filter_by(email=email).first()
+    if existing and existing.user_id != me.id:
+        raise HTTPException(
+            status_code=409, detail="That email is linked to another account."
+        )
+    if existing and existing.verified_at is not None:
+        return {"message": "Already linked and verified."}
+
+    ue = existing or UserEmail(user_id=me.id, email=email, is_primary=False)
+    if not existing:
+        session.add(ue)
+        session.flush()
+
+    token = issue_magic_link(session, me, purpose="verify-email", user_email_id=ue.id)
+    client_url = os.environ.get(
+        "NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com"
+    )
+    link = f"{client_url}/auth/verify?token={token}"
+    sent = send_verify_email(email, me.full_name, link)
+    return {
+        "id": ue.id,
+        "email": ue.email,
+        "message": "Verification email sent" if sent else "Added (email not sent)",
+    }
+
+
+@router.delete("/api/me/emails/{email_id}")
+def delete_my_email(
+    email_id: int,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    me = _me(session, current_user)
+    ue = session.get(UserEmail, email_id)
+    if not ue or ue.user_id != me.id:
+        raise HTTPException(status_code=404, detail="Email not found")
+    if ue.is_primary:
+        raise HTTPException(status_code=400, detail="Can't remove the primary email.")
+    session.delete(ue)
+    return {"message": "Removed"}
 
 
 @router.post("/api/clients/invite")
