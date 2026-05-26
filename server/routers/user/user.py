@@ -104,12 +104,18 @@ def delete_my_email(
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    from db.models import MagicLink
+
     me = _me(session, current_user)
     ue = session.get(UserEmail, email_id)
     if not ue or ue.user_id != me.id:
         raise HTTPException(status_code=404, detail="Email not found")
     if ue.is_primary:
         raise HTTPException(status_code=400, detail="Can't remove the primary email.")
+    # detach any verify-email links pointing at this row before deleting it
+    session.query(MagicLink).filter_by(user_email_id=ue.id).update(
+        {"user_email_id": None}
+    )
     session.delete(ue)
     return {"message": "Removed"}
 
