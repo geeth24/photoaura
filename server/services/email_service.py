@@ -6,6 +6,7 @@ the Resend key stays in the backend.
 """
 
 import os
+from typing import Optional
 
 import requests
 import resend
@@ -18,7 +19,7 @@ RENDER_URL = f"{CLIENT_URL.rstrip('/')}/api/email/render"
 RENDER_SECRET = os.environ.get("EMAIL_RENDER_SECRET", "")
 
 
-def _render(template: str, props: dict) -> dict | None:
+def _render(template: str, props: dict) -> Optional[dict]:
     """Ask the Next render API for {subject, html}. Returns None on failure."""
     if not RENDER_SECRET:
         print("EMAIL_RENDER_SECRET not set — skipping render")
