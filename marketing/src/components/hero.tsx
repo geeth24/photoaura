@@ -93,9 +93,9 @@ export function Hero() {
           <div className="relative overflow-hidden border border-border-default bg-surface-elevated">
             <Image
               src="/web.png"
-              alt="PhotoAura app screenshot"
-              width={2432}
-              height={1442}
+              alt="PhotoAura studio dashboard — overview with albums, photos, faces, and recent collections"
+              width={3214}
+              height={1958}
               className="w-full"
               priority
             />
