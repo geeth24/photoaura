@@ -40,9 +40,9 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: SITE_NAME,
-  authors: [{ name: "Rad Soft, Inc.", url: "https://radsoftinc.com" }],
-  creator: "Rad Soft, Inc.",
-  publisher: "Rad Soft, Inc.",
+  authors: [{ name: "Rad Soft", url: "https://radsoftinc.com" }],
+  creator: "Rad Soft",
+  publisher: "Rad Soft",
   keywords: [
     "photography gallery",
     "photo gallery software",

@@ -1,8 +1,10 @@
 import Image from "next/image"
 import Link from "next/link"
-import { GithubMark } from "@/components/icons"
+import { GithubMark, RadSoftMark } from "@/components/icons"
 
 export function Footer() {
+  const year = new Date().getFullYear()
+
   return (
     <footer className="border-t border-border-subtle bg-surface">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-12 lg:flex-row lg:items-center lg:justify-between lg:px-10">
@@ -37,9 +39,19 @@ export function Footer() {
           </Link>
         </nav>
 
-        <p className="text-[10px] uppercase tracking-[0.25em] text-text-faint">
-          © {new Date().getFullYear()} Rad Soft, Inc.
-        </p>
+        <Link
+          href="https://radsoftinc.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-text-faint transition-colors hover:text-text-primary"
+          aria-label="Built by Rad Soft"
+        >
+          <span>© {year} · Built by</span>
+          <RadSoftMark className="size-3 text-text-muted transition-colors group-hover:text-brand" />
+          <span className="text-text-muted transition-colors group-hover:text-text-primary">
+            Rad Soft
+          </span>
+        </Link>
       </div>
     </footer>
   )

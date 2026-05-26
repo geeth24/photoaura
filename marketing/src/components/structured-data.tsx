@@ -6,7 +6,7 @@ const SITE_URL = "https://photoaura.app"
 const organization = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  name: "Rad Soft, Inc.",
+  name: "Rad Soft",
   url: "https://radsoftinc.com",
   logo: `${SITE_URL}/logo-color.png`,
   sameAs: ["https://github.com/geeth24/photoaura"],
@@ -24,7 +24,7 @@ const software = {
   image: `${SITE_URL}/logo-color.png`,
   publisher: {
     "@type": "Organization",
-    name: "Rad Soft, Inc.",
+    name: "Rad Soft",
     url: "https://radsoftinc.com",
   },
   license: "https://opensource.org/licenses/MIT",

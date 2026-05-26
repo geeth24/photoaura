@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const sections = [
   {
     heading: "Introduction",
-    body: 'Welcome to PhotoAura, an app developed by Rad Soft, Inc. ("we," "our," or "us"). At PhotoAura, we value your privacy and are committed to protecting your personal information. This Privacy Policy outlines our practices regarding the collection, use, and sharing of user data when you use our app. Please read carefully.',
+    body: 'Welcome to PhotoAura, an app developed by Rad Soft ("we," "our," or "us"). At PhotoAura, we value your privacy and are committed to protecting your personal information. This Privacy Policy outlines our practices regarding the collection, use, and sharing of user data when you use our app. Please read carefully.',
   },
   {
     heading: "Information we collect",
@@ -94,7 +94,7 @@ export default function PolicyPage() {
             Privacy Policy or your personal data, reach us at:
           </p>
           <div className="mt-6 space-y-1 text-[14px] font-light text-text-secondary">
-            <p>Rad Soft, Inc.</p>
+            <p>Rad Soft</p>
             <p className="text-text-muted">Coppell, TX 75019</p>
             <p>
               <Link
