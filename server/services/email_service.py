@@ -13,7 +13,7 @@ import resend
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
 
-FROM = os.environ.get("EMAIL_FROM", "Reactive Shots <noreply@inquiry.reactiveshots.com>")
+FROM = os.environ.get("EMAIL_FROM", "Reactive Shots <noreply@mail.reactiveshots.com>")
 CLIENT_URL = os.environ.get("NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com")
 RENDER_URL = f"{CLIENT_URL.rstrip('/')}/api/email/render"
 RENDER_SECRET = os.environ.get("EMAIL_RENDER_SECRET", "")
