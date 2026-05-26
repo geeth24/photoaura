@@ -15,16 +15,14 @@ export function ModeToggle() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            aria-label="Toggle theme"
-            className="flex size-9 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-          />
-        }
-      >
-        <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-        <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Toggle theme"
+          className="relative flex size-9 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+        >
+          <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+          <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
