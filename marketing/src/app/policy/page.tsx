@@ -1,84 +1,112 @@
-import Link from 'next/link';
-import React from 'react';
+import type { Metadata } from "next"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 
-function Page() {
-  return (
-    <div className="relative isolate flex  flex-col items-center justify-center text-primary">
-      <div className="max-w-3xl px-6 pb-20 pt-32">
-        <h1 className="mb-4 text-2xl font-semibold">Privacy Policy for PhotoAura</h1>
-        <p className="mb-4 text-base">Last updated: February 2, 2024</p>
-        <h2 className="mb-2 text-xl font-semibold">Introduction</h2>
-        <p className="mb-4 text-base text-primary/50">
-          Welcome to PhotoAura, an app developed by Rad Soft, Inc. (&quot;we,&quot; &quot;our,&quot;
-          or &quot;us&quot;). At PhotoAura, we value your privacy and are committed to protecting
-          your personal information. This Privacy Policy outlines our practices regarding the
-          collection, use, and sharing of user data when you use our mobile application (the
-          &quot;App&quot;). Please read this Privacy Policy carefully to understand how we handle
-          your information.
-        </p>
-        <h2 className="mb-2 text-xl font-semibold">Information We Collect</h2>
-        <p className="mb-4 text-base">
-          PhotoAura is designed to let users organize, edit, and share your photos from a single
-          place privately and deploys on your own It&apos;s a self-hosted, open-source.
-        </p>
-        <ul className="mb-4 list-inside list-disc">
-          <div>
-            <p>
-              Self-Hosted:{' '}
-              <span className="text-primary/50">
-                As a self-hosted app, PhotoAura does not collect or store any personal information
-                about you. All your photos and data are stored on your
-              </span>
-            </p>
-          </div>
-        </ul>
-        <h2 className="mb-2 text-xl font-semibold">How We Use Your Information</h2>
-        <p className="mb-4 text-base text-primary/50">
-          We do not collect any of information about you. We do not use any of your information.
-        </p>
-        <h2 className="mb-2 text-xl font-semibold">Data Sharing</h2>
-        <p className="mb-4 text-base text-primary/50">
-          We do not sell, trade, or share your personal information with third parties for marketing
-          or advertising purposes.
-        </p>
-        <h2 className="mb-2 text-xl font-semibold">Legal Compliance</h2>
-        <p className="mb-4 text-base text-primary/50">
-          PhotoAura complies with all applicable data protection and privacy laws and regulations in
-          the countries where the App is available. We will cooperate with law enforcement agencies
-          and other governmental organizations when required to do so by law.
-        </p>
-        <h2 className="mb-2 text-xl font-semibold">Security</h2>
-        <p className="mb-4 text-base text-primary/50">
-          We take reasonable measures to protect the information collected through the App. However,
-          no data transmission over the internet is completely secure, and we cannot guarantee the
-          absolute security of your data.
-        </p>
-        <h2 className="mb-2 text-xl font-semibold">Changes to this Privacy Policy</h2>
-        <p className="mb-4 text-base text-primary/50">
-          We may update this Privacy Policy from time to time to reflect changes in our practices or
-          for other operational, legal, or regulatory reasons. We will post the revised Privacy
-          Policy on our website and update the &quot;Last updated&quot; date.
-        </p>
-        <h2 className="mb-2 text-xl font-semibold">Contact Us</h2>
-        <p className="mb-4 text-base text-primary/50">
-          If you have any questions, concerns, or requests regarding this Privacy Policy or your
-          personal data, please feel free to contact us at:
-        </p>
-        <p className="mb-4 text-base ">
-          Rad Soft, Inc.
-          <br />
-          Coppell, TX 75019
-          <br />
-          Email: <Link href="mailto:info@radsoftinc.com">info@radsoftinc.com</Link>
-          <br />
-          Support Email: <Link href="mailto:support@PhotoAura.app">info@radsoftinc.com</Link>
-        </p>
-        <p className="text-base">
-          Thank you for using PhotoAura. Your privacy and trust are important to us.
-        </p>
-      </div>
-    </div>
-  );
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "How PhotoAura handles your data — short version: it doesn't.",
 }
 
-export default Page;
+const sections = [
+  {
+    heading: "Introduction",
+    body: 'Welcome to PhotoAura, an app developed by Rad Soft, Inc. ("we," "our," or "us"). At PhotoAura, we value your privacy and are committed to protecting your personal information. This Privacy Policy outlines our practices regarding the collection, use, and sharing of user data when you use our app. Please read carefully.',
+  },
+  {
+    heading: "Information we collect",
+    body: "PhotoAura is designed to let you organize, edit, and share your photos from a single place — privately, on infrastructure you control. It is self-hosted and open-source. As a self-hosted app, PhotoAura does not collect or store any personal information about you on our servers. All your photos and data stay on yours.",
+  },
+  {
+    heading: "How we use your information",
+    body: "We don't. We don't collect, retain, or process any of your information.",
+  },
+  {
+    heading: "Data sharing",
+    body: "We do not sell, trade, or share your personal information with third parties for marketing or advertising purposes.",
+  },
+  {
+    heading: "Legal compliance",
+    body: "PhotoAura complies with all applicable data-protection and privacy laws in the countries where the app is available. We will cooperate with law-enforcement agencies and other governmental organizations when required to do so by law.",
+  },
+  {
+    heading: "Security",
+    body: "We take reasonable measures to protect the information collected through the app. However, no data transmission over the internet is completely secure, and we cannot guarantee the absolute security of your data.",
+  },
+  {
+    heading: "Changes to this policy",
+    body: 'We may update this Privacy Policy from time to time to reflect changes in our practices or for other operational, legal, or regulatory reasons. We will post the revised policy on our website and update the "Last updated" date.',
+  },
+]
+
+export default function PolicyPage() {
+  return (
+    <article className="mx-auto max-w-3xl px-6 pt-20 pb-24 lg:px-10 lg:pt-28">
+      <Link
+        href="/"
+        className="group inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.25em] text-text-muted transition-colors hover:text-text-primary"
+      >
+        <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
+        Home
+      </Link>
+
+      <div className="mt-10 flex items-center gap-4">
+        <span className="block h-px w-12 bg-brand" />
+        <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
+          Legal
+        </span>
+      </div>
+
+      <h1 className="mt-3 font-heading text-[clamp(2.5rem,6vw,4rem)] leading-[0.95] tracking-tight text-text-primary">
+        Privacy Policy
+      </h1>
+      <p className="mt-3 text-[11px] uppercase tracking-[0.25em] text-text-faint">
+        Last updated · February 2, 2024
+      </p>
+
+      <div className="mt-14 space-y-12">
+        {sections.map((s, i) => (
+          <section key={s.heading}>
+            <div className="mb-3 flex items-center gap-3">
+              <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-brand/70">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <h2 className="font-heading text-2xl leading-tight tracking-tight text-text-primary">
+                {s.heading}
+              </h2>
+            </div>
+            <p className="text-[15px] font-light leading-[1.85] text-text-secondary">
+              {s.body}
+            </p>
+          </section>
+        ))}
+
+        <section className="border-t border-border-subtle pt-10">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-brand/70">
+              {String(sections.length + 1).padStart(2, "0")}
+            </span>
+            <h2 className="font-heading text-2xl leading-tight tracking-tight text-text-primary">
+              Contact us
+            </h2>
+          </div>
+          <p className="text-[15px] font-light leading-[1.85] text-text-secondary">
+            If you have any questions, concerns, or requests regarding this
+            Privacy Policy or your personal data, reach us at:
+          </p>
+          <div className="mt-6 space-y-1 text-[14px] font-light text-text-secondary">
+            <p>Rad Soft, Inc.</p>
+            <p className="text-text-muted">Coppell, TX 75019</p>
+            <p>
+              <Link
+                href="mailto:info@radsoftinc.com"
+                className="text-text-primary transition-colors hover:text-brand"
+              >
+                info@radsoftinc.com
+              </Link>
+            </p>
+          </div>
+        </section>
+      </div>
+    </article>
+  )
+}
