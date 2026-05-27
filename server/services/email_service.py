@@ -6,10 +6,24 @@ the Resend key stays in the backend.
 """
 
 import os
+import socket
 from typing import Optional
 
 import requests
 import resend
+import urllib3.util.connection as urllib3_conn
+
+# k3s pods don't have IPv6 routes; api.resend.com AAAA records win DNS
+# and connections fail with ENETUNREACH. Force IPv4 for all outbound HTTP.
+urllib3_conn.HAS_IPV6 = False
+_original_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_only_getaddrinfo(host, *args, **kwargs):
+    return [r for r in _original_getaddrinfo(host, *args, **kwargs) if r[0] == socket.AF_INET]
+
+
+socket.getaddrinfo = _ipv4_only_getaddrinfo
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
 

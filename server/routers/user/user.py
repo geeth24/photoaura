@@ -41,6 +41,8 @@ def list_my_emails(
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    from datetime import datetime
+
     me = _me(session, current_user)
     rows = (
         session.query(UserEmail)
@@ -48,6 +50,19 @@ def list_my_emails(
         .order_by(UserEmail.is_primary.desc(), UserEmail.id)
         .all()
     )
+    # lazy backfill for clients invited before user_emails existed —
+    # if the user has a legacy `user_email` column but no rows, seed one
+    # as primary + verified (they already signed in successfully, so it is)
+    if not rows and me.user_email:
+        ue = UserEmail(
+            user_id=me.id,
+            email=me.user_email,
+            is_primary=True,
+            verified_at=datetime.now(),
+        )
+        session.add(ue)
+        session.flush()
+        rows = [ue]
     return [
         {
             "id": r.id,
@@ -120,6 +135,62 @@ def delete_my_email(
     return {"message": "Removed"}
 
 
+@router.delete("/api/me")
+def delete_my_account(
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Delete the current user's account — Apple App Store requirement (5.1.1 v).
+
+    What gets wiped:
+      - all `magic_links` for this user (immediate logout, no relogin possible)
+      - all `user_album_permissions` (loses access to galleries shared with them)
+      - all `user_emails` (frees the addresses for re-use elsewhere)
+      - the `users` row is anonymized in-place (FK targets stay valid for audit)
+
+    What stays — albums belong to the studio, not the user:
+      - `album` rows
+      - `file_metadata` (photos)
+      - S3 objects (raw photo files, face crops)
+      - `face_data` / `photo_face_links` (face-detection results)
+      - `categories` / `album_categories`
+
+    Admin (photographer) accounts cannot be deleted from this endpoint — they
+    own the studio's data and need a different offboarding flow.
+    """
+    from db.models import MagicLink
+    import uuid
+
+    me = _me(session, current_user)
+
+    if (me.role or "").lower() == "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin accounts can't be deleted from the app. Contact support."
+        )
+
+    # revoke all auth — outstanding magic links + future logins
+    session.query(MagicLink).filter_by(user_id=me.id).delete()
+    # drop access to galleries shared with this user (albums themselves stay)
+    session.query(UserAlbumPermission).filter_by(user_id=me.id).delete()
+    # remove all linked emails (so the address could be reused later)
+    session.query(UserEmail).filter_by(user_id=me.id).delete()
+
+    # anonymize the user row so foreign-key references (audit, etc.) survive
+    # without leaking personal data
+    tombstone = f"deleted-{uuid.uuid4().hex[:12]}"
+    me.full_name = "Deleted user"
+    me.user_email = f"{tombstone}@deleted.local"
+    me.user_name = tombstone
+    if hasattr(me, "user_password"):
+        me.user_password = None
+    if hasattr(me, "deleted_at"):
+        from datetime import datetime
+        me.deleted_at = datetime.now()
+
+    return {"message": "Account deleted."}
+
+
 @router.post("/api/clients/invite")
 def invite_client(
     body: InviteClientBody,
@@ -129,6 +200,8 @@ def invite_client(
     album = session.query(Album).filter_by(slug=body.album_slug).first()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
+
+    from datetime import datetime as _dt
 
     email = body.email.strip().lower()
     user = session.query(UserModel).filter_by(user_email=email).first()
@@ -140,6 +213,21 @@ def invite_client(
             role="client",
         )
         session.add(user)
+        session.flush()
+
+    # ensure a `user_emails` row exists for this address — invited clients get
+    # one verified+primary row so the profile page (web + iOS) doesn't render
+    # an empty/loading state for them.
+    existing_ue = session.query(UserEmail).filter_by(user_id=user.id).first()
+    if not existing_ue:
+        session.add(
+            UserEmail(
+                user_id=user.id,
+                email=email,
+                is_primary=True,
+                verified_at=_dt.now(),
+            )
+        )
         session.flush()
 
     # grant access to the album (idempotent)
