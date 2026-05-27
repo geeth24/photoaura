@@ -250,6 +250,78 @@ def delete_my_account(
     return {"message": "Account deleted."}
 
 
+class GrantAccessBody(BaseModel):
+    user_id: int
+
+
+@router.get("/api/album/{album_slug}/permissions")
+def list_album_permissions(
+    album_slug: str,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """List users with access to this album (admin only)."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    perms = session.query(UserAlbumPermission).filter_by(album_id=album.id).all()
+    out = []
+    for p in perms:
+        u = session.get(UserModel, p.user_id)
+        if not u:
+            continue
+        out.append({
+            "user_id": u.id,
+            "user_name": u.user_name,
+            "full_name": u.full_name,
+            "user_email": u.user_email,
+            "role": u.role,
+        })
+    return out
+
+
+@router.post("/api/album/{album_slug}/permissions")
+def grant_album_access(
+    album_slug: str,
+    body: GrantAccessBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Grant an existing user access to this album (admin only)."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    user = session.get(UserModel, body.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    existing = (
+        session.query(UserAlbumPermission)
+        .filter_by(user_id=user.id, album_id=album.id)
+        .first()
+    )
+    if not existing:
+        session.add(UserAlbumPermission(user_id=user.id, album_id=album.id))
+        session.flush()
+    return {"message": "Access granted", "user_id": user.id, "album_id": album.id}
+
+
+@router.delete("/api/album/{album_slug}/permissions/{user_id}")
+def revoke_album_access(
+    album_slug: str,
+    user_id: int,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Revoke an existing user's access to this album (admin only)."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    session.query(UserAlbumPermission).filter_by(
+        user_id=user_id, album_id=album.id
+    ).delete()
+    return {"message": "Access revoked"}
+
+
 @router.post("/api/clients/invite")
 def invite_client(
     body: InviteClientBody,
