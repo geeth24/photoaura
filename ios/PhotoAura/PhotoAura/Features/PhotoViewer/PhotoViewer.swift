@@ -46,6 +46,15 @@ struct PhotoViewer: View {
         case failed(String)
     }
 
+    enum ShareState: Equatable {
+        case idle
+        case preparing
+        case failed(String)
+    }
+    @State private var shareState: ShareState = .idle
+    @State private var shareItems: [Any] = []
+    @State private var shareSheetPresented = false
+
     var body: some View {
         ZStack {
             // bg fades with drag — when you pull down, the grid behind becomes
@@ -194,7 +203,7 @@ struct PhotoViewer: View {
                     .font(.system(size: 14, weight: .semibold))
                     .frame(width: 36, height: 36)
             }
-            .glassEffect(.regular.interactive(), in: .circle)
+            .editorialGlass(in: Circle(), interactive: true)
 
             Spacer()
 
@@ -205,7 +214,7 @@ struct PhotoViewer: View {
                 .foregroundStyle(.white.opacity(0.7))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .glassEffect(.regular, in: .capsule)
+                .editorialGlass(in: Capsule())
 
             Spacer()
 
@@ -218,35 +227,47 @@ struct PhotoViewer: View {
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
-            GlassEffectContainer(spacing: 12) {
-                HStack(spacing: 12) {
-                    actionButton(systemImage: saveIcon, label: saveLabel) {
-                        Task { await savePhoto() }
-                    }
-                    .disabled(saveState == .saving || saveState == .saved)
-
-                    ShareLink(item: shareURL ?? URL(string: "about:blank")!) {
-                        actionLabel(systemImage: "square.and.arrow.up", label: "Share")
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                }
+            actionButton(systemImage: saveIcon, label: saveLabel) {
+                Task { await savePhoto() }
             }
+            .disabled(saveState == .saving || saveState == .saved)
+
+            actionButton(systemImage: shareIcon, label: shareLabel) {
+                Task { await prepareShare() }
+            }
+            .disabled(shareState == .preparing)
         }
         .padding(.horizontal, EditorialSpacing.screenGutter)
         .padding(.bottom, EditorialSpacing.medium)
         .foregroundStyle(.white)
+        .sheet(isPresented: $shareSheetPresented) {
+            ActivityShareSheet(items: shareItems)
+        }
+    }
+
+    private var shareIcon: String {
+        switch shareState {
+        case .idle: return "square.and.arrow.up"
+        case .preparing: return "arrow.triangle.2.circlepath"
+        case .failed: return "exclamationmark.triangle"
+        }
+    }
+
+    private var shareLabel: String {
+        switch shareState {
+        case .idle: return "Share"
+        case .preparing: return "Loading"
+        case .failed: return "Failed"
+        }
     }
 
     private func actionButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             actionLabel(systemImage: systemImage, label: label)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .editorialGlass(in: Capsule(), interactive: true)
     }
 
     private func actionLabel(systemImage: String, label: String) -> some View {
@@ -278,8 +299,30 @@ struct PhotoViewer: View {
         }
     }
 
-    private var shareURL: URL? {
-        URL(string: photos[index].image)
+    @MainActor
+    private func prepareShare() async {
+        guard shareState != .preparing else { return }
+        shareState = .preparing
+        let url = ImageURLHelper.originalSize(from: photos[index].image)
+        do {
+            // download original bytes so recipients get the actual high-res
+            // photo (AirDrop, Messages, Save-to-Files all attach the file)
+            // instead of a CDN link they may not be authorized to open.
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = UIImage(data: data) {
+                shareItems = [image]
+            } else {
+                shareItems = [url]
+            }
+            shareState = .idle
+            shareSheetPresented = true
+        } catch {
+            shareItems = [url]
+            shareState = .failed(error.localizedDescription)
+            shareSheetPresented = true
+            try? await Task.sleep(for: .seconds(2))
+            if case .failed = shareState { shareState = .idle }
+        }
     }
 
     @MainActor
@@ -359,6 +402,19 @@ private struct ZoomablePhoto: View {
 }
 
 // MARK: - Photos library helper
+
+// SwiftUI bridge to UIActivityViewController — ShareLink can take an Image
+// but only synchronously. We need to download the original bytes first, so a
+// proper system share sheet with the in-memory UIImage is the cleanest path.
+struct ActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
+}
 
 enum PhotoSaveError: LocalizedError {
     case denied

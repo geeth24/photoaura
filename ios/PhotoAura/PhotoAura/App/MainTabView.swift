@@ -32,7 +32,18 @@ struct MainTabView: View {
                 NavigationStack { ProfileView() }
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .modifier(MinimizeTabBarIfAvailable())
         .tint(EditorialColors.brand)
+    }
+}
+
+// iOS 26 minimize-on-scroll tab bar; no-op on iOS 18–25
+private struct MinimizeTabBarIfAvailable: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            content
+        }
     }
 }

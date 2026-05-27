@@ -32,19 +32,10 @@ struct AlbumView: View {
         }
         .navigationTitle(album.albumName)
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if let shareURL = galleryShareURL {
-                    ShareLink(item: shareURL) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                }
-            }
-        }
-        // present-as-cover keeps the album's nav bar + tab bar in place
-        // underneath the viewer. iOS 26 has a confirmed bug where
-        // .navigationTransition(.zoom) re-renders the parent on interactive
-        // dismiss — cover avoids it entirely.
+        // Note: no gallery-share toolbar item — clients viewing the iOS app
+        // already have access; sharing the URL would just send the recipient
+        // to a sign-in screen for an account that isn't theirs. The photo
+        // viewer's share button (per-photo) is the right share affordance.
         .fullScreenCover(item: $presentedPhoto) { target in
             if let store {
                 PhotoViewer(
@@ -56,9 +47,6 @@ struct AlbumView: View {
         }
     }
 
-    private var galleryShareURL: URL? {
-        URL(string: "https://aura.reactiveshots.com/g/\(album.slug)")
-    }
 }
 
 // presented to the photo viewer cover — index + the cell's photo id

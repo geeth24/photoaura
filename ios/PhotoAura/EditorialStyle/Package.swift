@@ -5,8 +5,8 @@ import PackageDescription
 let package = Package(
     name: "EditorialStyle",
     platforms: [
-        .iOS("26.0"),
-        .macOS("15.0")
+        .iOS(.v18),
+        .macOS(.v15)
     ],
     products: [
         .library(
