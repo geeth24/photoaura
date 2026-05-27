@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -21,7 +23,7 @@ class InviteClientBody(BaseModel):
     full_name: str
     email: str
     album_slug: str
-    user_name: str | None = None
+    user_name: Optional[str] = None
 
 
 class AddEmailBody(BaseModel):
@@ -29,8 +31,8 @@ class AddEmailBody(BaseModel):
 
 
 class UpdateMeBody(BaseModel):
-    user_name: str | None = None
-    full_name: str | None = None
+    user_name: Optional[str] = None
+    full_name: Optional[str] = None
 
 
 # username rules: 3-30 chars, lowercase letters / digits / underscore / dash
