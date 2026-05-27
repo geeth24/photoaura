@@ -13,6 +13,7 @@ import Foundation
 
 struct CurrentUser: Codable, Hashable {
     let id: Int
+    let userName: String?
     let fullName: String
     let userEmail: String
     let role: String?

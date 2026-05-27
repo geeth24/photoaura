@@ -10,6 +10,7 @@ import EditorialStyle
 
 struct LoginView: View {
     @Environment(APIClient.self) private var api
+    @Environment(AuthStore.self) private var auth
     @Environment(StudioRegistry.self) private var studios
     @State private var store: LoginStore?
     @State private var pickerPresented = false
@@ -17,18 +18,19 @@ struct LoginView: View {
     var body: some View {
         Group {
             if let store {
-                LoginContent(store: store, onPickStudio: { pickerPresented = true })
+                LoginContent(
+                    store: store,
+                    onPickStudio: { pickerPresented = true }
+                )
             } else {
                 Color.clear
             }
         }
         .onAppear {
-            if store == nil { store = LoginStore(api: api) }
+            if store == nil { store = LoginStore(api: api, auth: auth) }
         }
-        // re-create the login store if the studio changes so any in-flight
-        // state from the old tenant gets dropped
         .onChange(of: studios.selectedID) { _, _ in
-            store = LoginStore(api: api)
+            store = LoginStore(api: api, auth: auth)
         }
         .sheet(isPresented: $pickerPresented) {
             StudioPickerSheet()
@@ -49,16 +51,20 @@ private struct LoginContent: View {
 
                 VStack(alignment: .leading, spacing: EditorialSpacing.xLarge) {
                     EditorialSectionHeader(
-                        title: store.state.sentTo == nil ? "Sign in" : "Check your inbox",
+                        title: heading,
                         eyebrow: "PhotoAura",
-                        subtitle: store.state.sentTo == nil
-                            ? "Enter the email your photographer sent your gallery to. We'll send a one-tap sign-in link."
-                            : nil
+                        subtitle: subtitle
                     )
 
                     if store.state.sentTo == nil {
                         studioPicker
-                        signInForm
+
+                        switch store.state.mode {
+                        case .magic: magicForm
+                        case .password: passwordForm
+                        }
+
+                        modeToggle
                     } else {
                         sentConfirmation
                     }
@@ -69,6 +75,21 @@ private struct LoginContent: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var heading: String {
+        if store.state.sentTo != nil { return "Check your inbox" }
+        return store.state.mode == .magic ? "Sign in" : "Sign in with password"
+    }
+
+    private var subtitle: String? {
+        guard store.state.sentTo == nil else { return nil }
+        switch store.state.mode {
+        case .magic:
+            return "Enter the email your photographer sent your gallery to. We'll send a one-tap sign-in link."
+        case .password:
+            return "Enter your username and password."
+        }
     }
 
     private var studioPicker: some View {
@@ -100,7 +121,7 @@ private struct LoginContent: View {
         .buttonStyle(.plain)
     }
 
-    private var signInForm: some View {
+    private var magicForm: some View {
         VStack(alignment: .leading, spacing: EditorialSpacing.medium) {
             EditorialTextField(
                 "you@example.com",
@@ -123,6 +144,58 @@ private struct LoginContent: View {
         }
     }
 
+    private var passwordForm: some View {
+        VStack(alignment: .leading, spacing: EditorialSpacing.medium) {
+            EditorialTextField(
+                "username",
+                text: Binding(
+                    get: { store.state.username },
+                    set: { store.send(.usernameChanged($0)) }
+                ),
+                label: "Username"
+            )
+            EditorialTextField(
+                "•••••••",
+                text: Binding(
+                    get: { store.state.password },
+                    set: { store.send(.passwordChanged($0)) }
+                ),
+                label: "Password",
+                kind: .password,
+                footnote: store.state.error,
+                isError: store.state.error != nil
+            )
+            EditorialButton(
+                "Sign in",
+                isLoading: store.state.isSending,
+                isDisabled: store.state.username.isEmpty || store.state.password.isEmpty
+            ) {
+                store.send(.submit)
+            }
+        }
+    }
+
+    private var modeToggle: some View {
+        HStack {
+            Spacer()
+            Button {
+                store.send(.modeChanged(store.state.mode == .magic ? .password : .magic))
+            } label: {
+                Text(store.state.mode == .magic
+                     ? "Sign in with password"
+                     : "Use a magic link instead")
+                    .font(EditorialTypography.sans(size: 11, weight: .medium))
+                    .tracking(1.6)
+                    .textCase(.uppercase)
+                    .foregroundStyle(EditorialColors.textMuted)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            Spacer()
+        }
+        .padding(.top, EditorialSpacing.large)
+    }
+
     private var sentConfirmation: some View {
         EditorialCard {
             VStack(alignment: .leading, spacing: EditorialSpacing.small) {
@@ -142,5 +215,7 @@ private struct LoginContent: View {
 #Preview {
     LoginView()
         .environment(APIClient())
+        .environment(AuthStore(api: APIClient()))
+        .environment(StudioRegistry())
         .preferredColorScheme(.dark)
 }

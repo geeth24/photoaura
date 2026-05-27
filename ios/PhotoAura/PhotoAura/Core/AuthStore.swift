@@ -59,6 +59,14 @@ final class AuthStore {
         status = .signedIn(user)
     }
 
+    // called after a successful profile edit so the avatar + nav reflect the new name
+    func updateCurrentUser(_ user: CurrentUser) {
+        if let data = try? JSONEncoder().encode(user) {
+            defaults.set(data, forKey: userKey)
+        }
+        status = .signedIn(user)
+    }
+
     func signOut() {
         KeychainStore.delete(tokenKey)
         defaults.removeObject(forKey: userKey)

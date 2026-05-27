@@ -75,6 +75,10 @@ final class APIClient {
         let _: Empty = try await send(path: path, query: [:], method: "DELETE", body: Optional<Empty>.none, requiresAuth: requiresAuth)
     }
 
+    func patch<B: Encodable, T: Decodable>(_ path: String, body: B, requiresAuth: Bool = true) async throws -> T {
+        try await send(path: path, query: [:], method: "PATCH", body: body, requiresAuth: requiresAuth)
+    }
+
     private func buildURL(path: String, query: [String: String]) throws -> URL {
         // join base + path manually so existing trailing slashes / segments survive
         let joined = baseURL.absoluteString.trimmingCharacters(in: ["/"]) + "/" + path.trimmingPrefix("/")

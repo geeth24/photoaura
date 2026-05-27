@@ -8,9 +8,13 @@
 import Foundation
 
 enum LoginIntent {
+    case modeChanged(LoginMode)
     case emailChanged(String)
+    case usernameChanged(String)
+    case passwordChanged(String)
     case submit
-    case sendSucceeded
+    case magicLinkSent
+    case passwordSignedIn(AuthResponse)
     case sendFailed(String)
     case dismissError
     case startOver

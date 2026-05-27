@@ -7,9 +7,22 @@
 
 import Foundation
 
+enum LoginMode: Hashable {
+    case magic
+    case password
+}
+
 struct LoginState {
+    var mode: LoginMode = .magic
+
+    // magic-link inputs
     var email: String = ""
-    var isSending: Bool = false
     var sentTo: String? = nil       // when set, show "check your inbox" UI
+
+    // password inputs
+    var username: String = ""
+    var password: String = ""
+
+    var isSending: Bool = false
     var error: String? = nil
 }

@@ -14,6 +14,7 @@ struct ProfileView: View {
     @State private var store: ProfileStore?
     @State private var confirmSignOut = false
     @State private var confirmDelete = false
+    @State private var editingProfile = false
 
     var body: some View {
         Group {
@@ -22,8 +23,12 @@ struct ProfileView: View {
                     user: user,
                     store: store,
                     confirmSignOut: $confirmSignOut,
-                    confirmDelete: $confirmDelete
+                    confirmDelete: $confirmDelete,
+                    editingProfile: $editingProfile
                 )
+                .sheet(isPresented: $editingProfile) {
+                    EditProfileSheet(user: user)
+                }
             } else {
                 Color.clear
             }
@@ -80,6 +85,7 @@ private struct ProfileContent: View {
     let store: ProfileStore
     @Binding var confirmSignOut: Bool
     @Binding var confirmDelete: Bool
+    @Binding var editingProfile: Bool
 
     var body: some View {
         ZStack {
@@ -125,6 +131,21 @@ private struct ProfileContent: View {
             EditorialSectionHeader(title: "About", eyebrow: "App", style: .section)
                 .padding(.bottom, EditorialSpacing.xSmall)
             VStack(spacing: 0) {
+                Button {
+                    editingProfile = true
+                } label: {
+                    EditorialListRow(title: "Edit profile", subtitle: editProfileSubtitle) {
+                        Image(systemName: "person.text.rectangle")
+                            .foregroundStyle(EditorialColors.textMuted)
+                            .frame(width: 36, height: 36)
+                    } trailing: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(EditorialColors.textMuted)
+                    }
+                }
+                .buttonStyle(.plain)
+
                 if let webURL = URL(string: "https://aura.reactiveshots.com/profile") {
                     Link(destination: webURL) {
                         EditorialListRow(title: "Manage account", subtitle: "Add emails, change settings") {
@@ -164,6 +185,11 @@ private struct ProfileContent: View {
                 }
             }
         }
+    }
+
+    private var editProfileSubtitle: String {
+        if let u = user.userName, !u.isEmpty { return "@\(u)" }
+        return "Set a username"
     }
 
     private var appVersion: String {

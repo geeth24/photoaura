@@ -24,9 +24,53 @@ extension APIClient {
         try await post("/auth/verify-link", body: VerifyLinkBody(token: token), requiresAuth: false)
     }
 
+    // POST /api/login — username + password sign-in. Form-encoded
+    // (FastAPI's OAuth2PasswordRequestForm), not JSON. Used as a fallback
+    // for App Store reviewers and for repeat sign-in if a user prefers it
+    // over the email magic-link round-trip.
+    func passwordLogin(username: String, password: String) async throws -> AuthResponse {
+        let url = baseURL.appendingPathComponent("login")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        let body = "username=\(escape(username))&password=\(escape(password))"
+        req.httpBody = body.data(using: .utf8)
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse else {
+            throw APIError.badStatus(0, "Bad response")
+        }
+        guard 200..<300 ~= http.statusCode else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.badStatus(http.statusCode, body)
+        }
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return try d.decode(AuthResponse.self, from: data)
+    }
+
+    private func escape(_ s: String) -> String {
+        s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s
+    }
+
     // POST /api/verify-token  — auth required, returns 200 if token still valid
     func verifyToken() async throws {
         try await postVoid("/verify-token", body: Empty())
+    }
+
+    // PATCH /api/me — self-service username + full name updates
+    struct UpdateMeBody: Encodable {
+        let userName: String?
+        let fullName: String?
+        enum CodingKeys: String, CodingKey {
+            case userName = "user_name"
+            case fullName = "full_name"
+        }
+    }
+    func updateMe(userName: String? = nil, fullName: String? = nil) async throws -> CurrentUser {
+        let body = UpdateMeBody(userName: userName, fullName: fullName)
+        return try await patch("/me", body: body)
     }
 
     // GET /api/albums/?user_id=N  — albums the user has permission to see
