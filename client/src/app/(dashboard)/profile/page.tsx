@@ -16,13 +16,20 @@ type Email = {
 export default function ProfilePage() {
   const { user, logout } = useAuth()
   const [emails, setEmails] = useState<Email[]>([])
+  const [emailsLoaded, setEmailsLoaded] = useState(false)
   const [newEmail, setNewEmail] = useState("")
   const [adding, setAdding] = useState(false)
 
   const fetchEmails = useCallback(() => {
     apiFetch<Email[]>("/me/emails")
-      .then(setEmails)
-      .catch(() => setEmails([]))
+      .then((rows) => {
+        setEmails(rows)
+        setEmailsLoaded(true)
+      })
+      .catch(() => {
+        setEmails([])
+        setEmailsLoaded(true)
+      })
   }, [])
 
   useEffect(() => {
@@ -99,9 +106,13 @@ export default function ProfilePage() {
         </div>
 
         <div className="divide-y divide-border-subtle border border-border-subtle">
-          {emails.length === 0 ? (
+          {!emailsLoaded ? (
             <div className="px-5 py-6 text-sm font-light text-text-muted">
               Loading…
+            </div>
+          ) : emails.length === 0 ? (
+            <div className="px-5 py-6 text-sm font-light text-text-muted">
+              No emails linked yet. Add one below to sign in faster next time.
             </div>
           ) : (
             emails.map((e) => (

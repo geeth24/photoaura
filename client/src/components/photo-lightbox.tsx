@@ -206,7 +206,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
         <div
           ref={stripRef}
           onClick={(e) => e.stopPropagation()}
-          className="shrink-0 overflow-x-auto px-4 pb-4"
+          className="shrink-0 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="mx-auto flex w-fit gap-2">
             {photos.map((p, i) => (
