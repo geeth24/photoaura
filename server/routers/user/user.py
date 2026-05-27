@@ -21,10 +21,31 @@ class InviteClientBody(BaseModel):
     full_name: str
     email: str
     album_slug: str
+    user_name: str | None = None
 
 
 class AddEmailBody(BaseModel):
     email: str
+
+
+class UpdateMeBody(BaseModel):
+    user_name: str | None = None
+    full_name: str | None = None
+
+
+# username rules: 3-30 chars, lowercase letters / digits / underscore / dash
+_USERNAME_PATTERN = r"^[a-z0-9_\-]{3,30}$"
+
+
+def _validate_user_name(value: str) -> str:
+    import re
+    cleaned = value.strip().lower()
+    if not re.match(_USERNAME_PATTERN, cleaned):
+        raise HTTPException(
+            status_code=400,
+            detail="Username must be 3-30 lowercase letters, numbers, underscore, or dash.",
+        )
+    return cleaned
 
 
 def _me(session: Session, current_user) -> UserModel:
@@ -72,6 +93,42 @@ def list_my_emails(
         }
         for r in rows
     ]
+
+
+@router.patch("/api/me")
+def update_me(
+    body: UpdateMeBody,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Self-service update — user can change their own username + full name."""
+    me = _me(session, current_user)
+
+    if body.user_name is not None:
+        new_name = _validate_user_name(body.user_name)
+        if new_name != me.user_name:
+            taken = (
+                session.query(UserModel)
+                .filter(UserModel.user_name == new_name, UserModel.id != me.id)
+                .first()
+            )
+            if taken:
+                raise HTTPException(status_code=409, detail="That username is taken.")
+            me.user_name = new_name
+
+    if body.full_name is not None:
+        trimmed = body.full_name.strip()
+        if trimmed:
+            me.full_name = trimmed
+
+    session.flush()
+    return {
+        "id": me.id,
+        "user_name": me.user_name,
+        "full_name": me.full_name,
+        "user_email": me.user_email,
+        "role": me.role,
+    }
 
 
 @router.post("/api/me/emails")
@@ -204,16 +261,28 @@ def invite_client(
     from datetime import datetime as _dt
 
     email = body.email.strip().lower()
+    # admin can specify a custom username; otherwise default to email
+    if body.user_name:
+        chosen_user_name = _validate_user_name(body.user_name)
+        taken = session.query(UserModel).filter_by(user_name=chosen_user_name).first()
+        if taken and taken.user_email != email:
+            raise HTTPException(status_code=409, detail="That username is taken.")
+    else:
+        chosen_user_name = email
+
     user = session.query(UserModel).filter_by(user_email=email).first()
     if not user:
         user = UserModel(
-            user_name=email,
+            user_name=chosen_user_name,
             full_name=body.full_name.strip(),
             user_email=email,
             role="client",
         )
         session.add(user)
         session.flush()
+    elif body.user_name and user.user_name != chosen_user_name:
+        # admin re-inviting with a different username choice — update it
+        user.user_name = chosen_user_name
 
     # ensure a `user_emails` row exists for this address — invited clients get
     # one verified+primary row so the profile page (web + iOS) doesn't render
