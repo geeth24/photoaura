@@ -81,12 +81,12 @@
 
   --text-primary: #edf6fc;
   --text-secondary: rgba(237, 246, 252, 0.55);
-  --text-muted: rgba(237, 246, 252, 0.35);
-  --text-faint: rgba(237, 246, 252, 0.2);
+  --text-muted: rgba(237, 246, 252, 0.42);
+  --text-faint: rgba(237, 246, 252, 0.24);
 
-  --border-subtle: rgba(237, 246, 252, 0.06);
-  --border-default: rgba(237, 246, 252, 0.1);
-  --border-strong: rgba(237, 246, 252, 0.18);
+  --border-subtle: rgba(237, 246, 252, 0.08);
+  --border-default: rgba(237, 246, 252, 0.14);
+  --border-strong: rgba(237, 246, 252, 0.22);
 
   --background: #030d14;
   --foreground: #edf6fc;
@@ -103,8 +103,8 @@
   --accent: #0a2a3f;
   --accent-foreground: #edf6fc;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: rgba(237, 246, 252, 0.06);
-  --input: rgba(237, 246, 252, 0.1);
+  --border: rgba(237, 246, 252, 0.08);
+  --input: rgba(237, 246, 252, 0.14);
   --ring: #00a6fb;
   --radius: 0rem;
 
@@ -135,13 +135,13 @@
   --surface-hover: #e4ecf2;
 
   --text-primary: #0a1a28;
-  --text-secondary: rgba(10, 26, 40, 0.6);
-  --text-muted: rgba(10, 26, 40, 0.4);
-  --text-faint: rgba(10, 26, 40, 0.15);
+  --text-secondary: rgba(10, 26, 40, 0.68);
+  --text-muted: rgba(10, 26, 40, 0.52);
+  --text-faint: rgba(10, 26, 40, 0.28);
 
-  --border-subtle: rgba(10, 26, 40, 0.06);
-  --border-default: rgba(10, 26, 40, 0.12);
-  --border-strong: rgba(10, 26, 40, 0.2);
+  --border-subtle: rgba(10, 26, 40, 0.10);
+  --border-default: rgba(10, 26, 40, 0.18);
+  --border-strong: rgba(10, 26, 40, 0.28);
 
   --background: #f8fbfd;
   --foreground: #0a1a28;
@@ -158,8 +158,8 @@
   --accent: #e4ecf2;
   --accent-foreground: #0a1a28;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: rgba(10, 26, 40, 0.06);
-  --input: rgba(10, 26, 40, 0.12);
+  --border: rgba(10, 26, 40, 0.10);
+  --input: rgba(10, 26, 40, 0.18);
   --ring: #0088d1;
 
   --chart-1: #0088d1;
