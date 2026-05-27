@@ -4,3 +4,6 @@ __pycache__
 ios/PhotoAura/PhotoAura.xcodeproj/project.xcworkspace/xcuserdata/geeth.xcuserdatad/UserInterfaceState.xcuserstate
 .env.production
 .venv
+# SwiftPM
+ios/PhotoAura/EditorialStyle/.build/
+ios/PhotoAura/EditorialStyle/.swiftpm/
