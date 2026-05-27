@@ -27,6 +27,7 @@ export function InviteClientDialog({ albumSlug, albumName }: Props) {
   const [open, setOpen] = useState(false)
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
+  const [userName, setUserName] = useState("")
   const [sending, setSending] = useState(false)
 
   const handleInvite = async () => {
@@ -39,12 +40,14 @@ export function InviteClientDialog({ albumSlug, albumName }: Props) {
           full_name: fullName.trim(),
           email: email.trim(),
           album_slug: albumSlug,
+          user_name: userName.trim() || undefined,
         }),
       })
       toast.success(res.message || "Invite sent")
       setOpen(false)
       setFullName("")
       setEmail("")
+      setUserName("")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to invite")
     } finally {
@@ -92,6 +95,24 @@ export function InviteClientDialog({ albumSlug, albumName }: Props) {
               placeholder="jane@example.com"
               disabled={sending}
             />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="client-username">
+              Username <span className="text-text-faint">(optional)</span>
+            </Label>
+            <Input
+              id="client-username"
+              value={userName}
+              onChange={(e) =>
+                setUserName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))
+              }
+              placeholder="jane (defaults to email)"
+              disabled={sending}
+              maxLength={30}
+            />
+            <p className="text-[10px] uppercase tracking-[0.2em] text-text-faint">
+              Used at password sign-in. 3–30 chars · letters, numbers, _ or -
+            </p>
           </div>
         </div>
 
