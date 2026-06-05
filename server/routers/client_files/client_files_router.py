@@ -35,9 +35,12 @@ def _me(session: Session, current_user) -> UserModel:
 
 def _file_json(cf: ClientFile, session: Session, with_url: bool = False) -> dict:
     album = session.get(Album, cf.album_id) if cf.album_id else None
+    client = session.get(UserModel, cf.user_id)
     data = {
         "id": cf.id,
         "user_id": cf.user_id,
+        "client_name": client.full_name if client else None,
+        "client_email": client.user_email if client else None,
         "album_id": cf.album_id,
         "album_name": album.name if album else None,
         "filename": cf.filename,
@@ -114,7 +117,7 @@ def list_client_files(
     if album_id is not None:
         q = q.filter_by(album_id=album_id)
     rows = q.order_by(ClientFile.created_at.desc()).all()
-    return [_file_json(cf, session) for cf in rows]
+    return [_file_json(cf, session, with_url=True) for cf in rows]
 
 
 @router.delete("/api/client-files/{file_id}")
