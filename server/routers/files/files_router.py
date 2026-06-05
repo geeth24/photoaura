@@ -27,10 +27,109 @@ from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
 import asyncio
 import io
+import zipfile
+import mimetypes
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
+
+_IMAGE_EXTS = {
+    ".jpg", ".jpeg", ".png", ".heic", ".heif",
+    ".webp", ".gif", ".tif", ".tiff", ".bmp",
+}
+_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
+
+
+class _BytesUpload:
+    """Minimal stand-in for UploadFile so get_file_metadata can read exif
+    from bytes (zip entries aren't UploadFile objects)."""
+
+    def __init__(self, content: bytes):
+        self.file = io.BytesIO(content)
+
+
+def _guess_content_type(filename: str) -> str:
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in _VIDEO_EXTS:
+        return mimetypes.types_map.get(ext, "video/mp4")
+    guessed, _ = mimetypes.guess_type(filename)
+    return guessed or "image/jpeg"
+
+
+def _is_media(filename: str) -> bool:
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in _IMAGE_EXTS or ext in _VIDEO_EXTS
+
+
+def _store_one_file(
+    content: bytes,
+    filename: str,
+    content_type: str,
+    album,
+    session,
+    face_detection: bool,
+    face_targets: list,
+    keys: list,
+):
+    """Save a single file to S3 + record metadata. Shared by the multi-file
+    upload and the zip upload so both run the identical pipeline.
+    Appends to face_targets / keys for the downstream faces + warm passes."""
+    is_video = (content_type or "").startswith("video/")
+
+    album_dir = os.path.join(settings.DATA_DIR, album.slug)
+    os.makedirs(album_dir, exist_ok=True)
+    local_path = os.path.join(album_dir, filename)
+    with open(local_path, "wb") as f:
+        f.write(content)
+
+    s3_filename = f"{album.slug}/{filename}"
+    s3_client.put_object(
+        Bucket=AWS_BUCKET,
+        Key=s3_filename,
+        Body=content,
+        ContentType=content_type,
+    )
+
+    try:
+        if is_video:
+            meta = FileMetadata(
+                album_id=album.id,
+                filename=filename,
+                content_type=content_type,
+                size=len(content),
+                width=0,
+                height=0,
+                upload_date=datetime.now(),
+            )
+            session.add(meta)
+            session.commit()
+        else:
+            keys.append(s3_filename)
+            fm = get_file_metadata(album.id, local_path, _BytesUpload(content))
+            meta = FileMetadata(
+                album_id=album.id,
+                filename=filename,
+                content_type=content_type,
+                size=fm["size"],
+                width=fm["width"],
+                height=fm["height"],
+                upload_date=datetime.now(),
+                exif_data=fm["exif_data"],
+                orientation=fm["orientation"],
+            )
+            session.add(meta)
+            session.commit()
+            session.refresh(meta)
+
+            meta.blur_data_url = generate_blur_data_url(content)
+            session.commit()
+
+            if face_detection:
+                face_targets.append((s3_filename, meta.id))
+    finally:
+        if os.path.exists(local_path):
+            os.remove(local_path)
 
 
 async def _notify(stage: str, current: int = 0, total: int = 0):
@@ -89,63 +188,11 @@ async def create_upload_files(
     # stage 1: save each file to S3 + (for images) record metadata + blur
     for i, file in enumerate(files):
         content = await file.read()
-        is_video = (file.content_type or "").startswith("video/")
-
-        album_dir = os.path.join(settings.DATA_DIR, album_slug)
-        if not os.path.exists(album_dir):
-            os.makedirs(album_dir)
-
-        local_path = os.path.join(album_dir, file.filename)
-        with open(local_path, "wb") as f:
-            f.write(content)
-
-        s3_filename = f"{album_slug}/{file.filename}"
-        s3_client.put_object(
-            Bucket=AWS_BUCKET,
-            Key=s3_filename,
-            Body=content,
-            ContentType=file.content_type,
+        ctype = file.content_type or _guess_content_type(file.filename)
+        _store_one_file(
+            content, file.filename, ctype, album,
+            session, face_detection, face_targets, keys,
         )
-
-        if is_video:
-            # videos: store as-is, no image metadata / blur / faces / warming
-            uploaded_file_metadata = FileMetadata(
-                album_id=album.id,
-                filename=file.filename,
-                content_type=file.content_type,
-                size=len(content),
-                width=0,
-                height=0,
-                upload_date=datetime.now(),
-            )
-            session.add(uploaded_file_metadata)
-            session.commit()
-        else:
-            keys.append(s3_filename)
-            file_metadata = get_file_metadata(album.id, local_path, file)
-            uploaded_file_metadata = FileMetadata(
-                album_id=album.id,
-                filename=file.filename,
-                content_type=file.content_type,
-                size=file_metadata["size"],
-                width=file_metadata["width"],
-                height=file_metadata["height"],
-                upload_date=datetime.now(),
-                exif_data=file_metadata["exif_data"],
-                orientation=file_metadata["orientation"],
-            )
-            session.add(uploaded_file_metadata)
-            session.commit()
-            session.refresh(uploaded_file_metadata)
-
-            blur_data_url = generate_blur_data_url(content)
-            uploaded_file_metadata.blur_data_url = blur_data_url
-            session.commit()
-
-            if face_detection:
-                face_targets.append((s3_filename, uploaded_file_metadata.id))
-
-        os.remove(local_path)
         await _notify("saving", i + 1, total)
 
     # keep image_count exact (= actual stored rows), regardless of new/append
@@ -175,6 +222,104 @@ async def create_upload_files(
     await _notify("done", total, total)
 
     return {"filenames": [file.filename for file in files]}
+
+
+@router.post("/api/upload-zip/")
+async def create_upload_zip(
+    file: UploadFile = File(...),
+    album_name: str = Query(None),
+    user_id: int = None,
+    face_detection: bool = False,
+    current_user=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Bulk-upload an album from a single .zip of original files. Each entry
+    runs through the same pipeline as /api/upload-files/ (S3, metadata, blur,
+    faces, CDN warm)."""
+    if not album_name:
+        raise HTTPException(status_code=400, detail="album_name is required")
+
+    album_slug = album_name.lower().replace(" ", "-")
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        album = Album(
+            name=album_name,
+            slug=album_slug,
+            location=os.path.join(settings.DATA_DIR, album_slug),
+            date=datetime.now(),
+            image_count=0,
+            shared=False,
+            upload=False,
+            secret=str(uuid4()),
+            face_detection=face_detection,
+        )
+        session.add(album)
+        session.commit()
+        session.refresh(album)
+
+    if user_id and album:
+        add_album_to_user(user_id, album.id)
+
+    raw = await file.read()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="That file isn't a valid zip.")
+
+    # skip directories, macOS junk (__MACOSX, ._AppleDouble), and non-media
+    entries = [
+        n for n in zf.namelist()
+        if not n.endswith("/")
+        and "__MACOSX" not in n
+        and not os.path.basename(n).startswith("._")
+        and _is_media(n)
+    ]
+    total = len(entries)
+    if total == 0:
+        raise HTTPException(
+            status_code=400, detail="No photos or videos found in the zip."
+        )
+
+    face_targets = []
+    keys = []
+
+    # stage 1: extract + store each entry
+    for i, name in enumerate(entries):
+        content = zf.read(name)
+        filename = os.path.basename(name)
+        ctype = _guess_content_type(filename)
+        _store_one_file(
+            content, filename, ctype, album,
+            session, face_detection, face_targets, keys,
+        )
+        await _notify("saving", i + 1, total)
+
+    album.image_count = (
+        session.query(FileMetadata).filter_by(album_id=album.id).count()
+    )
+    session.commit()
+
+    # stage 2: faces
+    if face_targets:
+        n = len(face_targets)
+        for i, (s3_key, meta_id) in enumerate(face_targets):
+            await asyncio.to_thread(
+                detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
+            )
+            await _notify("faces", i + 1, n)
+
+    # stage 3: warm CDN derivatives
+    done = 0
+    tasks = [asyncio.create_task(asyncio.to_thread(warm_key, k)) for k in keys]
+    await _notify("warming", 0, total)
+    for task in asyncio.as_completed(tasks):
+        await task
+        done += 1
+        await _notify("warming", done, total)
+
+    await _notify("done", total, total)
+
+    return {"album": album.slug, "count": total}
 
 
 @router.post("/api/label-photos")

@@ -173,6 +173,91 @@ export function uploadAlbum(
   })
 }
 
+export type ZipUploadOptions = {
+  file: File
+  albumName: string
+  userId: number
+  faceDetection?: boolean
+}
+
+/**
+ * Upload an entire album from a single .zip of originals. Same live-progress
+ * flow as uploadAlbum — XHR for the network transfer, websocket for the
+ * server-side saving/faces/warming stages.
+ */
+export function uploadAlbumZip(
+  opts: ZipUploadOptions,
+  onStage?: (s: UploadStage) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const token = getToken()
+    const wsUrl = API_URL.replace(/^http/, "ws") + "/ws/"
+    const ws = new WebSocket(wsUrl)
+    let settled = false
+    let started = false
+
+    const finish = (err?: Error) => {
+      if (settled) return
+      settled = true
+      try {
+        ws.close()
+      } catch {}
+      err ? reject(err) : resolve()
+    }
+
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data)
+        if (d.stage) {
+          onStage?.({ stage: d.stage, current: d.current, total: d.total })
+        }
+      } catch {}
+    }
+
+    const doUpload = () => {
+      if (started) return
+      started = true
+
+      const form = new FormData()
+      form.append("file", opts.file)
+      const params = new URLSearchParams({
+        album_name: opts.albumName,
+        user_id: String(opts.userId),
+        face_detection: String(!!opts.faceDetection),
+      })
+
+      const xhr = new XMLHttpRequest()
+      xhr.open("POST", `${API_URL}/upload-zip/?${params.toString()}`)
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          onStage?.({
+            stage: "uploading",
+            pct: Math.round((ev.loaded / ev.total) * 100),
+          })
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          finish()
+        } else {
+          let msg = "Upload failed"
+          try {
+            msg = JSON.parse(xhr.responseText).detail || msg
+          } catch {}
+          finish(new Error(msg))
+        }
+      }
+      xhr.onerror = () => finish(new Error("Upload failed"))
+      xhr.send(form)
+    }
+
+    ws.onopen = doUpload
+    ws.onerror = () => doUpload()
+  })
+}
+
 export function deletePhoto(slug: string, photoName: string): Promise<unknown> {
   const params = new URLSearchParams({ slug, photo_name: photoName })
   return apiFetch(`/photo/delete/?${params.toString()}`, { method: "DELETE" })
