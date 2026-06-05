@@ -59,6 +59,23 @@ def _me(session: Session, current_user) -> UserModel:
     return u
 
 
+@router.get("/api/me")
+def get_me(
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Fresh current-user record (role included) — lets the web refresh its
+    cached user so role changes propagate without a forced re-login."""
+    me = _me(session, current_user)
+    return {
+        "id": me.id,
+        "user_name": me.user_name,
+        "full_name": me.full_name,
+        "user_email": me.user_email,
+        "role": me.role,
+    }
+
+
 @router.get("/api/me/emails")
 def list_my_emails(
     current_user=Depends(get_current_user),

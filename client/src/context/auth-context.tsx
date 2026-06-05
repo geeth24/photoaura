@@ -59,6 +59,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (decoded.exp * 1000 > Date.now()) {
           setToken(savedToken)
           setUser(JSON.parse(savedUser))
+          // refresh from the server so role/name changes (e.g. promoted to
+          // admin) take effect without forcing a re-login
+          const age = decoded.exp - Math.floor(Date.now() / 1000)
+          fetch(`${API_BASE}/me`, {
+            headers: { Authorization: `Bearer ${savedToken}` },
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((fresh: User | null) => {
+              if (fresh) {
+                setUser(fresh)
+                setCookie("user", JSON.stringify(fresh), age)
+              }
+            })
+            .catch(() => {})
         } else {
           deleteCookie("token")
           deleteCookie("user")

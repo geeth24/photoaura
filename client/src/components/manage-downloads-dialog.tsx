@@ -13,6 +13,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Download, FileArchive, UploadCloud, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -152,23 +159,26 @@ export function ManageDownloadsDialog({ albumId, albumSlug, albumName }: Props) 
               Attach a file
             </p>
 
-            <select
-              value={selectedUser}
-              onChange={(e) =>
-                setSelectedUser(e.target.value ? Number(e.target.value) : "")
-              }
-              disabled={uploading}
-              className="h-10 w-full border border-border-default bg-surface-elevated px-3 text-sm text-text-primary outline-none focus:border-border-strong"
+            <Select
+              value={selectedUser === "" ? "" : String(selectedUser)}
+              onValueChange={(v) => setSelectedUser(v ? Number(v) : "")}
+              disabled={uploading || people.length === 0}
             >
-              <option value="">
-                {people.length ? "Choose a client…" : "No clients on this album"}
-              </option>
-              {people.map((p) => (
-                <option key={personId(p)} value={personId(p)}>
-                  {personLabel(p)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-10 w-full bg-surface-elevated">
+                <SelectValue
+                  placeholder={
+                    people.length ? "Choose a client…" : "No clients on this album"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {people.map((p) => (
+                  <SelectItem key={personId(p)} value={String(personId(p))}>
+                    {personLabel(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <div
               onClick={() => !uploading && inputRef.current?.click()}
