@@ -79,14 +79,22 @@ async def upload_client_file(
     if album_id is not None and not session.get(Album, album_id):
         raise HTTPException(status_code=404, detail="Album not found")
 
-    content = await file.read()
     safe_name = os.path.basename(file.filename or "download")
     s3_key = f"deliverables/{user_id}/{uuid4().hex}-{safe_name}"
-    s3_client.put_object(
-        Bucket=AWS_BUCKET,
-        Key=s3_key,
-        Body=content,
-        ContentType=file.content_type or "application/octet-stream",
+    ctype = file.content_type or "application/octet-stream"
+
+    # measure size without loading the file into memory
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    file.file.seek(0)
+
+    # stream to S3 in multipart chunks (constant memory) instead of reading
+    # the whole zip into RAM — deliverable zips can be multiple GB.
+    s3_client.upload_fileobj(
+        file.file,
+        AWS_BUCKET,
+        s3_key,
+        ExtraArgs={"ContentType": ctype},
     )
 
     cf = ClientFile(
@@ -94,8 +102,8 @@ async def upload_client_file(
         album_id=album_id,
         filename=safe_name,
         s3_key=s3_key,
-        size=len(content),
-        content_type=file.content_type or "application/octet-stream",
+        size=size,
+        content_type=ctype,
     )
     session.add(cf)
     session.commit()
