@@ -12,6 +12,7 @@ import { AlbumFaces } from "@/components/album-faces"
 import { PhotoMasonry } from "@/components/photo-masonry"
 import { InviteClientDialog } from "@/components/invite-client-dialog"
 import { AlbumAccessDialog } from "@/components/album-access-dialog"
+import { ManageDownloadsDialog } from "@/components/manage-downloads-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -219,6 +220,13 @@ export default function AlbumDetailPage({
         <div className="flex flex-wrap gap-3">
           <InviteClientDialog albumSlug={albumSlug} albumName={album.album_name} />
           <AlbumAccessDialog albumSlug={albumSlug} albumName={album.album_name} />
+          {album.album_id != null && (
+            <ManageDownloadsDialog
+              albumId={album.album_id}
+              albumSlug={albumSlug}
+              albumName={album.album_name}
+            />
+          )}
           {user && (
             <UploadAlbumDialog
               mode="existing"

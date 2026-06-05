@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
-import { uploadAlbum, uploadAlbumZip, type UploadStage } from "@/lib/api"
+import { uploadAlbum, type UploadStage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { UploadCloud, ImageIcon, ScanFace, FileArchive } from "lucide-react"
+import { UploadCloud, ImageIcon, ScanFace } from "lucide-react"
 import { toast } from "sonner"
 
 type Props = {
@@ -72,20 +72,15 @@ export function UploadAlbumDialog({
   const open = controlledOpen ?? internalOpen
   const [name, setName] = useState("")
   const [files, setFiles] = useState<File[]>([])
-  const [uploadMode, setUploadMode] = useState<"files" | "zip">("files")
-  const [zipFile, setZipFile] = useState<File | null>(null)
   const [faceDetection, setFaceDetection] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [stage, setStage] = useState<UploadStage | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const zipInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
     setName("")
     setFiles([])
-    setUploadMode("files")
-    setZipFile(null)
     setFaceDetection(false)
     setStage(null)
     setUploading(false)
@@ -116,31 +111,22 @@ export function UploadAlbumDialog({
 
   const resolvedName = mode === "new" ? name.trim() : albumName ?? ""
   const faces = lockFaceDetection || faceDetection
-  const hasPayload = uploadMode === "files" ? files.length > 0 : zipFile !== null
-  const canUpload = resolvedName.length > 0 && hasPayload && !uploading
+  const canUpload = resolvedName.length > 0 && files.length > 0 && !uploading
 
   const handleUpload = async () => {
     if (!canUpload) return
     setUploading(true)
     setStage({ stage: "uploading", pct: 0 })
     try {
-      if (uploadMode === "zip" && zipFile) {
-        await uploadAlbumZip(
-          { file: zipFile, albumName: resolvedName, userId, faceDetection: faces },
-          setStage
-        )
-        toast.success(`Uploaded "${zipFile.name}" to ${resolvedName}`)
-      } else {
-        await uploadAlbum(
-          { files, albumName: resolvedName, userId, faceDetection: faces },
-          setStage
-        )
-        toast.success(
-          mode === "new"
-            ? `Created "${resolvedName}" with ${files.length} photo${files.length === 1 ? "" : "s"}`
-            : `Uploaded ${files.length} photo${files.length === 1 ? "" : "s"}`
-        )
-      }
+      await uploadAlbum(
+        { files, albumName: resolvedName, userId, faceDetection: faces },
+        setStage
+      )
+      toast.success(
+        mode === "new"
+          ? `Created "${resolvedName}" with ${files.length} photo${files.length === 1 ? "" : "s"}`
+          : `Uploaded ${files.length} photo${files.length === 1 ? "" : "s"}`
+      )
       onUploaded()
       setOpen(false)
     } catch (e) {
@@ -177,141 +163,57 @@ export function UploadAlbumDialog({
             </div>
           )}
 
-          {/* files / zip mode toggle */}
-          <div className="flex border border-border-default">
-            {(["files", "zip"] as const).map((m, i) => {
-              const active = uploadMode === m
-              return (
-                <button
-                  key={m}
-                  onClick={() => !uploading && setUploadMode(m)}
-                  disabled={uploading}
-                  className={`h-9 flex-1 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors ${
-                    i > 0 ? "border-l border-border-default" : ""
-                  } ${
-                    active
-                      ? "bg-surface-hover text-brand"
-                      : "text-text-muted hover:text-text-primary"
-                  }`}
-                >
-                  {m === "files" ? "Files" : "Zip"}
-                </button>
-              )
-            })}
+          {/* dropzone */}
+          <div
+            onClick={() => !uploading && inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault()
+              if (!uploading) setDragging(true)
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              if (!uploading) addFiles(e.dataTransfer.files)
+            }}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors ${
+              dragging ? "border-primary bg-primary/5" : "border-input hover:bg-muted/50"
+            } ${uploading ? "pointer-events-none opacity-60" : ""}`}
+          >
+            <UploadCloud className="size-7 text-muted-foreground" />
+            <div className="text-sm">
+              <span className="font-medium text-foreground">Click to choose</span>
+              <span className="text-muted-foreground"> or drag photos here</span>
+            </div>
+            <p className="text-xs text-muted-foreground">PNG, JPG, HEIC, MP4, MOV</p>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              className="hidden"
+              onChange={(e) => addFiles(e.target.files)}
+            />
           </div>
 
-          {uploadMode === "files" ? (
-            <>
-              {/* photo/video dropzone */}
-              <div
-                onClick={() => !uploading && inputRef.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  if (!uploading) setDragging(true)
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setDragging(false)
-                  if (!uploading) addFiles(e.dataTransfer.files)
-                }}
-                className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors ${
-                  dragging ? "border-primary bg-primary/5" : "border-input hover:bg-muted/50"
-                } ${uploading ? "pointer-events-none opacity-60" : ""}`}
-              >
-                <UploadCloud className="size-7 text-muted-foreground" />
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">Click to choose</span>
-                  <span className="text-muted-foreground"> or drag photos here</span>
-                </div>
-                <p className="text-xs text-muted-foreground">PNG, JPG, HEIC, MP4, MOV</p>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => addFiles(e.target.files)}
-                />
-              </div>
-
-              {files.length > 0 && (
-                <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2.5 text-sm">
-                  <span className="flex items-center gap-2">
-                    <ImageIcon className="size-4 text-muted-foreground" />
-                    <span className="font-medium">{files.length}</span>
-                    <span className="text-muted-foreground">
-                      photo{files.length === 1 ? "" : "s"} ready
-                    </span>
-                  </span>
-                  {!uploading && (
-                    <button
-                      onClick={() => setFiles([])}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
+          {files.length > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2.5 text-sm">
+              <span className="flex items-center gap-2">
+                <ImageIcon className="size-4 text-muted-foreground" />
+                <span className="font-medium">{files.length}</span>
+                <span className="text-muted-foreground">
+                  photo{files.length === 1 ? "" : "s"} ready
+                </span>
+              </span>
+              {!uploading && (
+                <button
+                  onClick={() => setFiles([])}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
               )}
-            </>
-          ) : (
-            <>
-              {/* zip dropzone */}
-              <div
-                onClick={() => !uploading && zipInputRef.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  if (!uploading) setDragging(true)
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setDragging(false)
-                  const f = e.dataTransfer.files?.[0]
-                  if (!uploading && f && /\.zip$/i.test(f.name)) setZipFile(f)
-                }}
-                className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors ${
-                  dragging ? "border-primary bg-primary/5" : "border-input hover:bg-muted/50"
-                } ${uploading ? "pointer-events-none opacity-60" : ""}`}
-              >
-                <FileArchive className="size-7 text-muted-foreground" />
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">Click to choose</span>
-                  <span className="text-muted-foreground"> or drag a .zip here</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  A zip of original photos &amp; videos
-                </p>
-                <input
-                  ref={zipInputRef}
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="hidden"
-                  onChange={(e) => setZipFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-
-              {zipFile && (
-                <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2.5 text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <FileArchive className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate font-medium">{zipFile.name}</span>
-                    <span className="shrink-0 text-muted-foreground">
-                      {(zipFile.size / 1024 / 1024).toFixed(1)} MB
-                    </span>
-                  </span>
-                  {!uploading && (
-                    <button
-                      onClick={() => setZipFile(null)}
-                      className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              )}
-            </>
+            </div>
           )}
 
           {lockFaceDetection ? (

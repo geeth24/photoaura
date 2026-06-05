@@ -63,6 +63,7 @@ async def get_album(
             )
 
     return {
+        "album_id": album.id,
         "album_name": album.name,
         "slug": album.slug,
         "image_count": album.image_count,

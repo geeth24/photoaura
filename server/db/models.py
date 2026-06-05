@@ -115,6 +115,27 @@ class UserAlbumPermission(Base):
     album: Mapped[Optional["Album"]] = relationship(back_populates="permissions")
 
 
+class ClientFile(Base):
+    """A downloadable deliverable (e.g. a zip of originals) the photographer
+    attaches to a client. Optionally tied to an album. Stored raw in S3 and
+    served to the client via a presigned download URL."""
+
+    __tablename__ = "client_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    album_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("album.id"), nullable=True
+    )
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    s3_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    size: Mapped[Optional[int]] = mapped_column(Integer)
+    content_type: Mapped[Optional[str]] = mapped_column(String(100))
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
 class Category(Base):
     __tablename__ = "categories"
 
