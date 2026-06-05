@@ -20,8 +20,13 @@ export default function PhotosPage() {
 
   const fetchPhotos = useCallback(() => {
     if (!user) return
-    const params = orientation === "all" ? "" : `&orientation=${orientation}`
-    apiFetch<Photo[]>(`/photos/?user_id=${user.id}${params}`)
+    // admins see all photos in the studio; clients only see theirs
+    const isAdmin = user.role !== "client"
+    const orient = orientation === "all" ? "" : `orientation=${orientation}`
+    const qs = isAdmin
+      ? orient ? `?${orient}` : ""
+      : `?user_id=${user.id}${orient ? `&${orient}` : ""}`
+    apiFetch<Photo[]>(`/photos/${qs}`)
       .then(setPhotos)
       .catch(() => setPhotos([]))
       .finally(() => setLoading(false))

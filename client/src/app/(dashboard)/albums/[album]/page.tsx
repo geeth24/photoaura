@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Upload, ArrowLeft, UploadCloud } from "lucide-react"
+import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -108,6 +108,25 @@ export default function AlbumDetailPage({
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete album")
       setDeleting(false)
+    }
+  }
+
+  const [resyncing, setResyncing] = useState(false)
+  const handleResyncFaces = async () => {
+    if (resyncing) return
+    setResyncing(true)
+    try {
+      const res = await apiFetch<{ message: string; photos: number }>(
+        `/album/${albumSlug}/resync-faces`,
+        { method: "POST" }
+      )
+      toast.success(
+        `Re-detecting faces for ${res.photos} photos — this runs in the background.`
+      )
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't start resync")
+    } finally {
+      setResyncing(false)
     }
   }
 
@@ -227,6 +246,14 @@ export default function AlbumDetailPage({
               albumName={album.album_name}
             />
           )}
+          <button
+            onClick={handleResyncFaces}
+            disabled={resyncing}
+            className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:pointer-events-none disabled:opacity-50"
+          >
+            <ScanFace className="size-3.5" />
+            {resyncing ? "Starting…" : "Resync faces"}
+          </button>
           {user && (
             <UploadAlbumDialog
               mode="existing"

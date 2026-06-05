@@ -18,7 +18,11 @@ export default function AlbumsPage() {
 
   const fetchAlbums = useCallback(() => {
     if (!user) return
-    apiFetch<Album[]>(`/albums/?user_id=${user.id}`)
+    // admins see every album in the studio (shared pool); clients only see
+    // the albums shared with them
+    const isAdmin = user.role !== "client"
+    const path = isAdmin ? "/albums/" : `/albums/?user_id=${user.id}`
+    apiFetch<Album[]>(path)
       .then(setAlbums)
       .catch(() => setAlbums([]))
       .finally(() => setLoading(false))

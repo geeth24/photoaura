@@ -1,14 +1,40 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from config import settings
-from db.base import get_session
+from db.base import get_session, session_scope
 from db.models import FaceData, PhotoFaceLink, FileMetadata, Album
 from utils.utils import create_album_photos_json
-from dependencies import get_current_user
+from utils.face_recog import detect_and_store_faces
+from dependencies import get_current_user, require_admin
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
+
+
+def _resync_album_faces(album_id: int, album_slug: str):
+    """Re-run face detection over every photo in an album. Runs in a
+    background task so the request returns immediately. Clears the album's
+    existing face links first so re-runs don't leave stale data."""
+    with session_scope() as session:
+        session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
+        photos = (
+            session.query(FileMetadata.filename, FileMetadata.id, FileMetadata.content_type)
+            .filter_by(album_id=album_id)
+            .all()
+        )
+
+    done = 0
+    for filename, meta_id, content_type in photos:
+        if (content_type or "").startswith("video/"):
+            continue
+        s3_key = f"{album_slug}/{filename}"
+        try:
+            detect_and_store_faces(s3_key, meta_id, album_id, AWS_BUCKET)
+            done += 1
+        except Exception as e:
+            print(f"resync: face detection failed for {s3_key}: {e}")
+    print(f"resync: album {album_slug!r} done — processed {done}/{len(photos)} photos")
 
 
 @router.get("/api/face")
@@ -77,6 +103,23 @@ async def get_faces(
         }
         for face in faces
     ]
+
+
+@router.post("/api/album/{album_slug}/resync-faces")
+async def resync_album_faces(
+    album_slug: str,
+    background: BackgroundTasks,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Kick off a background re-run of face detection for the whole album.
+    Returns immediately; the work happens off-request (admin only)."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    count = session.query(FileMetadata).filter_by(album_id=album.id).count()
+    background.add_task(_resync_album_faces, album.id, album.slug)
+    return {"message": "Face resync started", "photos": count}
 
 
 @router.get("/api/album/{album_slug}/faces")

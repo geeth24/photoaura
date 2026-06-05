@@ -75,17 +75,21 @@ export function ManageDownloadsDialog({ albumId, albumSlug, albumName }: Props) 
 
   const fetchAll = useCallback(async () => {
     try {
-      const [perms, files] = await Promise.all([
-        apiFetch<Person[]>(`/album/${albumSlug}/permissions`),
+      const [users, files] = await Promise.all([
+        apiFetch<Person[]>("/users/"),
         apiFetch<ClientFile[]>(`/client-files?album_id=${albumId}`),
       ])
-      setPeople(perms)
+      // any client can receive a deliverable, not just album-permission holders
+      const clients = users.filter(
+        (u) => ((u as { role?: string }).role || "").toLowerCase() === "client"
+      )
+      setPeople(clients)
       setFilesByUser(files)
-      if (perms.length === 1) setSelectedUser(personId(perms[0]))
+      if (clients.length === 1) setSelectedUser(personId(clients[0]))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't load")
     }
-  }, [albumSlug, albumId])
+  }, [albumId])
 
   useEffect(() => {
     if (open) fetchAll()
