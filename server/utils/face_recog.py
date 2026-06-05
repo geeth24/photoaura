@@ -110,10 +110,25 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                         },
                         ExternalImageId=f"{photo_id}_{index}",
                     )
-                    face_id = index_response["FaceRecords"][0]["Face"]["FaceId"]
+                    records = index_response.get("FaceRecords", [])
+                    if not records:
+                        # detect_faces flagged a region but index_faces rejected
+                        # the crop (too small / soft / angled). Skip it cleanly
+                        # instead of crashing the whole upload.
+                        print(f"index_faces returned no record for face {index + 1}; skipping")
+                        try:
+                            s3_client.delete_object(Bucket=bucket, Key=temp_face_image_path)
+                        except Exception:
+                            pass
+                        if os.path.exists(temp_face_image_path):
+                            os.remove(temp_face_image_path)
+                        continue
+                    face_id = records[0]["Face"]["FaceId"]
 
             except rekognition.exceptions.InvalidParameterException as e:
                 print(f"Error processing face {index + 1}: {e}")
+                if os.path.exists(temp_face_image_path):
+                    os.remove(temp_face_image_path)
                 continue
 
             # upsert the person, bumping the key-face score only when this crop

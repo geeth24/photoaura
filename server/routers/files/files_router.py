@@ -205,9 +205,14 @@ async def create_upload_files(
     if face_targets:
         n = len(face_targets)
         for i, (s3_key, meta_id) in enumerate(face_targets):
-            await asyncio.to_thread(
-                detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
-            )
+            # one bad photo (no detectable face, odd crop, etc.) must never
+            # 500 the whole upload — log and keep going
+            try:
+                await asyncio.to_thread(
+                    detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
+                )
+            except Exception as e:
+                print(f"face detection failed for {s3_key}: {e}")
             await _notify("faces", i + 1, n)
 
     # stage 3: pre-warm CDN derivatives so the first view isn't a cold SIH render
@@ -303,9 +308,14 @@ async def create_upload_zip(
     if face_targets:
         n = len(face_targets)
         for i, (s3_key, meta_id) in enumerate(face_targets):
-            await asyncio.to_thread(
-                detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
-            )
+            # one bad photo (no detectable face, odd crop, etc.) must never
+            # 500 the whole upload — log and keep going
+            try:
+                await asyncio.to_thread(
+                    detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
+                )
+            except Exception as e:
+                print(f"face detection failed for {s3_key}: {e}")
             await _notify("faces", i + 1, n)
 
     # stage 3: warm CDN derivatives
