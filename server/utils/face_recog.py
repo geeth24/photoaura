@@ -21,11 +21,22 @@ FACE_SERVICE_URL = os.environ.get("FACE_SERVICE_URL", "http://photoaura-faces:80
 MATCH_DIST = float(os.environ.get("FACE_MATCH_DIST", "0.60"))     # sim >= 0.40
 SUGGEST_DIST = float(os.environ.get("FACE_SUGGEST_DIST", "0.75"))  # sim >= 0.25
 
-DET_MIN = float(os.environ.get("FACE_DET_MIN", "0.65"))    # detector confidence floor
-YAW_MAX = float(os.environ.get("FACE_YAW_MAX", "30"))      # |yaw| ceiling (degrees)
-PITCH_MAX = float(os.environ.get("FACE_PITCH_MAX", "22"))  # |pitch| ceiling
-MIN_FACE_PX = int(os.environ.get("FACE_MIN_PX", "80"))     # tiny crops are ambiguous
-SHARP_MIN = float(os.environ.get("FACE_SHARP_MIN", "120"))  # Laplacian-variance blur floor
+# Two gates with different jobs:
+#  - INDEX: lenient. Should we embed + link this face at all? ArcFace is
+#    pose-robust, so a turned/tilted face still matches the right person and
+#    keeps them attached to the photo. Only drop genuine garbage.
+#  - CHIP: strict. Is this crop nice enough to be a person's displayed
+#    thumbnail? Frontal, sharp, big. Also the bar for SPAWNING a new person —
+#    we never mint a new face from a bad crop (that's what made junk tiles).
+INDEX_DET_MIN = float(os.environ.get("FACE_INDEX_DET_MIN", "0.60"))
+INDEX_SHARP_MIN = float(os.environ.get("FACE_INDEX_SHARP_MIN", "18"))  # only true mush
+INDEX_MIN_PX = int(os.environ.get("FACE_INDEX_MIN_PX", "55"))
+
+CHIP_DET_MIN = float(os.environ.get("FACE_DET_MIN", "0.65"))
+CHIP_YAW_MAX = float(os.environ.get("FACE_YAW_MAX", "30"))
+CHIP_PITCH_MAX = float(os.environ.get("FACE_PITCH_MAX", "24"))
+CHIP_MIN_PX = int(os.environ.get("FACE_MIN_PX", "90"))
+CHIP_SHARP_MIN = float(os.environ.get("FACE_SHARP_MIN", "120"))
 
 
 def _embed_image(bucket, key):
@@ -39,23 +50,39 @@ def _embed_image(bucket, key):
     return resp.json()
 
 
-def is_good_face(face):
-    """Gate out weak detections, steeply turned heads, blurry crops, and tiny
-    background faces before they become confusing chips. Returns (ok, reason)."""
-    if (face.get("det_score") or 0) < DET_MIN:
-        return False, "low confidence"
-    if abs(face.get("yaw", 0)) > YAW_MAX:
-        return False, "turned away"
-    if abs(face.get("pitch", 0)) > PITCH_MAX:
-        return False, "looking up/down"
+def _min_px(face):
     x1, y1, x2, y2 = face["bbox"]
-    if min(x2 - x1, y2 - y1) < MIN_FACE_PX:
+    return min(x2 - x1, y2 - y1)
+
+
+def should_index(face):
+    """Lenient: embed + link any real face so the person stays attached to the
+    photo, even at an angle. Drops only genuine garbage. Returns (ok, reason)."""
+    if (face.get("det_score") or 0) < INDEX_DET_MIN:
+        return False, "low confidence"
+    if _min_px(face) < INDEX_MIN_PX:
         return False, "too small"
-    # older service builds don't send sharpness; only gate when present
     sharp = face.get("sharpness")
-    if sharp is not None and sharp < SHARP_MIN:
-        return False, "blurry"
+    if sharp is not None and sharp < INDEX_SHARP_MIN:
+        return False, "garbage blur"
     return True, ""
+
+
+def is_chip_worthy(face):
+    """Strict: a frontal, sharp, sizeable crop — fit to be a person's thumbnail
+    and the only kind allowed to spawn a brand-new person."""
+    if (face.get("det_score") or 0) < CHIP_DET_MIN:
+        return False
+    if abs(face.get("yaw", 0)) > CHIP_YAW_MAX:
+        return False
+    if abs(face.get("pitch", 0)) > CHIP_PITCH_MAX:
+        return False
+    if _min_px(face) < CHIP_MIN_PX:
+        return False
+    sharp = face.get("sharpness")
+    if sharp is not None and sharp < CHIP_SHARP_MIN:
+        return False
+    return True
 
 
 def face_score(face):
@@ -115,41 +142,49 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
 
     with session_scope() as session:
         for index, face in enumerate(faces):
-            ok, reason = is_good_face(face)
+            ok, reason = should_index(face)
             if not ok:
                 print(f"skip face {index + 1} in {file_path}: {reason}")
                 continue
 
             embedding = face["embedding"]
-            face_id = _match_person(session, embedding) or uuid.uuid4().hex
+            match = _match_person(session, embedding)
+            chip_worthy = is_chip_worthy(face)
 
-            # upsert the person, bumping the key-face score only when this crop
-            # is a better shot than the one we already kept
-            score = face_score(face)
-            session.execute(
-                pg_insert(FaceData)
-                .values(external_id=face_id, key_score=score)
-                .on_conflict_do_update(
-                    index_elements=["external_id"],
-                    set_={"key_score": score},
-                    where=(FaceData.key_score.is_(None))
-                    | (FaceData.key_score < score),
-                )
-            )
-            session.flush()
+            # a known person stays attached even in a turned/soft shot, but we
+            # never mint a NEW person from a sub-par crop — that bred junk tiles
+            if match is None and not chip_worthy:
+                print(f"skip face {index + 1} in {file_path}: weak crop, no match")
+                continue
+            face_id = match or uuid.uuid4().hex
 
-            # this crop becomes the key chip if it's the person's best so far
-            fd = session.query(FaceData).filter_by(external_id=face_id).first()
-            if fd and fd.key_score == score:
-                buf = io.BytesIO()
-                _crop(img, face["bbox"]).save(buf, format="JPEG")
-                buf.seek(0)
-                s3_client.upload_fileobj(
-                    buf,
-                    bucket,
-                    f"faces/{face_id}.jpg",
-                    ExtraArgs={"ContentType": "image/jpeg"},
+            # only frontal/sharp crops compete to be the person's key chip;
+            # turned/soft shots still get linked, just never shown as the face
+            if chip_worthy:
+                score = face_score(face)
+                session.execute(
+                    pg_insert(FaceData)
+                    .values(external_id=face_id, key_score=score)
+                    .on_conflict_do_update(
+                        index_elements=["external_id"],
+                        set_={"key_score": score},
+                        where=(FaceData.key_score.is_(None))
+                        | (FaceData.key_score < score),
+                    )
                 )
+                session.flush()
+
+                fd = session.query(FaceData).filter_by(external_id=face_id).first()
+                if fd and fd.key_score == score:
+                    buf = io.BytesIO()
+                    _crop(img, face["bbox"]).save(buf, format="JPEG")
+                    buf.seek(0)
+                    s3_client.upload_fileobj(
+                        buf,
+                        bucket,
+                        f"faces/{face_id}.jpg",
+                        ExtraArgs={"ContentType": "image/jpeg"},
+                    )
 
             session.add(
                 FaceEmbedding(
