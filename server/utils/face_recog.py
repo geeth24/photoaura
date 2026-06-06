@@ -25,6 +25,38 @@ def is_face_forward(yaw, pitch, yaw_threshold=45, pitch_threshold=45):
     return abs(yaw) <= yaw_threshold and abs(pitch) <= pitch_threshold
 
 
+def is_good_face(face, img_w, img_h):
+    """Gate out crops that make poor, confusing face chips — sunglasses, eyes
+    shut / looking down, blurry, tiny background heads, or steeply turned.
+    Returns (ok, reason). Real people still get grouped from their good shots;
+    we just don't index the bad frames."""
+    if (face.get("Confidence") or 0) < 90:
+        return False, "low confidence"
+
+    pose = face["Pose"]
+    if not is_face_forward(pose["Yaw"], pose["Pitch"]):
+        return False, "turned away"
+
+    q = face.get("Quality", {})
+    if (q.get("Sharpness") or 0) < 12:
+        return False, "blurry"
+
+    sg = face.get("Sunglasses", {})
+    if sg.get("Value") and (sg.get("Confidence") or 0) > 90:
+        return False, "sunglasses"
+
+    eyes = face.get("EyesOpen", {})
+    if eyes.get("Value") is False and (eyes.get("Confidence") or 0) > 90:
+        return False, "eyes closed / looking down"
+
+    box = face["BoundingBox"]
+    face_px = min(box["Height"] * img_h, box["Width"] * img_w)
+    if face_px < 60:  # crop too small to be a useful key face
+        return False, "too small"
+
+    return True, ""
+
+
 def face_score(face):
     """Higher = better key photo. Facing the camera dominates; eyes open, decent
     size, and sharpness break ties. Size is capped so a big looking-away close-up
@@ -60,10 +92,9 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         ensure_directory_exists(temp_dir)
 
         for index, face in enumerate(face_details):
-            yaw = face["Pose"]["Yaw"]
-            pitch = face["Pose"]["Pitch"]
-
-            if not is_face_forward(yaw, pitch):
+            ok, reason = is_good_face(face, img.width, img.height)
+            if not ok:
+                print(f"skip face {index + 1} in {file_path}: {reason}")
                 continue
 
             box = face["BoundingBox"]
@@ -109,6 +140,9 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                             "S3Object": {"Bucket": bucket, "Name": temp_face_image_path}
                         },
                         ExternalImageId=f"{photo_id}_{index}",
+                        # let Rekognition drop low-quality crops too (belt + braces
+                        # with our is_good_face gate)
+                        QualityFilter="HIGH",
                     )
                     records = index_response.get("FaceRecords", [])
                     if not records:
