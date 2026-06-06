@@ -36,7 +36,7 @@ def capture_time(meta):
                 return datetime.strptime(str(dt), "%Y:%m:%d %H:%M:%S")
             except Exception:
                 pass
-    return meta.upload_date or datetime.min
+    return get("upload_date") or datetime.min
 
 
 def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
