@@ -21,9 +21,11 @@ FACE_SERVICE_URL = os.environ.get("FACE_SERVICE_URL", "http://photoaura-faces:80
 MATCH_DIST = float(os.environ.get("FACE_MATCH_DIST", "0.60"))     # sim >= 0.40
 SUGGEST_DIST = float(os.environ.get("FACE_SUGGEST_DIST", "0.75"))  # sim >= 0.25
 
-DET_MIN = 0.62          # detector confidence floor
-POSE_MAX = 45           # |yaw|/|pitch| ceiling (degrees)
-MIN_FACE_PX = 60        # smaller crops make poor, ambiguous key chips
+DET_MIN = float(os.environ.get("FACE_DET_MIN", "0.65"))    # detector confidence floor
+YAW_MAX = float(os.environ.get("FACE_YAW_MAX", "30"))      # |yaw| ceiling (degrees)
+PITCH_MAX = float(os.environ.get("FACE_PITCH_MAX", "22"))  # |pitch| ceiling
+MIN_FACE_PX = int(os.environ.get("FACE_MIN_PX", "80"))     # tiny crops are ambiguous
+SHARP_MIN = float(os.environ.get("FACE_SHARP_MIN", "80"))  # Laplacian-variance blur floor
 
 
 def _embed_image(bucket, key):
@@ -38,15 +40,21 @@ def _embed_image(bucket, key):
 
 
 def is_good_face(face):
-    """Gate out weak detections, steeply turned heads, and tiny background faces
-    before they become confusing key chips. Returns (ok, reason)."""
+    """Gate out weak detections, steeply turned heads, blurry crops, and tiny
+    background faces before they become confusing chips. Returns (ok, reason)."""
     if (face.get("det_score") or 0) < DET_MIN:
         return False, "low confidence"
-    if abs(face.get("yaw", 0)) > POSE_MAX or abs(face.get("pitch", 0)) > POSE_MAX:
+    if abs(face.get("yaw", 0)) > YAW_MAX:
         return False, "turned away"
+    if abs(face.get("pitch", 0)) > PITCH_MAX:
+        return False, "looking up/down"
     x1, y1, x2, y2 = face["bbox"]
     if min(x2 - x1, y2 - y1) < MIN_FACE_PX:
         return False, "too small"
+    # older service builds don't send sharpness; only gate when present
+    sharp = face.get("sharpness")
+    if sharp is not None and sharp < SHARP_MIN:
+        return False, "blurry"
     return True, ""
 
 
@@ -63,7 +71,8 @@ def face_score(face):
     )
     frontal = max(0.0, 1.0 - yaw / 40 - pitch / 25 - roll / 60)
     size = min(area, 60000) / 60000
-    return frontal * 100 + size * 25 + (face.get("det_score") or 0) * 15
+    sharp = min(face.get("sharpness") or 0, 400) / 400
+    return frontal * 100 + size * 25 + sharp * 20 + (face.get("det_score") or 0) * 15
 
 
 def _match_person(session, embedding):
@@ -154,6 +163,7 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                         "yaw": face.get("yaw"),
                         "pitch": face.get("pitch"),
                         "roll": face.get("roll"),
+                        "sharpness": face.get("sharpness"),
                     },
                 )
             )

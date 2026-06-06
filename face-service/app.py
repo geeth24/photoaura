@@ -10,6 +10,7 @@ import io
 import os
 
 import boto3
+import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from PIL import Image
@@ -37,6 +38,21 @@ _s3 = boto3.client(
 class EmbedRequest(BaseModel):
     bucket: str
     key: str
+
+
+def _sharpness(arr, bbox):
+    """Variance of the Laplacian on a fixed-size crop — a resolution-independent
+    blur score. Sharp faces land in the hundreds/thousands, blurry ones < ~80."""
+    x1, y1, x2, y2 = bbox
+    h, w = arr.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+    if x2 <= x1 or y2 <= y1:
+        return 0.0
+    crop = arr[y1:y2, x1:x2]
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, (160, 160), interpolation=cv2.INTER_AREA)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 
 @app.get("/health")
@@ -68,6 +84,7 @@ def embed(req: EmbedRequest):
         out.append({
             "bbox": [x1, y1, x2, y2],
             "det_score": float(f.det_score),
+            "sharpness": _sharpness(arr, [x1, y1, x2, y2]),
             # already L2-normalized -> cosine == dot product
             "embedding": f.normed_embedding.astype(float).tolist(),
             "yaw": float(pose[1]) if pose is not None else 0.0,
