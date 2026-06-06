@@ -25,7 +25,7 @@ DET_MIN = float(os.environ.get("FACE_DET_MIN", "0.65"))    # detector confidence
 YAW_MAX = float(os.environ.get("FACE_YAW_MAX", "30"))      # |yaw| ceiling (degrees)
 PITCH_MAX = float(os.environ.get("FACE_PITCH_MAX", "22"))  # |pitch| ceiling
 MIN_FACE_PX = int(os.environ.get("FACE_MIN_PX", "80"))     # tiny crops are ambiguous
-SHARP_MIN = float(os.environ.get("FACE_SHARP_MIN", "80"))  # Laplacian-variance blur floor
+SHARP_MIN = float(os.environ.get("FACE_SHARP_MIN", "120"))  # Laplacian-variance blur floor
 
 
 def _embed_image(bucket, key):
