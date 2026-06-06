@@ -15,33 +15,13 @@ from db.models import (
     FaceEmbedding,
     User,
 )
-from services.aws_service import s3_client, cloudfront_client
+from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import create_album_photos_json, add_album_to_user, capture_time
 from dependencies import require_admin, get_current_user
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
-
-
-def invalidate_cdn(paths=("/*",)):
-    """Best-effort CloudFront cache purge so stale/deleted images don't linger.
-    No-op if no distribution is configured; never raises into the caller."""
-    dist = settings.AWS_CLOUDFRONT_DISTRIBUTION_ID
-    if not dist:
-        return
-    try:
-        import time
-
-        cloudfront_client.create_invalidation(
-            DistributionId=dist,
-            InvalidationBatch={
-                "Paths": {"Quantity": len(paths), "Items": list(paths)},
-                "CallerReference": f"photoaura-{int(time.time() * 1000)}",
-            },
-        )
-    except Exception as e:
-        logging.error(f"CDN invalidation failed: {e}")
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 

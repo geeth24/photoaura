@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
 from db.models import Album, FileMetadata, User
-from services.aws_service import s3_client
+from services.aws_service import s3_client, invalidate_cdn
 from utils.face_recog import detect_and_store_faces, recluster_faces
 from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
@@ -231,6 +231,11 @@ async def create_upload_files(
         await task
         done += 1
         await _notify("warming", done, total)
+
+    # re-uploading into an existing album can overwrite photos at the same key;
+    # purge the CDN so it stops serving the old cached image
+    if update:
+        await asyncio.to_thread(invalidate_cdn)
 
     await _notify("done", total, total)
 
