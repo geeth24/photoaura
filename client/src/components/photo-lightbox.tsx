@@ -86,7 +86,8 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
   // keyboard nav + body scroll lock
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      // Escape closes the info panel first, then the lightbox
+      if (e.key === "Escape") showInfo ? setShowInfo(false) : onClose()
       else if (e.key === "ArrowLeft" && hasPrev) goto(index - 1)
       else if (e.key === "ArrowRight" && hasNext) goto(index + 1)
     }
@@ -97,7 +98,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
       document.removeEventListener("keydown", onKey)
       document.body.style.overflow = prev
     }
-  }, [onClose, goto, index, hasPrev, hasNext])
+  }, [onClose, goto, index, hasPrev, hasNext, showInfo])
 
   // keep the active thumbnail in view
   useEffect(() => {

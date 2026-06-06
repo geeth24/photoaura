@@ -121,7 +121,7 @@ export function PhotoMasonry({
             )
             return (
               <motion.div
-                key={m.filename}
+                key={`${m.album_id}-${m.filename}-${i}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{

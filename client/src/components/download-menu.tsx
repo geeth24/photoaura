@@ -8,7 +8,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 
 const hint = "text-[10px] uppercase tracking-[0.15em] text-text-faint"
@@ -32,7 +31,7 @@ export function DownloadMenu({ photo, slug }: { photo: Photo; slug?: string }) {
         }
       />
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuLabel className={hint}>Download</DropdownMenuLabel>
+        <span className={`block px-2 py-1.5 ${hint}`}>Download</span>
         <DropdownMenuItem onClick={() => downloadOriginal(photo, slug)}>
           <span className="flex-1">Original</span>
           <span className={hint}>{dims}</span>

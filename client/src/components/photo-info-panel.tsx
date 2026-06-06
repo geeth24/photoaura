@@ -1,12 +1,7 @@
 "use client"
 
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+import { AnimatePresence, motion } from "motion/react"
+import { X } from "lucide-react"
 import type { Photo } from "@/lib/types"
 
 function formatBytes(n?: number) {
@@ -102,6 +97,9 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
+// in-lightbox drawer — deliberately NOT a Dialog, so it can't fight the
+// lightbox's own keyboard/close handling (focus trap + Escape were exiting
+// the viewer / jumping photos)
 export function PhotoInfoPanel({ photo, open, onOpenChange }: Props) {
   const m = photo.file_metadata
   const exif = readExif(m.exif_data)
@@ -113,38 +111,63 @@ export function PhotoInfoPanel({ photo, open, onOpenChange }: Props) {
   ].filter(Boolean) as { label: string; value: string }[]
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-heading text-lg leading-tight tracking-tight text-text-primary break-all">
-            {m.filename}
-          </SheetTitle>
-          <SheetDescription className="text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted">
-            Photo info
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="border-t border-border-subtle px-4 py-2">
-          <div className="divide-y divide-border-subtle">
-            {details.map((r) => (
-              <Row key={r.label} {...r} />
-            ))}
+    <AnimatePresence>
+      {open && (
+        <motion.aside
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", stiffness: 320, damping: 34 }}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-0 top-0 z-30 flex h-full w-80 max-w-[85vw] flex-col overflow-y-auto border-l border-border-subtle bg-surface"
+        >
+          <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="block h-px w-8 bg-brand" />
+              <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
+                Info
+              </span>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenChange(false)
+              }}
+              aria-label="Close info"
+              className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
+            >
+              <X className="size-4" />
+            </button>
           </div>
-        </div>
 
-        {exif.length > 0 && (
-          <div className="border-t border-border-subtle px-4 py-3">
-            <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.25em] text-text-faint">
-              Camera
-            </span>
+          <div className="px-5 py-5">
+            <h2 className="font-heading text-lg leading-tight tracking-tight text-text-primary break-all">
+              {m.filename}
+            </h2>
+          </div>
+
+          <div className="border-t border-border-subtle px-5 py-2">
             <div className="divide-y divide-border-subtle">
-              {exif.map((r) => (
+              {details.map((r) => (
                 <Row key={r.label} {...r} />
               ))}
             </div>
           </div>
-        )}
-      </SheetContent>
-    </Sheet>
+
+          {exif.length > 0 && (
+            <div className="border-t border-border-subtle px-5 py-3">
+              <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.25em] text-text-faint">
+                Camera
+              </span>
+              <div className="divide-y divide-border-subtle">
+                {exif.map((r) => (
+                  <Row key={r.label} {...r} />
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.aside>
+      )}
+    </AnimatePresence>
   )
 }
