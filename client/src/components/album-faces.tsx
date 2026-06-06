@@ -27,7 +27,7 @@ export function AlbumFaces({ faces, selected, onSelect }: Props) {
         </span>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* clear / all */}
         <button
           onClick={() => onSelect(null)}
