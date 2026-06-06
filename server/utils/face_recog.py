@@ -3,6 +3,7 @@ import os
 import random
 import uuid
 
+import numpy as np
 import requests
 from PIL import Image
 from sqlalchemy import text
@@ -32,6 +33,13 @@ SUGGEST_DIST = float(os.environ.get("FACE_SUGGEST_DIST", "0.60"))  # review band
 # ~0.45-0.48; our distribution puts the valley at ~0.44.
 CLUSTER_DIST = float(os.environ.get("FACE_CLUSTER_DIST", "0.45"))
 CLUSTER_KNN = int(os.environ.get("FACE_CLUSTER_KNN", "20"))
+
+# Stage 2: merge clusters whose AVERAGED identity vectors nearly coincide. ArcFace
+# embeds the same person's frontal vs profile shots far apart, so one person can
+# split into pose sub-clusters; but their centroids land close (<=0.26 measured),
+# while different people's centroids stay >=0.57 apart. 0.40 is the safe gap —
+# reunites pose-split people without merging distinct ones.
+CENTROID_MERGE_DIST = float(os.environ.get("FACE_CENTROID_MERGE_DIST", "0.40"))
 
 # Two gates with different jobs:
 #  - INDEX: lenient. Should we embed + link this face at all? ArcFace is
@@ -267,6 +275,12 @@ def assign_pending_faces(album_id=None):
     return claimed
 
 
+def _unit(v):
+    v = np.asarray(v, dtype=float)
+    n = np.linalg.norm(v)
+    return v / n if n else v
+
+
 def _stored_face(fe):
     """Rebuild a face dict (for face_score / is_chip_worthy) from a stored row."""
     p = fe.pose or {}
@@ -354,6 +368,33 @@ def recluster_faces():
             adjacency.setdefault(b, []).append((a, float(sim)))
 
         labels = _chinese_whispers(node_ids, adjacency)
+
+        # stage 2: centroid merge — reunite pose-split people (frontal vs profile)
+        groups = {}
+        for fid, lbl in labels.items():
+            groups.setdefault(lbl, []).append(fid)
+        glabels = list(groups)
+        if len(glabels) > 1:
+            cent = np.array([
+                _unit(np.mean([by_id[i].embedding for i in groups[g]], axis=0))
+                for g in glabels
+            ])
+            sim = cent @ cent.T
+            parent = list(range(len(glabels)))
+
+            def _find(x):
+                while parent[x] != x:
+                    parent[x] = parent[parent[x]]
+                    x = parent[x]
+                return x
+
+            thr = 1.0 - CENTROID_MERGE_DIST
+            for i in range(len(glabels)):
+                for j in range(i + 1, len(glabels)):
+                    if sim[i, j] >= thr:
+                        parent[_find(i)] = _find(j)
+            remap = {g: glabels[_find(i)] for i, g in enumerate(glabels)}
+            labels = {fid: remap[lbl] for fid, lbl in labels.items()}
 
         clusters = {}
         for fid, lbl in labels.items():
