@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { isVideo, type Photo } from "@/lib/types"
+import { hasSeenImage, markImageSeen } from "@/lib/image-cache"
 
 type Props = {
   photos: Photo[]
@@ -115,8 +116,14 @@ export function PhotoMasonry({
                 fill
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 40vw, 33vw"
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
-                placeholder={m.blur_data_url ? "blur" : "empty"}
+                // already loaded once -> skip the blur, it's in the browser cache
+                placeholder={
+                  m.blur_data_url && !hasSeenImage(photo.compressed_image)
+                    ? "blur"
+                    : "empty"
+                }
                 blurDataURL={m.blur_data_url || undefined}
+                onLoad={() => markImageSeen(photo.compressed_image)}
               />
             )
             return (

@@ -46,7 +46,7 @@ export async function downloadOriginal(photo: Photo, slug?: string) {
   // derive the album slug from the image URL (key = "<slug>/<filename>")
   let albumSlug = slug
   if (!albumSlug) {
-    const m = photo.image.match(THUMBOR)
+    const m = photo.image.split("?")[0].match(THUMBOR)
     if (m) albumSlug = decodeURIComponent(m[1]).split("/")[0]
   }
   try {
@@ -67,7 +67,7 @@ export async function downloadOriginal(photo: Photo, slug?: string) {
 export async function downloadOptimized(photo: Photo) {
   const name = photo.file_metadata.filename || "download"
   if (isVideo(photo)) return
-  const m = photo.image.match(THUMBOR)
+  const m = photo.image.split("?")[0].match(THUMBOR)
   if (!m) return saveBlob(photo.image, name)
   const key = decodeURIComponent(m[1])
   const edits = { rotate: null, resize: { width: 2560, fit: "inside" }, toFormat: "jpeg" }

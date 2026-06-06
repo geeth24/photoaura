@@ -25,12 +25,16 @@ function b64(s: string): string {
 }
 
 export default function cdnImageLoader({ src, width }: LoaderArgs): string {
-  const m = src.match(THUMBOR)
+  // strip the ?v cache-busting version before pulling the key, then re-attach
+  // it so a re-uploaded photo resolves to a fresh browser-cache URL
+  const [path, query] = src.split("?")
+  const m = path.match(THUMBOR)
   if (!m) return src
   const key = decodeURIComponent(m[1])
   const edits = {
     rotate: null, // auto-orient from EXIF, then strip
     resize: { width, fit: "inside" },
   }
-  return `${CDN}/${b64(JSON.stringify({ bucket: BUCKET, key, edits }))}`
+  const url = `${CDN}/${b64(JSON.stringify({ bucket: BUCKET, key, edits }))}`
+  return query ? `${url}?${query}` : url
 }
