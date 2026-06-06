@@ -27,6 +27,9 @@ export async function apiFetch<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    // always hit the live API — face groupings change after a recluster, so a
+    // cached /faces would show stale people/photos
+    cache: "no-store",
   })
 
   if (res.status === 401) {
