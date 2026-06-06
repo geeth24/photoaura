@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { motion } from "motion/react"
 import { Trash2, Play } from "lucide-react"
 import {
   AlertDialog,
@@ -83,13 +82,24 @@ export function PhotoMasonry({
   }, [])
 
   const targetH = width < 640 ? 200 : width < 1024 ? 260 : 320
-  const rows = buildRows(photos, width, targetH)
+  // rebuild rows only when the inputs change, not on every render
+  const rows = useMemo(() => buildRows(photos, width, targetH), [photos, width, targetH])
   let n = 0
 
   return (
     <div ref={ref} className="flex flex-col" style={{ gap: GAP }}>
       {rows.map((row, ri) => (
-        <div key={ri} className="flex" style={{ gap: GAP }}>
+        <div
+          key={ri}
+          className="flex"
+          // skip layout/paint for offscreen rows -> big scroll FPS win on long
+          // albums; the intrinsic size keeps the scrollbar stable
+          style={{
+            gap: GAP,
+            contentVisibility: "auto",
+            containIntrinsicSize: `${Math.round(row[0]?.h ?? targetH)}px`,
+          }}
+        >
           {row.map(({ photo, w, h }) => {
             const i = n++
             const m = photo.file_metadata
@@ -127,15 +137,8 @@ export function PhotoMasonry({
               />
             )
             return (
-              <motion.div
+              <div
                 key={`${m.album_id}-${m.filename}-${i}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{
-                  duration: 0.4,
-                  delay: Math.min(i * 0.015, 0.25),
-                  ease: [0.22, 1, 0.36, 1],
-                }}
                 className="group relative shrink-0"
                 style={{ width: w, height: h }}
               >
@@ -188,7 +191,7 @@ export function PhotoMasonry({
                     </AlertDialogContent>
                   </AlertDialog>
                 )}
-              </motion.div>
+              </div>
             )
           })}
         </div>

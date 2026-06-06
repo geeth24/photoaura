@@ -28,6 +28,8 @@ export const metadata: Metadata = {
   title: "PhotoAura",
   description: "Photo management dashboard",
   icons: { icon: "/images/logo-color.png" },
+  // Apple Smart App Banner — on iPhone Safari, offers to open/install the app
+  itunes: { appId: "6477320360" },
 }
 
 export default function RootLayout({
