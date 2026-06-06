@@ -7,3 +7,4 @@ ios/PhotoAura/PhotoAura.xcodeproj/project.xcworkspace/xcuserdata/geeth.xcuserdat
 # SwiftPM
 ios/PhotoAura/EditorialStyle/.build/
 ios/PhotoAura/EditorialStyle/.swiftpm/
+.claude/
