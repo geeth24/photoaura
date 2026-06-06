@@ -9,6 +9,7 @@ session = boto3.Session(
 
 s3_client = session.client("s3")
 rekognition_client = session.client("rekognition")
+cloudfront_client = session.client("cloudfront")
 
 if settings.AWS_BUCKET:
     try:

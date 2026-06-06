@@ -29,6 +29,9 @@ class Settings:
     AWS_REGION: Optional[str] = os.environ.get("AWS_REGION")
     AWS_BUCKET: Optional[str] = os.environ.get("AWS_BUCKET")
     AWS_CLOUDFRONT_URL: Optional[str] = os.environ.get("AWS_CLOUDFRONT_URL")
+    AWS_CLOUDFRONT_DISTRIBUTION_ID: Optional[str] = os.environ.get(
+        "AWS_CLOUDFRONT_DISTRIBUTION_ID"
+    )
     
     DATA_DIR: str = os.environ.get("DATA_DIR", "/var/aura/data")
     
