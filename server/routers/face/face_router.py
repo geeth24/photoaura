@@ -4,7 +4,15 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
-from db.models import FaceData, FaceEmbedding, PhotoFaceLink, FileMetadata, Album
+from db.models import (
+    FaceData,
+    FaceEmbedding,
+    PhotoFaceLink,
+    FileMetadata,
+    Album,
+    User,
+    UserAlbumPermission,
+)
 from utils.utils import create_album_photos_json
 from utils.face_recog import (
     detect_and_store_faces,
@@ -19,6 +27,24 @@ from services.aws_service import s3_client
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
+
+
+def _accessible_album_ids(current_user, session):
+    """Which albums this caller may see. None = admin (everything). For a client
+    it's only the albums they've been granted. Face clustering is global (the
+    same person is recognised across albums), but a client must never see a
+    photo from an album they don't own — even one their own face appears in."""
+    u = session.query(User).filter_by(user_name=current_user.user_name).first()
+    if u and u.role == "admin":
+        return None
+    if not u:
+        return set()
+    return {
+        r[0]
+        for r in session.query(UserAlbumPermission.album_id)
+        .filter_by(user_id=u.id)
+        .all()
+    }
 
 
 def _resync_album_faces(album_id: int, album_slug: str):
@@ -54,7 +80,12 @@ def _resync_album_faces(album_id: int, album_slug: str):
 async def get_faces(
     current_user=Depends(get_current_user), session: Session = Depends(get_session)
 ):
-    faces = session.query(PhotoFaceLink).all()
+    allowed = _accessible_album_ids(current_user, session)
+    q = session.query(PhotoFaceLink)
+    if allowed is not None:
+        if not allowed:
+            return []
+        q = q.filter(PhotoFaceLink.album_id.in_(allowed))
     return [
         {
             "id": face.id,
@@ -62,7 +93,7 @@ async def get_faces(
             "face_id": face.face_id,
             "album_id": face.album_id,
         }
-        for face in faces
+        for face in q.all()
     ]
 
 
@@ -72,9 +103,13 @@ async def get_face_photo(
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    link = (
-        session.query(PhotoFaceLink.photo_id).filter_by(face_id=face_id).first()
-    )
+    allowed = _accessible_album_ids(current_user, session)
+    q = session.query(PhotoFaceLink.photo_id).filter_by(face_id=face_id)
+    if allowed is not None:
+        if not allowed:
+            raise HTTPException(status_code=404, detail="Photo not found for this face")
+        q = q.filter(PhotoFaceLink.album_id.in_(allowed))
+    link = q.first()
 
     if not link:
         raise HTTPException(status_code=404, detail="Photo not found for this face")
@@ -86,15 +121,30 @@ async def get_face_photo(
 async def get_faces(
     current_user=Depends(get_current_user), session: Session = Depends(get_session)
 ):
-    faces = session.query(FaceData).all()
-    links = session.query(PhotoFaceLink).all()
+    allowed = _accessible_album_ids(current_user, session)
+
+    link_q = session.query(PhotoFaceLink)
+    if allowed is not None:
+        if not allowed:
+            return []
+        link_q = link_q.filter(PhotoFaceLink.album_id.in_(allowed))
+    links = link_q.all()
+
+    # only surface people who actually appear in an album this caller can see
+    visible_face_ids = {link.face_id for link in links}
+    faces = (
+        session.query(FaceData)
+        .filter(FaceData.external_id.in_(visible_face_ids))
+        .all()
+        if visible_face_ids
+        else []
+    )
 
     face_photo_links = [
         {
             "face_id": link.face_id,
             "photo_id": link.photo_id,
             "album_id": link.album_id,
-            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{link.face_id}-{link.photo_id}-{link.album_id}.jpg",
         }
         for link in links
     ]
@@ -280,6 +330,10 @@ async def get_album_faces(
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
+    allowed = _accessible_album_ids(current_user, session)
+    if allowed is not None and album.id not in allowed:
+        raise HTTPException(status_code=403, detail="Not your album")
+
     links = session.query(PhotoFaceLink).filter_by(album_id=album.id).all()
 
     by_face: dict[str, list[str]] = {}
@@ -319,7 +373,16 @@ async def get_face(
     if not face:
         raise HTTPException(status_code=404, detail="Face not found")
 
-    links = session.query(PhotoFaceLink).filter_by(face_id=face.external_id).all()
+    allowed = _accessible_album_ids(current_user, session)
+    link_q = session.query(PhotoFaceLink).filter_by(face_id=face.external_id)
+    if allowed is not None:
+        if not allowed:
+            raise HTTPException(status_code=404, detail="Face not found")
+        link_q = link_q.filter(PhotoFaceLink.album_id.in_(allowed))
+    links = link_q.all()
+    # this person exists globally but appears in nothing the caller can see
+    if not links:
+        raise HTTPException(status_code=404, detail="Face not found")
     face_photo_links = [
         {"photo_id": link.photo_id, "album_id": link.album_id} for link in links
     ]

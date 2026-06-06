@@ -319,7 +319,9 @@ def recluster_faces():
         by_id = {fe.id: fe for fe in faces}
         node_ids = list(by_id.keys())
 
-        # names to preserve: which old person each face belonged to
+        # what each face was assigned to before — lets us keep stable person ids
+        # (and names) across reruns, so re-clustering is cheap and idempotent
+        old_face_of = {fe.id: fe.face_id for fe in faces}
         old_names = {
             fd.external_id: fd.name
             for fd in session.query(FaceData).all()
@@ -367,8 +369,10 @@ def recluster_faces():
         session.flush()
 
         people = 0
-        chips = []  # (external_id, photo_id, bbox) to crop+upload after commit
-        for members in clusters.values():
+        used_ids = set()
+        chips = []  # (external_id, photo_id, bbox, is_new) to crop+upload after commit
+        # biggest clusters first so they claim their original person id
+        for members in sorted(clusters.values(), key=len, reverse=True):
             best_id = max(members, key=lambda i: face_score(_stored_face(by_id[i])))
             best = by_id[best_id]
             best_face = _stored_face(best)
@@ -378,10 +382,24 @@ def recluster_faces():
             if len(members) == 1 and not is_chip_worthy(best_face):
                 continue
 
-            external_id = uuid.uuid4().hex
+            # reuse the person id this cluster mostly came from -> stable ids +
+            # we can skip re-cropping an unchanged chip. fall back to a new id.
+            tally = {}
+            for i in members:
+                oid = old_face_of.get(i)
+                if oid:
+                    tally[oid] = tally.get(oid, 0) + 1
+            external_id = next(
+                (oid for oid, _ in sorted(tally.items(), key=lambda kv: -kv[1])
+                 if oid not in used_ids),
+                None,
+            ) or uuid.uuid4().hex
+            is_new = external_id not in old_names and external_id not in tally
+            used_ids.add(external_id)
+
             inherited = next(
-                (old_names[by_id[i].face_id] for i in members
-                 if by_id[i].face_id in old_names),
+                (old_names[old_face_of[i]] for i in members
+                 if old_face_of.get(i) in old_names),
                 None,
             ) if old_names else None
             score = face_score(best_face)
@@ -403,19 +421,28 @@ def recluster_faces():
                         )
                     )
             people += 1
-            chips.append((external_id, best.photo_id, best_face["bbox"]))
+            chips.append((external_id, best.photo_id, best_face["bbox"], is_new))
 
         session.commit()
 
-        # crop + upload each person's key chip
-        for external_id, photo_id, bbox in chips:
+        # crop + upload key chips. skip ones that already exist (reused person,
+        # chip still valid) so reruns stay cheap.
+        for external_id, photo_id, bbox, is_new in chips:
+            if not bbox:
+                continue
+            if not is_new:
+                try:
+                    s3_client.head_object(Bucket=AWS_BUCKET, Key=f"faces/{external_id}.jpg")
+                    continue  # chip already there
+                except Exception:
+                    pass
             row = (
                 session.query(Album.slug, FileMetadata.filename)
                 .join(FileMetadata, FileMetadata.album_id == Album.id)
                 .filter(FileMetadata.id == photo_id)
                 .first()
             )
-            if not row or not bbox:
+            if not row:
                 continue
             key = f"{row.slug}/{row.filename}"
             try:
