@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from "react"
 import { motion, AnimatePresence, MotionConfig } from "motion/react"
 import cdnImageLoader from "@/lib/cdn-image-loader"
 import { LightboxImage, slide, FULL_WIDTH } from "@/components/lightbox-image"
-import { downloadPhoto } from "@/lib/download"
+import { DownloadMenu } from "@/components/download-menu"
 import type { Photo } from "@/lib/types"
-import { X, ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Props = {
   photos: Photo[]
@@ -72,16 +72,7 @@ export function LibraryLightbox({ photos, start, onClose }: Props) {
           {index + 1} / {photos.length}
         </span>
         <div className="flex items-center gap-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              downloadPhoto(current)
-            }}
-            className="rounded-full p-2 transition-colors hover:bg-white/10"
-            aria-label="Download"
-          >
-            <Download className="size-5" />
-          </button>
+          {current && <DownloadMenu photo={current} />}
           <button
             onClick={onClose}
             className="rounded-full p-2 transition-colors hover:bg-white/10"

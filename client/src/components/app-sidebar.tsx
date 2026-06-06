@@ -134,7 +134,7 @@ export function AppSidebar() {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Built by Rad Soft"
-          className="group mt-3 flex items-center justify-center gap-1.5 text-[9px] uppercase tracking-[0.25em] text-text-faint transition-colors hover:text-text-primary"
+          className="group mt-3 flex items-center gap-1.5 px-3 text-[9px] uppercase tracking-[0.25em] text-text-faint transition-colors hover:text-text-primary"
         >
           <span>Built by</span>
           <RadSoftMark className="size-2.5 text-text-muted transition-colors group-hover:text-brand" />

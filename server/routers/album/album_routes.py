@@ -17,8 +17,8 @@ from db.models import (
 )
 from services.aws_service import s3_client
 from botocore.exceptions import ClientError
-from utils.utils import create_album_photos_json, add_album_to_user
-from dependencies import require_admin
+from utils.utils import create_album_photos_json, add_album_to_user, capture_time
+from dependencies import require_admin, get_current_user
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -137,7 +137,47 @@ async def get_all_photos(
         album_photos = create_album_photos_json(album.slug, photos_query.all())
         all_photos.extend(album_photos)
 
+    # chronological across every album, newest first
+    all_photos.sort(key=capture_time, reverse=True)
     return all_photos
+
+
+@router.get("/api/album/{album_slug}/download/{filename:path}")
+async def download_original(
+    album_slug: str,
+    filename: str,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Presigned URL for the EXACT uploaded original. The CDN re-encodes to webp
+    (browser Accept negotiation), which downloads as a damaged .jpg — this serves
+    the raw S3 bytes with a download disposition instead. Scoped to the caller."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    u = session.query(User).filter_by(user_name=current_user.user_name).first()
+    if not u:
+        raise HTTPException(status_code=401, detail="Unknown user")
+    if u.role != "admin":
+        allowed = (
+            session.query(UserAlbumPermission)
+            .filter_by(user_id=u.id, album_id=album.id)
+            .first()
+        )
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Not your album")
+
+    url = s3_client.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": AWS_BUCKET,
+            "Key": f"{album_slug}/{filename}",
+            "ResponseContentDisposition": f'attachment; filename="{filename}"',
+        },
+        ExpiresIn=3600,
+    )
+    return {"url": url}
 
 
 @router.delete("/api/album/delete/{album_slug}/")

@@ -4,6 +4,7 @@ from PIL import Image
 import json
 import PIL.ExifTags
 from io import BytesIO
+from datetime import datetime
 from config import settings
 from db.base import session_scope
 from db.models import UserAlbumPermission
@@ -11,6 +12,31 @@ from services.aws_service import s3_client
 
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 AWS_BUCKET = settings.AWS_BUCKET
+
+
+def capture_time(meta):
+    """When the shot was taken — EXIF DateTimeOriginal, falling back to upload
+    time so everything sorts chronologically (matches how the camera saw it).
+    Accepts a FileMetadata row or an already-built photo dict."""
+    if isinstance(meta, dict):
+        meta = meta.get("file_metadata", meta)
+        get = meta.get
+    else:
+        get = lambda k: getattr(meta, k, None)
+    raw = get("exif_data")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = {}
+    if isinstance(raw, dict):
+        dt = raw.get("DateTimeOriginal") or raw.get("DateTime")
+        if dt:
+            try:
+                return datetime.strptime(str(dt), "%Y:%m:%d %H:%M:%S")
+            except Exception:
+                pass
+    return meta.upload_date or datetime.min
 
 
 def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
@@ -66,6 +92,8 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
 
 def create_album_photos_json(album_slug, file_metadata):
     album_photos = []
+    # chronological by capture time so the grid + lightbox read like the event
+    file_metadata = sorted(file_metadata, key=capture_time)
     for meta in file_metadata:
         if (meta.content_type or "").startswith("video/"):
             # SIH can't transform video — serve the raw object via a presigned URL

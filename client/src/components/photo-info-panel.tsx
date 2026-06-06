@@ -1,7 +1,12 @@
 "use client"
 
-import { motion } from "motion/react"
-import { X } from "lucide-react"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet"
 import type { Photo } from "@/lib/types"
 
 function formatBytes(n?: number) {
@@ -91,7 +96,13 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function PhotoInfoPanel({ photo, onClose }: { photo: Photo; onClose: () => void }) {
+type Props = {
+  photo: Photo
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+export function PhotoInfoPanel({ photo, open, onOpenChange }: Props) {
   const m = photo.file_metadata
   const exif = readExif(m.exif_data)
   const details = [
@@ -102,56 +113,38 @@ export function PhotoInfoPanel({ photo, onClose }: { photo: Photo; onClose: () =
   ].filter(Boolean) as { label: string; value: string }[]
 
   return (
-    <motion.aside
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", stiffness: 300, damping: 34 }}
-      onClick={(e) => e.stopPropagation()}
-      className="absolute right-0 top-0 z-20 flex h-full w-80 max-w-[85vw] flex-col overflow-y-auto border-l border-border-subtle bg-surface"
-    >
-      <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
-        <div className="flex items-center gap-3">
-          <span className="block h-px w-8 bg-brand" />
-          <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-            Info
-          </span>
-        </div>
-        <button
-          onClick={onClose}
-          aria-label="Close info"
-          className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="font-heading text-lg leading-tight tracking-tight text-text-primary break-all">
+            {m.filename}
+          </SheetTitle>
+          <SheetDescription className="text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted">
+            Photo info
+          </SheetDescription>
+        </SheetHeader>
 
-      <div className="px-5 py-5">
-        <h2 className="font-heading text-lg leading-tight tracking-tight text-text-primary break-all">
-          {m.filename}
-        </h2>
-      </div>
-
-      <div className="border-t border-border-subtle px-5 py-4">
-        <div className="divide-y divide-border-subtle">
-          {details.map((r) => (
-            <Row key={r.label} {...r} />
-          ))}
-        </div>
-      </div>
-
-      {exif.length > 0 && (
-        <div className="border-t border-border-subtle px-5 py-4">
-          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.25em] text-text-faint">
-            Camera
-          </span>
+        <div className="border-t border-border-subtle px-4 py-2">
           <div className="divide-y divide-border-subtle">
-            {exif.map((r) => (
+            {details.map((r) => (
               <Row key={r.label} {...r} />
             ))}
           </div>
         </div>
-      )}
-    </motion.aside>
+
+        {exif.length > 0 && (
+          <div className="border-t border-border-subtle px-4 py-3">
+            <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.25em] text-text-faint">
+              Camera
+            </span>
+            <div className="divide-y divide-border-subtle">
+              {exif.map((r) => (
+                <Row key={r.label} {...r} />
+              ))}
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }
