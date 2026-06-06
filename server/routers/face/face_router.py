@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
@@ -6,6 +8,7 @@ from db.models import FaceData, PhotoFaceLink, FileMetadata, Album
 from utils.utils import create_album_photos_json
 from utils.face_recog import detect_and_store_faces
 from dependencies import get_current_user, require_admin
+from services.aws_service import s3_client, rekognition_client as rekognition
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -103,6 +106,108 @@ async def get_faces(
         }
         for face in faces
     ]
+
+
+@router.get("/api/face/{face_id}/suggestions")
+def face_suggestions(
+    face_id: str,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """People Rekognition thinks might be the SAME as this one (matches that
+    fell below the auto-merge line). The admin reviews + merges manually."""
+    try:
+        resp = rekognition.search_faces(
+            CollectionId=AWS_BUCKET,
+            FaceId=face_id,
+            FaceMatchThreshold=65,
+            MaxFaces=12,
+        )
+    except Exception as e:
+        print("search_faces error:", e)
+        return []
+
+    out = []
+    seen = set()
+    for m in resp.get("FaceMatches", []):
+        fid = m["Face"]["FaceId"]
+        if fid == face_id or fid in seen:
+            continue
+        seen.add(fid)
+        fd = session.query(FaceData).filter_by(external_id=fid).first()
+        if not fd:
+            continue
+        cnt = session.query(PhotoFaceLink).filter_by(face_id=fid).count()
+        out.append({
+            "external_id": fid,
+            "name": fd.name,
+            "similarity": round(m.get("Similarity", 0), 1),
+            "count": cnt,
+            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{fid}.jpg",
+        })
+    return out
+
+
+class MergeFacesBody(BaseModel):
+    target_face_id: str
+    source_face_ids: list[str]
+
+
+@router.post("/api/faces/merge")
+def merge_faces(
+    body: MergeFacesBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Merge one or more people into a target person: repoint all their photo
+    links to the target, inherit a name if the target has none, then drop the
+    source people (DB + Rekognition + S3 chip)."""
+    target = session.query(FaceData).filter_by(external_id=body.target_face_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target person not found")
+
+    for src_id in body.source_face_ids:
+        if src_id == body.target_face_id:
+            continue
+        # move this person's photo links onto the target
+        session.query(PhotoFaceLink).filter_by(face_id=src_id).update(
+            {"face_id": body.target_face_id}, synchronize_session=False
+        )
+        src = session.query(FaceData).filter_by(external_id=src_id).first()
+        if src:
+            if not target.name and src.name:
+                target.name = src.name
+            session.delete(src)
+        # drop the merged face from the Rekognition collection + its S3 chip
+        try:
+            rekognition.delete_faces(CollectionId=AWS_BUCKET, FaceIds=[src_id])
+        except Exception as e:
+            print("delete_faces error:", e)
+        try:
+            s3_client.delete_object(Bucket=AWS_BUCKET, Key=f"faces/{src_id}.jpg")
+        except Exception:
+            pass
+
+    session.flush()
+
+    # dedupe: a photo that had both people now has two identical target links
+    keep = {
+        pid: mid
+        for pid, mid in session.query(
+            PhotoFaceLink.photo_id, func.min(PhotoFaceLink.id)
+        )
+        .filter_by(face_id=body.target_face_id)
+        .group_by(PhotoFaceLink.photo_id)
+        .all()
+    }
+    if keep:
+        session.query(PhotoFaceLink).filter(
+            PhotoFaceLink.face_id == body.target_face_id,
+            ~PhotoFaceLink.id.in_(list(keep.values())),
+        ).delete(synchronize_session=False)
+
+    session.commit()
+    return {"message": "Merged", "target": body.target_face_id}
 
 
 @router.post("/api/album/{album_slug}/resync-faces")

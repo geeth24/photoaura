@@ -13,9 +13,17 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import { Pencil, ArrowLeft, ImageOff, UserRound } from "lucide-react"
+import { Pencil, ArrowLeft, ImageOff, UserRound, Merge } from "lucide-react"
 import Image from "next/image"
 import { toast } from "sonner"
+
+type Suggestion = {
+  external_id: string
+  name: string | null
+  similarity: number
+  count: number
+  image_url: string
+}
 
 export default function FacesPage() {
   const [faces, setFaces] = useState<Face[]>([])
@@ -27,6 +35,9 @@ export default function FacesPage() {
   const [editName, setEditName] = useState("")
   const [editFace, setEditFace] = useState<Face | null>(null)
   const [saving, setSaving] = useState(false)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const [merging, setMerging] = useState<string | null>(null)
 
   const fetchFaces = () => {
     setLoading(true)
@@ -43,6 +54,8 @@ export default function FacesPage() {
   const viewFace = async (face: Face) => {
     setSelected(face)
     setPhotosLoading(true)
+    setSuggestions([])
+    setSuggestionsLoading(true)
     try {
       const detail = await apiFetch<Face>(`/face/${face.external_id}`)
       setFacePhotos(detail.face_photos || [])
@@ -50,6 +63,34 @@ export default function FacesPage() {
       setFacePhotos([])
     } finally {
       setPhotosLoading(false)
+    }
+    // "AI thinks these might be the same person" — surfaced for manual merge
+    apiFetch<Suggestion[]>(`/face/${face.external_id}/suggestions`)
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]))
+      .finally(() => setSuggestionsLoading(false))
+  }
+
+  const mergeInto = async (sourceId: string) => {
+    if (!selected || merging) return
+    setMerging(sourceId)
+    try {
+      await apiFetch("/faces/merge", {
+        method: "POST",
+        body: JSON.stringify({
+          target_face_id: selected.external_id,
+          source_face_ids: [sourceId],
+        }),
+      })
+      toast.success("Merged — same person")
+      setSuggestions((prev) => prev.filter((s) => s.external_id !== sourceId))
+      // refresh this person's photos (they just gained the merged shots)
+      viewFace(selected)
+      fetchFaces()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't merge")
+    } finally {
+      setMerging(null)
     }
   }
 
@@ -117,6 +158,57 @@ export default function FacesPage() {
             Edit Name
           </button>
         </div>
+
+        {/* similar people — AI suggestions to merge */}
+        {(suggestionsLoading || suggestions.length > 0) && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <span className="block h-px w-12 bg-brand" />
+              <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
+                Might be the same person
+              </span>
+            </div>
+            {suggestionsLoading ? (
+              <div className="flex gap-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="size-24" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {suggestions.map((s) => (
+                  <div
+                    key={s.external_id}
+                    className="group w-24 space-y-1.5 text-center"
+                  >
+                    <div className="relative size-24 overflow-hidden border border-border-subtle bg-surface-elevated">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={s.image_url}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                      <span className="absolute right-1 top-1 bg-surface/80 px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-text-primary backdrop-blur">
+                        {s.similarity}%
+                      </span>
+                    </div>
+                    <p className="truncate text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                      {s.name || `${s.count} photo${s.count === 1 ? "" : "s"}`}
+                    </p>
+                    <button
+                      onClick={() => mergeInto(s.external_id)}
+                      disabled={merging === s.external_id}
+                      className="flex w-full items-center justify-center gap-1 bg-brand py-1.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-surface transition-all hover:bg-text-primary disabled:opacity-50"
+                    >
+                      <Merge className="size-3" />
+                      {merging === s.external_id ? "…" : "Merge"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* photo grid */}
         {photosLoading ? (
