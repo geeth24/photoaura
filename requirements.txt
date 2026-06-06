@@ -25,6 +25,7 @@ pillow==10.2.0
 proto-plus==1.26.0
 protobuf==5.29.3
 psycopg==3.1.17
+pgvector==0.3.6
 SQLAlchemy==2.0.49
 alembic==1.16.5
 pyasn1==0.5.1

@@ -12,9 +12,10 @@ from db.models import (
     AlbumCategory,
     PhotoFaceLink,
     FaceData,
+    FaceEmbedding,
     User,
 )
-from services.aws_service import s3_client, rekognition_client
+from services.aws_service import s3_client
 from botocore.exceptions import ClientError
 from utils.utils import create_album_photos_json, add_album_to_user
 from dependencies import require_admin
@@ -158,6 +159,7 @@ async def delete_album(
             .all()
         ]
         session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
+        session.query(FaceEmbedding).filter_by(album_id=album_id).delete()
         session.flush()
 
         for face_id in face_ids:
@@ -165,9 +167,7 @@ async def delete_album(
                 session.query(PhotoFaceLink).filter_by(face_id=face_id).count()
             )
             if remaining == 0:
-                rekognition_client.delete_faces(
-                    CollectionId=AWS_BUCKET, FaceIds=[face_id]
-                )
+                session.query(FaceEmbedding).filter_by(face_id=face_id).delete()
                 session.query(FaceData).filter_by(external_id=face_id).delete()
 
                 objects_to_delete = s3_client.list_objects_v2(

@@ -1,169 +1,118 @@
 import io
 import os
+import uuid
+
+import requests
 from PIL import Image
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from config import settings
-from services.aws_service import s3_client, rekognition_client as rekognition
+from services.aws_service import s3_client
 from db.base import session_scope
-from db.models import FaceData, PhotoFaceLink
+from db.models import FaceData, FaceEmbedding, PhotoFaceLink
 
 AWS_BUCKET = settings.AWS_BUCKET
 
+# InsightFace embedding service (GPU pod on max). Internal cluster DNS.
+FACE_SERVICE_URL = os.environ.get("FACE_SERVICE_URL", "http://photoaura-faces:8000")
 
-def ensure_directory_exists(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+# cosine distance (1 - similarity) on L2-normalized ArcFace vectors.
+# <= MATCH_DIST -> same person; the band up to SUGGEST_DIST is "maybe same".
+MATCH_DIST = float(os.environ.get("FACE_MATCH_DIST", "0.60"))     # sim >= 0.40
+SUGGEST_DIST = float(os.environ.get("FACE_SUGGEST_DIST", "0.75"))  # sim >= 0.25
 
-
-def is_face_forward(yaw, pitch, yaw_threshold=45, pitch_threshold=45):
-    """Skip only steeply turned/tilted faces, which match poorly across photos.
-
-    The old version also checked BoundingBox.Width / BoundingBox.Height, but those
-    are fractions of the *image* dimensions — so on landscape photos the ratio was
-    artificially low and rejected perfectly good faces (e.g. whole group shots).
-    """
-    return abs(yaw) <= yaw_threshold and abs(pitch) <= pitch_threshold
+DET_MIN = 0.62          # detector confidence floor
+POSE_MAX = 45           # |yaw|/|pitch| ceiling (degrees)
+MIN_FACE_PX = 60        # smaller crops make poor, ambiguous key chips
 
 
-def is_good_face(face, img_w, img_h):
-    """Gate out crops that make poor, confusing face chips — sunglasses, eyes
-    shut / looking down, blurry, tiny background heads, or steeply turned.
-    Returns (ok, reason). Real people still get grouped from their good shots;
-    we just don't index the bad frames."""
-    if (face.get("Confidence") or 0) < 90:
+def _embed_image(bucket, key):
+    """Ask the GPU service for every face's bbox + 512-d embedding."""
+    resp = requests.post(
+        f"{FACE_SERVICE_URL}/embed",
+        json={"bucket": bucket, "key": key},
+        timeout=120,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def is_good_face(face):
+    """Gate out weak detections, steeply turned heads, and tiny background faces
+    before they become confusing key chips. Returns (ok, reason)."""
+    if (face.get("det_score") or 0) < DET_MIN:
         return False, "low confidence"
-
-    pose = face["Pose"]
-    if not is_face_forward(pose["Yaw"], pose["Pitch"]):
+    if abs(face.get("yaw", 0)) > POSE_MAX or abs(face.get("pitch", 0)) > POSE_MAX:
         return False, "turned away"
-
-    q = face.get("Quality", {})
-    if (q.get("Sharpness") or 0) < 12:
-        return False, "blurry"
-
-    sg = face.get("Sunglasses", {})
-    if sg.get("Value") and (sg.get("Confidence") or 0) > 90:
-        return False, "sunglasses"
-
-    eyes = face.get("EyesOpen", {})
-    if eyes.get("Value") is False and (eyes.get("Confidence") or 0) > 90:
-        return False, "eyes closed / looking down"
-
-    box = face["BoundingBox"]
-    face_px = min(box["Height"] * img_h, box["Width"] * img_w)
-    if face_px < 60:  # crop too small to be a useful key face
+    x1, y1, x2, y2 = face["bbox"]
+    if min(x2 - x1, y2 - y1) < MIN_FACE_PX:
         return False, "too small"
-
     return True, ""
 
 
 def face_score(face):
-    """Higher = better key photo. Facing the camera dominates; eyes open, decent
-    size, and sharpness break ties. Size is capped so a big looking-away close-up
-    can't beat a smaller head-on shot."""
-    box = face["BoundingBox"]
-    area = box["Width"] * box["Height"]
-    pose = face["Pose"]
-    yaw, pitch, roll = abs(pose["Yaw"]), abs(pose["Pitch"]), abs(pose.get("Roll", 0))
-    # looking up/down (pitch) and turning (yaw) both hurt; pitch weighted hardest
+    """Higher = better key photo. Facing the camera dominates; size and detector
+    confidence break ties. Size is capped so a big looking-away close-up can't
+    beat a smaller head-on shot."""
+    x1, y1, x2, y2 = face["bbox"]
+    area = max(0, x2 - x1) * max(0, y2 - y1)
+    yaw, pitch, roll = (
+        abs(face.get("yaw", 0)),
+        abs(face.get("pitch", 0)),
+        abs(face.get("roll", 0)),
+    )
     frontal = max(0.0, 1.0 - yaw / 40 - pitch / 25 - roll / 60)
-    q = face.get("Quality", {})
-    sharp = (q.get("Sharpness") or 0) / 100
-    eyes = face.get("EyesOpen", {})
-    eyes_open = 1.0 if eyes.get("Value") and (eyes.get("Confidence") or 0) > 80 else 0.0
-    size = min(area, 0.06) / 0.06  # reward up to ~6% of the frame, then cap
-    return frontal * 100 + size * 25 + sharp * 15 + eyes_open * 10
+    size = min(area, 60000) / 60000
+    return frontal * 100 + size * 25 + (face.get("det_score") or 0) * 15
+
+
+def _match_person(session, embedding):
+    """Nearest existing person by cosine distance, or None if nobody's close."""
+    row = (
+        session.query(
+            FaceEmbedding.face_id,
+            FaceEmbedding.embedding.cosine_distance(embedding).label("dist"),
+        )
+        .filter(FaceEmbedding.face_id.isnot(None))
+        .order_by("dist")
+        .limit(1)
+        .first()
+    )
+    if row and row.dist is not None and row.dist <= MATCH_DIST:
+        return row.face_id
+    return None
+
+
+def _crop(img, bbox, pad=0.2):
+    x1, y1, x2, y2 = bbox
+    w, h = x2 - x1, y2 - y1
+    left = max(0, int(x1 - w * pad))
+    top = max(0, int(y1 - h * pad))
+    right = min(img.width, int(x2 + w * pad))
+    bottom = min(img.height, int(y2 + h * pad))
+    return img.crop((left, top, right, bottom))
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
+    result = _embed_image(bucket, file_path)
+    faces = result.get("faces", [])
+    if not faces:
+        return "No faces detected."
+
+    # one image fetch for the key-face crops
+    img = Image.open(
+        io.BytesIO(s3_client.get_object(Bucket=bucket, Key=file_path)["Body"].read())
+    ).convert("RGB")
+
     with session_scope() as session:
-        original_image = s3_client.get_object(Bucket=bucket, Key=file_path)
-        img = Image.open(io.BytesIO(original_image["Body"].read()))
-
-        response = rekognition.detect_faces(
-            Image={"S3Object": {"Bucket": bucket, "Name": file_path}}, Attributes=["ALL"]
-        )
-
-        face_details = response.get("FaceDetails", [])
-        if not face_details:
-            return "No faces detected."
-
-        temp_dir = "temp_faces"
-        ensure_directory_exists(temp_dir)
-
-        for index, face in enumerate(face_details):
-            ok, reason = is_good_face(face, img.width, img.height)
+        for index, face in enumerate(faces):
+            ok, reason = is_good_face(face)
             if not ok:
                 print(f"skip face {index + 1} in {file_path}: {reason}")
                 continue
 
-            box = face["BoundingBox"]
-            padding_factor = 1.2
-
-            left = int((box["Left"] - box["Width"] * padding_factor / 2) * img.width)
-            top = int((box["Top"] - box["Height"] * padding_factor / 2) * img.height)
-            right = int((box["Left"] + box["Width"] * (1 + padding_factor / 2)) * img.width)
-            bottom = int(
-                (box["Top"] + box["Height"] * (1 + padding_factor / 2)) * img.height
-            )
-
-            left = max(0, left)
-            top = max(0, top)
-            right = min(img.width, right)
-            bottom = min(img.height, bottom)
-
-            face_image = img.crop((left, top, right, bottom))
-            temp_face_image_path = os.path.join(temp_dir, f"face_{photo_id}_{index}.jpg")
-            face_image.save(temp_face_image_path)
-
-            s3_client.upload_file(
-                Filename=temp_face_image_path,
-                Bucket=bucket,
-                Key=temp_face_image_path,
-                ExtraArgs={"ContentType": "image/jpeg"},
-            )
-
-            try:
-                search_response = rekognition.search_faces_by_image(
-                    CollectionId=AWS_BUCKET,
-                    Image={"S3Object": {"Bucket": bucket, "Name": temp_face_image_path}},
-                    MaxFaces=1,
-                    FaceMatchThreshold=80,
-                )
-
-                if search_response["FaceMatches"]:
-                    face_id = search_response["FaceMatches"][0]["Face"]["FaceId"]
-                else:
-                    index_response = rekognition.index_faces(
-                        CollectionId=AWS_BUCKET,
-                        Image={
-                            "S3Object": {"Bucket": bucket, "Name": temp_face_image_path}
-                        },
-                        ExternalImageId=f"{photo_id}_{index}",
-                        # let Rekognition drop low-quality crops too (belt + braces
-                        # with our is_good_face gate)
-                        QualityFilter="HIGH",
-                    )
-                    records = index_response.get("FaceRecords", [])
-                    if not records:
-                        # detect_faces flagged a region but index_faces rejected
-                        # the crop (too small / soft / angled). Skip it cleanly
-                        # instead of crashing the whole upload.
-                        print(f"index_faces returned no record for face {index + 1}; skipping")
-                        try:
-                            s3_client.delete_object(Bucket=bucket, Key=temp_face_image_path)
-                        except Exception:
-                            pass
-                        if os.path.exists(temp_face_image_path):
-                            os.remove(temp_face_image_path)
-                        continue
-                    face_id = records[0]["Face"]["FaceId"]
-
-            except rekognition.exceptions.InvalidParameterException as e:
-                print(f"Error processing face {index + 1}: {e}")
-                if os.path.exists(temp_face_image_path):
-                    os.remove(temp_face_image_path)
-                continue
+            embedding = face["embedding"]
+            face_id = _match_person(session, embedding) or uuid.uuid4().hex
 
             # upsert the person, bumping the key-face score only when this crop
             # is a better shot than the one we already kept
@@ -180,26 +129,37 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             )
             session.flush()
 
-            # if this crop won (or first), it becomes the person's key photo
+            # this crop becomes the key chip if it's the person's best so far
             fd = session.query(FaceData).filter_by(external_id=face_id).first()
             if fd and fd.key_score == score:
-                s3_client.upload_file(
-                    Filename=temp_face_image_path,
-                    Bucket=bucket,
-                    Key=f"faces/{face_id}.jpg",
+                buf = io.BytesIO()
+                _crop(img, face["bbox"]).save(buf, format="JPEG")
+                buf.seek(0)
+                s3_client.upload_fileobj(
+                    buf,
+                    bucket,
+                    f"faces/{face_id}.jpg",
                     ExtraArgs={"ContentType": "image/jpeg"},
                 )
 
-            # drop the scratch crop — only needed for the rekognition search
-            try:
-                s3_client.delete_object(Bucket=bucket, Key=temp_face_image_path)
-            except Exception:
-                pass
-            os.remove(temp_face_image_path)
-
+            session.add(
+                FaceEmbedding(
+                    photo_id=photo_id,
+                    album_id=album_id,
+                    face_id=face_id,
+                    embedding=embedding,
+                    det_score=face.get("det_score"),
+                    bbox={"box": face["bbox"]},
+                    pose={
+                        "yaw": face.get("yaw"),
+                        "pitch": face.get("pitch"),
+                        "roll": face.get("roll"),
+                    },
+                )
+            )
             session.add(
                 PhotoFaceLink(photo_id=photo_id, face_id=face_id, album_id=album_id)
             )
-
             session.commit()
-        return "Faces processed and stored."
+
+    return "Faces processed and stored."

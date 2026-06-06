@@ -16,6 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from db.base import Base
 
@@ -176,6 +177,25 @@ class PhotoFaceLink(Base):
         ForeignKey("face_data.external_id")
     )
     album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"))
+
+
+class FaceEmbedding(Base):
+    __tablename__ = "face_embedding"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    photo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("file_metadata.id", ondelete="CASCADE")
+    )
+    album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"))
+    # cluster assignment — set once an embedding is grouped into a person
+    face_id: Mapped[Optional[str]] = mapped_column(ForeignKey("face_data.external_id"))
+    embedding: Mapped[Optional[Any]] = mapped_column(Vector(512))
+    det_score: Mapped[Optional[float]] = mapped_column(Float)
+    bbox: Mapped[Optional[Any]] = mapped_column(JSON)
+    pose: Mapped[Optional[Any]] = mapped_column(JSON)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class Video(Base):

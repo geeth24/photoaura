@@ -4,11 +4,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
-from db.models import FaceData, PhotoFaceLink, FileMetadata, Album
+from db.models import FaceData, FaceEmbedding, PhotoFaceLink, FileMetadata, Album
 from utils.utils import create_album_photos_json
-from utils.face_recog import detect_and_store_faces
+from utils.face_recog import detect_and_store_faces, MATCH_DIST, SUGGEST_DIST
 from dependencies import get_current_user, require_admin
-from services.aws_service import s3_client, rekognition_client as rekognition
+from services.aws_service import s3_client
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -21,6 +21,7 @@ def _resync_album_faces(album_id: int, album_slug: str):
     existing face links first so re-runs don't leave stale data."""
     with session_scope() as session:
         session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
+        session.query(FaceEmbedding).filter_by(album_id=album_id).delete()
         photos = (
             session.query(FileMetadata.filename, FileMetadata.id, FileMetadata.content_type)
             .filter_by(album_id=album_id)
@@ -114,26 +115,42 @@ def face_suggestions(
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    """People Rekognition thinks might be the SAME as this one (matches that
-    fell below the auto-merge line). The admin reviews + merges manually."""
-    try:
-        resp = rekognition.search_faces(
-            CollectionId=AWS_BUCKET,
-            FaceId=face_id,
-            FaceMatchThreshold=65,
-            MaxFaces=12,
-        )
-    except Exception as e:
-        print("search_faces error:", e)
+    """Other people whose embeddings sit just past the auto-merge line from this
+    one — likely the same person split in two. Cosine band between the match and
+    suggest thresholds. The admin reviews + merges manually."""
+    targets = (
+        session.query(FaceEmbedding.embedding)
+        .filter(FaceEmbedding.face_id == face_id)
+        .limit(8)
+        .all()
+    )
+    if not targets:
         return []
 
+    # min distance to each OTHER person across our sampled target embeddings
+    best: dict[str, float] = {}
+    for (emb,) in targets:
+        rows = (
+            session.query(
+                FaceEmbedding.face_id,
+                FaceEmbedding.embedding.cosine_distance(emb).label("dist"),
+            )
+            .filter(
+                FaceEmbedding.face_id.isnot(None),
+                FaceEmbedding.face_id != face_id,
+            )
+            .order_by("dist")
+            .limit(30)
+            .all()
+        )
+        for fid, dist in rows:
+            if dist is None or dist > SUGGEST_DIST:
+                continue
+            if fid not in best or dist < best[fid]:
+                best[fid] = dist
+
     out = []
-    seen = set()
-    for m in resp.get("FaceMatches", []):
-        fid = m["Face"]["FaceId"]
-        if fid == face_id or fid in seen:
-            continue
-        seen.add(fid)
+    for fid, dist in sorted(best.items(), key=lambda kv: kv[1]):
         fd = session.query(FaceData).filter_by(external_id=fid).first()
         if not fd:
             continue
@@ -141,11 +158,11 @@ def face_suggestions(
         out.append({
             "external_id": fid,
             "name": fd.name,
-            "similarity": round(m.get("Similarity", 0), 1),
+            "similarity": round((1 - dist) * 100, 1),
             "count": cnt,
             "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{fid}.jpg",
         })
-    return out
+    return out[:12]
 
 
 class MergeFacesBody(BaseModel):
@@ -169,8 +186,11 @@ def merge_faces(
     for src_id in body.source_face_ids:
         if src_id == body.target_face_id:
             continue
-        # move this person's photo links onto the target
+        # move this person's photo links + embeddings onto the target
         session.query(PhotoFaceLink).filter_by(face_id=src_id).update(
+            {"face_id": body.target_face_id}, synchronize_session=False
+        )
+        session.query(FaceEmbedding).filter_by(face_id=src_id).update(
             {"face_id": body.target_face_id}, synchronize_session=False
         )
         src = session.query(FaceData).filter_by(external_id=src_id).first()
@@ -178,11 +198,7 @@ def merge_faces(
             if not target.name and src.name:
                 target.name = src.name
             session.delete(src)
-        # drop the merged face from the Rekognition collection + its S3 chip
-        try:
-            rekognition.delete_faces(CollectionId=AWS_BUCKET, FaceIds=[src_id])
-        except Exception as e:
-            print("delete_faces error:", e)
+        # drop the merged person's S3 key chip
         try:
             s3_client.delete_object(Bucket=AWS_BUCKET, Key=f"faces/{src_id}.jpg")
         except Exception:
