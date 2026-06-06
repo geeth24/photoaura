@@ -15,7 +15,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
-from db.models import Album, FileMetadata, User
+from db.models import Album, FileMetadata, User, PhotoFaceLink, FaceEmbedding
 from services.aws_service import s3_client, invalidate_cdn
 from utils.face_recog import detect_and_store_faces, recluster_faces
 from utils.utils import get_file_metadata, add_album_to_user
@@ -92,24 +92,27 @@ def _store_one_file(
     )
 
     try:
+        # re-uploading the same filename UPDATES the existing row (don't add a
+        # duplicate); the bumped upload_date also versions the image URL so the
+        # browser fetches the new file instead of its year-old cached copy
+        existing = (
+            session.query(FileMetadata)
+            .filter_by(album_id=album.id, filename=filename)
+            .first()
+        )
+
         if is_video:
-            meta = FileMetadata(
-                album_id=album.id,
-                filename=filename,
+            fields = dict(
                 content_type=content_type,
                 size=len(content),
                 width=0,
                 height=0,
                 upload_date=datetime.now(),
             )
-            session.add(meta)
-            session.commit()
         else:
             keys.append(s3_filename)
             fm = get_file_metadata(album.id, local_path, _BytesUpload(content))
-            meta = FileMetadata(
-                album_id=album.id,
-                filename=filename,
+            fields = dict(
                 content_type=content_type,
                 size=fm["size"],
                 width=fm["width"],
@@ -118,10 +121,21 @@ def _store_one_file(
                 exif_data=fm["exif_data"],
                 orientation=fm["orientation"],
             )
-            session.add(meta)
-            session.commit()
-            session.refresh(meta)
 
+        if existing:
+            for k, v in fields.items():
+                setattr(existing, k, v)
+            meta = existing
+            # the photo changed — drop its old face data so it re-detects clean
+            session.query(PhotoFaceLink).filter_by(photo_id=meta.id).delete()
+            session.query(FaceEmbedding).filter_by(photo_id=meta.id).delete()
+        else:
+            meta = FileMetadata(album_id=album.id, filename=filename, **fields)
+            session.add(meta)
+        session.commit()
+        session.refresh(meta)
+
+        if not is_video:
             meta.blur_data_url = generate_blur_data_url(content)
             session.commit()
 
