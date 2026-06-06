@@ -41,6 +41,18 @@ CLUSTER_KNN = int(os.environ.get("FACE_CLUSTER_KNN", "20"))
 # reunites pose-split people without merging distinct ones.
 CENTROID_MERGE_DIST = float(os.environ.get("FACE_CENTROID_MERGE_DIST", "0.40"))
 
+# A face only TAGS its photo (shows up when you filter by that person) if it's
+# at least this fraction of the image width. Keeps clustering on every face, but
+# stops tiny background faces from tagging a photo as "this person's". ~5% of the
+# frame separates real subjects from people standing in the back.
+TAG_MIN_FRAC = float(os.environ.get("FACE_TAG_MIN_FRAC", "0.05"))
+
+
+def _is_prominent(bbox, img_w):
+    if not bbox or not img_w:
+        return True  # no dims -> don't drop it
+    return (bbox[2] - bbox[0]) / img_w >= TAG_MIN_FRAC
+
 # Two gates with different jobs:
 #  - INDEX: lenient. Should we embed + link this face at all? ArcFace is
 #    pose-robust, so a turned/tilted face still matches the right person and
@@ -240,9 +252,12 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                     },
                 )
             )
-            session.add(
-                PhotoFaceLink(photo_id=photo_id, face_id=face_id, album_id=album_id)
-            )
+            # only tag the photo as this person's if the face is a real subject,
+            # not a tiny face in the background
+            if _is_prominent(face["bbox"], img.width):
+                session.add(
+                    PhotoFaceLink(photo_id=photo_id, face_id=face_id, album_id=album_id)
+                )
             session.commit()
 
     return "Faces processed and stored."
@@ -332,6 +347,12 @@ def recluster_faces():
             return "No faces to cluster."
         by_id = {fe.id: fe for fe in faces}
         node_ids = list(by_id.keys())
+
+        # photo widths, to judge face prominence when tagging
+        img_w = {
+            pid: w
+            for pid, w in session.query(FileMetadata.id, FileMetadata.width).all()
+        }
 
         # what each face was assigned to before — lets us keep stable person ids
         # (and names) across reruns, so re-clustering is cheap and idempotent
@@ -450,12 +471,15 @@ def recluster_faces():
             session.add(
                 FaceData(external_id=external_id, name=inherited, key_score=score)
             )
-            seen_photos = set()
+            linked = set()
             for i in members:
                 fe = by_id[i]
-                fe.face_id = external_id
-                if fe.photo_id not in seen_photos:
-                    seen_photos.add(fe.photo_id)
+                fe.face_id = external_id  # cluster membership (all faces)
+                # tag the photo only when this person is a real subject in it
+                if fe.photo_id not in linked and _is_prominent(
+                    (fe.bbox or {}).get("box"), img_w.get(fe.photo_id)
+                ):
+                    linked.add(fe.photo_id)
                     session.add(
                         PhotoFaceLink(
                             photo_id=fe.photo_id,
