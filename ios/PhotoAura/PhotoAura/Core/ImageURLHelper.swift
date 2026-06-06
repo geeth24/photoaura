@@ -29,4 +29,15 @@ enum ImageURLHelper {
         comps?.path = "/" + String(path[matchRange.upperBound...])
         return comps?.url ?? url
     }
+
+    // A web-optimized copy: full frame resized to ~2560px. Stills only — don't
+    // call for videos (presigned URLs have no fit-in prefix to swap).
+    static func optimizedSize(from urlString: String, width: Int = 2560) -> URL {
+        let original = originalSize(from: urlString)
+        guard var comps = URLComponents(url: original, resolvingAgainstBaseURL: false) else {
+            return original
+        }
+        comps.path = "/fit-in/\(width)x0" + comps.path
+        return comps.url ?? original
+    }
 }

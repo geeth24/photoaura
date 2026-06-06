@@ -22,6 +22,7 @@ struct PhotoViewer: View {
     // discoverable on entry. Tap photo once to hide for immersive viewing.
     @State private var chromeVisible = true
     @State private var saveState: SaveState = .idle
+    @State private var infoPresented = false
 
     // drag-to-dismiss state — photo follows finger, bg fades; release past
     // threshold pops the nav stack, otherwise springs back
@@ -218,18 +219,38 @@ struct PhotoViewer: View {
 
             Spacer()
 
-            Color.clear.frame(width: 36, height: 36)
+            Button { infoPresented = true } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+            }
+            .editorialGlass(in: Circle(), interactive: true)
         }
         .padding(.horizontal, EditorialSpacing.screenGutter)
         .padding(.top, EditorialSpacing.xSmall)
         .foregroundStyle(.white)
+        .sheet(isPresented: $infoPresented) {
+            PhotoInfoSheet(photo: photos[index])
+        }
     }
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
-            actionButton(systemImage: saveIcon, label: saveLabel) {
-                Task { await savePhoto() }
+            Menu {
+                Button { Task { await savePhoto(optimized: false) } } label: {
+                    Label("Original", systemImage: "photo")
+                }
+                if !isVideoPhoto {
+                    Button { Task { await savePhoto(optimized: true) } } label: {
+                        Label("Optimized", systemImage: "arrow.down.circle")
+                    }
+                }
+            } label: {
+                actionLabel(systemImage: saveIcon, label: saveLabel)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
             }
+            .editorialGlass(in: Capsule(), interactive: true)
             .disabled(saveState == .saving || saveState == .saved)
 
             actionButton(systemImage: shareIcon, label: shareLabel) {
@@ -325,13 +346,19 @@ struct PhotoViewer: View {
         }
     }
 
+    private var isVideoPhoto: Bool {
+        photos[index].fileMetadata.contentType?.hasPrefix("video/") == true
+    }
+
     @MainActor
-    private func savePhoto() async {
+    private func savePhoto(optimized: Bool) async {
         guard saveState != .saving else { return }
         saveState = .saving
-        // strip the CDN thumbor prefix so we save the original full-resolution
-        // file (not the 1920px display copy)
-        let downloadURL = ImageURLHelper.originalSize(from: photos[index].image)
+        // Original strips the thumbor prefix for the full-res file; Optimized
+        // grabs a ~2560px copy for quick sharing.
+        let downloadURL = optimized
+            ? ImageURLHelper.optimizedSize(from: photos[index].image)
+            : ImageURLHelper.originalSize(from: photos[index].image)
         do {
             try await PhotoSaver.save(url: downloadURL)
             saveState = .saved

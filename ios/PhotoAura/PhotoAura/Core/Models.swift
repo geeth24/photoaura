@@ -57,6 +57,10 @@ struct PhotoMetadata: Codable, Hashable {
     let height: Int
     let blurDataURL: String?
     let orientation: String?
+    let size: Int?
+    let contentType: String?
+    let uploadDate: String?
+    let exifData: String?  // raw EXIF as a JSON string
 
     enum CodingKeys: String, CodingKey {
         case filename
@@ -64,6 +68,10 @@ struct PhotoMetadata: Codable, Hashable {
         case height
         case blurDataURL = "blurDataUrl"
         case orientation
+        case size
+        case contentType
+        case uploadDate
+        case exifData
     }
 }
 

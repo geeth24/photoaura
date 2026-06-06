@@ -96,11 +96,28 @@ private struct ProfileContent: View {
                     aboutSection
                     signOutSection
                     dangerSection
+                    builtByCredit
                 }
                 .padding(.horizontal, EditorialSpacing.screenGutter)
                 .padding(.top, EditorialSpacing.medium)
                 .padding(.bottom, EditorialSpacing.xxxLarge)
             }
+        }
+    }
+
+    private var builtByCredit: some View {
+        Link(destination: URL(string: "https://radsoftinc.com")!) {
+            HStack(spacing: 6) {
+                Text("Built by")
+                Image(systemName: "diamond.fill").font(.system(size: 6))
+                Text("Rad Soft")
+            }
+            .font(EditorialTypography.sans(size: EditorialTypography.Size.eyebrow, weight: .medium))
+            .tracking(EditorialTypography.Tracking.brand)
+            .textCase(.uppercase)
+            .foregroundStyle(EditorialColors.textFaint)
+            .frame(maxWidth: .infinity)
+            .padding(.top, EditorialSpacing.medium)
         }
     }
 
