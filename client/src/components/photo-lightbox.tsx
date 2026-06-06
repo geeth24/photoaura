@@ -8,8 +8,9 @@ import { apiFetch } from "@/lib/api"
 import cdnImageLoader from "@/lib/cdn-image-loader"
 import { LightboxImage, slide, FULL_WIDTH } from "@/components/lightbox-image"
 import { downloadPhoto } from "@/lib/download"
+import { PhotoInfoPanel } from "@/components/photo-info-panel"
 import type { Album, AlbumFace, Photo } from "@/lib/types"
-import { X, ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Download, Info } from "lucide-react"
 
 type Props = {
   slug: string
@@ -25,6 +26,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
   const [faceFilenames, setFaceFilenames] = useState<Set<string> | null>(null)
   const [index, setIndex] = useState(-1)
   const [direction, setDirection] = useState(0)
+  const [showInfo, setShowInfo] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
   // the photo the modal opened on — captured once, used to pick the start index
   const [initialPhoto] = useState(photo)
@@ -131,6 +133,20 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
             <button
               onClick={(e) => {
                 e.stopPropagation()
+                setShowInfo((v) => !v)
+              }}
+              className={`rounded-full p-2 transition-colors hover:bg-white/10 ${
+                showInfo ? "text-brand" : ""
+              }`}
+              aria-label="Photo info"
+            >
+              <Info className="size-5" />
+            </button>
+          )}
+          {current && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
                 downloadPhoto(current)
               }}
               className="rounded-full p-2 transition-colors hover:bg-white/10"
@@ -233,6 +249,13 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
           </div>
         </div>
       )}
+
+      {/* metadata / EXIF panel */}
+      <AnimatePresence>
+        {showInfo && current && (
+          <PhotoInfoPanel photo={current} onClose={() => setShowInfo(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
