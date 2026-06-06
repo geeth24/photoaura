@@ -418,9 +418,11 @@ def recluster_faces():
             best = by_id[best_id]
             best_face = _stored_face(best)
 
-            # a one-off face only becomes a person if it's a clean frontal crop —
-            # keeps junk singletons (turned/soft) out of the people grid
-            if len(members) == 1 and not is_chip_worthy(best_face):
+            # only surface a person we have a clean, front-facing shot of.
+            # profile / back-of-head / ear-only clusters aren't useful tiles
+            # (you can't tell who it is), so skip them regardless of size —
+            # the photos stay in the album, just not pinned to a face tile.
+            if not is_chip_worthy(best_face):
                 continue
 
             # reuse the person id this cluster mostly came from -> stable ids +
