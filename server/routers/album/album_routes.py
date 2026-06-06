@@ -192,47 +192,63 @@ async def delete_album(
             raise HTTPException(status_code=404, detail="Album not found")
         album_id = album.id
 
-        face_ids = [
+        face_ids = {
             row[0]
             for row in session.query(PhotoFaceLink.face_id)
             .filter_by(album_id=album_id)
             .all()
-        ]
+            if row[0]
+        }
         session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
         session.query(FaceEmbedding).filter_by(album_id=album_id).delete()
         session.flush()
 
-        for face_id in face_ids:
-            remaining = (
-                session.query(PhotoFaceLink).filter_by(face_id=face_id).count()
-            )
-            if remaining == 0:
-                session.query(FaceEmbedding).filter_by(face_id=face_id).delete()
-                session.query(FaceData).filter_by(external_id=face_id).delete()
+        # of this album's people, which still appear elsewhere? one query, not N
+        still_used = {
+            row[0]
+            for row in session.query(PhotoFaceLink.face_id)
+            .filter(PhotoFaceLink.face_id.in_(face_ids))
+            .distinct()
+            .all()
+        } if face_ids else set()
+        orphaned = face_ids - still_used
 
-                objects_to_delete = s3_client.list_objects_v2(
-                    Bucket=AWS_BUCKET, Prefix="faces"
-                )
-                for obj in objects_to_delete.get("Contents", []):
-                    if str(face_id) in obj["Key"] and obj["Key"].startswith("faces/"):
-                        try:
-                            s3_client.delete_object(Bucket=AWS_BUCKET, Key=obj["Key"])
-                        except Exception as e:
-                            print(f"Failed to delete {obj['Key']} from S3: {e}")
+        if orphaned:
+            session.query(FaceEmbedding).filter(
+                FaceEmbedding.face_id.in_(orphaned)
+            ).delete(synchronize_session=False)
+            session.query(FaceData).filter(
+                FaceData.external_id.in_(orphaned)
+            ).delete(synchronize_session=False)
 
         session.query(UserAlbumPermission).filter_by(album_id=album_id).delete()
         session.query(AlbumCategory).filter_by(album_id=album_id).delete()
 
-        files = session.query(FileMetadata).filter_by(album_id=album_id).all()
-        for f in files:
-            s3_client.delete_object(
-                Bucket=AWS_BUCKET, Key=f"{album_slug}/{f.filename}"
-            )
+        # capture filenames before deleting the rows (objects expire after)
+        filenames = [
+            row[0]
+            for row in session.query(FileMetadata.filename)
+            .filter_by(album_id=album_id)
+            .all()
+        ]
         session.query(FileMetadata).filter_by(album_id=album_id).delete()
-
         session.query(Album).filter_by(id=album_id).delete()
 
+        # DB is the source of truth — commit it before the slow S3 cleanup so a
+        # storage hiccup can't leave the album half-deleted / un-deletable
         session.commit()
+
+        # best-effort S3 cleanup, batched (delete_objects takes up to 1000 keys)
+        keys = [{"Key": f"{album_slug}/{fn}"} for fn in filenames]
+        keys += [{"Key": f"faces/{fid}.jpg"} for fid in orphaned]
+        for i in range(0, len(keys), 1000):
+            try:
+                s3_client.delete_objects(
+                    Bucket=AWS_BUCKET, Delete={"Objects": keys[i : i + 1000]}
+                )
+            except Exception as e:
+                logging.error(f"album delete: S3 cleanup failed: {e}")
+
         return {"message": "Album deleted successfully."}
 
     except HTTPException:
