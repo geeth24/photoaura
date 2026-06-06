@@ -3,6 +3,7 @@ import { DM_Serif_Display, Outfit } from "next/font/google"
 import localFont from "next/font/local"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
+import { Analytics } from "@vercel/analytics/next"
 
 const dmSerif = DM_Serif_Display({
   subsets: ["latin"],
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className="font-body antialiased min-h-dvh">
         {children}
         <Toaster richColors />
+        <Analytics />
       </body>
     </html>
   )
