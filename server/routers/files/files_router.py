@@ -214,10 +214,14 @@ async def create_upload_files(
             except Exception as e:
                 print(f"face detection failed for {s3_key}: {e}")
             await _notify("faces", i + 1, n)
-        # claim weak shots that matched nobody until their anchor landed
         # authoritative regroup (Chinese Whispers) so a new upload can't leave
-        # people mis-merged; cheap on reruns (stable ids + chips reused)
-        await asyncio.to_thread(recluster_faces)
+        # people mis-merged; cheap on reruns (stable ids + chips reused).
+        # never let a clustering hiccup fail the upload — detect already wrote
+        # consistent links, recluster only refines them.
+        try:
+            await asyncio.to_thread(recluster_faces)
+        except Exception as e:
+            print(f"recluster after upload failed (non-fatal): {e}")
 
     # stage 3: pre-warm CDN derivatives so the first view isn't a cold SIH render
     done = 0

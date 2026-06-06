@@ -346,10 +346,14 @@ async def get_album_faces(
     faces = []
     for face_id, filenames in by_face.items():
         face = session.query(FaceData).filter_by(external_id=face_id).first()
+        # skip stale links whose person no longer exists — never show a phantom
+        # tile that would surface unrelated photos
+        if not face:
+            continue
         faces.append(
             {
                 "face_id": face_id,
-                "name": face.name if face else None,
+                "name": face.name,
                 # thumbor form so the client loader can resize the crop
                 "image_url": f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/faces/{face_id}.jpg",
                 "count": len(filenames),
