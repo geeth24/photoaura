@@ -105,11 +105,12 @@ def create_album_photos_json(album_slug, file_metadata):
             compressed_image_url = url
             image_url = url
         else:
-            # NOTE: ?v= versioning is gated on the client loader handling it —
-            # re-enable only after the Vercel client with the ?v-aware loader is
-            # live, else the old loader jams ?v into the S3 key and 404s.
-            compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
-            image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
+            # version by upload time so a re-uploaded photo (same key) gets a
+            # fresh URL the browser hasn't cached — the client loader strips ?v
+            # before resolving the S3 key
+            v = int(meta.upload_date.timestamp()) if meta.upload_date else 0
+            compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}?v={v}"  # Grid thumbnail
+            image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}?v={v}"  # Detailed view
         album_photos.append(
             {
                 "image": image_url,
