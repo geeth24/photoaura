@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insightface
+  namespace: photoaura
+  labels: { app: insightface }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: insightface }
+  template:
+    metadata:
+      labels: { app: insightface }
+    spec:
+      # shares the GPU with FaceFusion via the nvidia runtime (no exclusive
+      # nvidia.com/gpu claim, which the device plugin already gave FaceFusion)
+      runtimeClassName: nvidia
+      containers:
+        - name: insightface
+          image: registry.rsft.co/photoaura-faces:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: photoaura-secrets, key: AWS_ACCESS_KEY }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: photoaura-secrets, key: AWS_SECRET_KEY }
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests: { cpu: "200m", memory: "1Gi" }
+            limits: { memory: "6Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: insightface
+  namespace: photoaura
+spec:
+  selector: { app: insightface }
+  ports:
+    - port: 8000
+      targetPort: 8000

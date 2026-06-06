@@ -1,21 +1,16 @@
-# Build the backend image and deploy via the centralized Rad-Soft/argocd repo.
-#
-# 1. Builds + pushes registry.rsft.co/photoaura:<sha>
-# 2. Bumps the image tag in Rad-Soft/argocd values/photoaura.yaml (cross-repo)
-# 3. ArgoCD reconciles and rolls out; the image entrypoint runs DB migrations
-#
-# Repo secrets required: RAD_SOFT_ARGOCD_APP_ID, RAD_SOFT_ARGOCD_PRIVATE_KEY
+# Build the InsightFace embedding service image and deploy via Rad-Soft/argocd.
+# Scoped to face-service/ — bumps values/photoaura-faces.yaml in the argocd repo.
 
-name: Build & Deploy
+name: Build & Deploy Faces
 
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "client/**", "face-service/**", "ios/**"]
+    paths: ["face-service/**"]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-faces-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,9 +21,9 @@ jobs:
 
       - name: Build & Push
         run: |
-          docker build -t registry.rsft.co/photoaura:latest -t registry.rsft.co/photoaura:${GITHUB_SHA} .
-          docker push registry.rsft.co/photoaura:latest
-          docker push registry.rsft.co/photoaura:${GITHUB_SHA}
+          docker build -t registry.rsft.co/photoaura-faces:latest -t registry.rsft.co/photoaura-faces:${GITHUB_SHA} ./face-service
+          docker push registry.rsft.co/photoaura-faces:latest
+          docker push registry.rsft.co/photoaura-faces:${GITHUB_SHA}
 
       - name: Mint argocd repo token
         id: argocd-token
@@ -47,13 +42,13 @@ jobs:
           git clone https://x-access-token:${GITHUB_TOKEN}@github.com/Rad-Soft/argocd.git "$WORKDIR"
           cd "$WORKDIR"
           SHORT_SHA=${GITHUB_SHA::7}
-          sed -i "s|tag:.*# backend-tag|tag: ${GITHUB_SHA} # backend-tag|" values/photoaura.yaml
+          sed -i "s|tag:.*# faces-tag|tag: ${GITHUB_SHA} # faces-tag|" values/photoaura-faces.yaml
           git config user.name "rad-soft-argocd[bot]"
           git config user.email "rad-soft-argocd[bot]@users.noreply.github.com"
-          git add values/photoaura.yaml
+          git add values/photoaura-faces.yaml
           if git diff --cached --quiet; then
             echo "No tag change — skipping commit"
           else
-            git commit -m "deploy photoaura: ${SHORT_SHA}"
+            git commit -m "deploy photoaura-faces: ${SHORT_SHA}"
             git push
           fi
