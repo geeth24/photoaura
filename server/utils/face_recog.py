@@ -1,15 +1,17 @@
 import io
 import os
+import random
 import uuid
 
 import requests
 from PIL import Image
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from config import settings
 from services.aws_service import s3_client
 from db.base import session_scope
-from db.models import FaceData, FaceEmbedding, PhotoFaceLink
+from db.models import FaceData, FaceEmbedding, PhotoFaceLink, FileMetadata, Album
 
 AWS_BUCKET = settings.AWS_BUCKET
 
@@ -18,8 +20,18 @@ FACE_SERVICE_URL = os.environ.get("FACE_SERVICE_URL", "http://photoaura-faces:80
 
 # cosine distance (1 - similarity) on L2-normalized ArcFace vectors.
 # <= MATCH_DIST -> same person; the band up to SUGGEST_DIST is "maybe same".
-MATCH_DIST = float(os.environ.get("FACE_MATCH_DIST", "0.60"))     # sim >= 0.40
-SUGGEST_DIST = float(os.environ.get("FACE_SUGGEST_DIST", "0.75"))  # sim >= 0.25
+# 0.44 sits in the valley: ~all true matches cluster < 0.40, different people
+# start ~0.55+. The old 0.60 merged distinct people (e.g. a 0.587 false match).
+# Used only for the LIVE incremental tag; recluster_faces() is authoritative.
+MATCH_DIST = float(os.environ.get("FACE_MATCH_DIST", "0.44"))     # sim >= 0.56
+SUGGEST_DIST = float(os.environ.get("FACE_SUGGEST_DIST", "0.60"))  # review band
+
+# Chinese Whispers edge threshold: two faces are graph-connected when their
+# cosine distance is <= this. Graph + majority-vote clustering avoids the
+# single-link chaining that incremental matching suffers. dlib/InsightFace use
+# ~0.45-0.48; our distribution puts the valley at ~0.44.
+CLUSTER_DIST = float(os.environ.get("FACE_CLUSTER_DIST", "0.45"))
+CLUSTER_KNN = int(os.environ.get("FACE_CLUSTER_KNN", "20"))
 
 # Two gates with different jobs:
 #  - INDEX: lenient. Should we embed + link this face at all? ArcFace is
@@ -253,3 +265,172 @@ def assign_pending_faces(album_id=None):
         session.commit()
     print(f"assign_pending_faces: claimed {claimed}/{len(pending)} parked faces")
     return claimed
+
+
+def _stored_face(fe):
+    """Rebuild a face dict (for face_score / is_chip_worthy) from a stored row."""
+    p = fe.pose or {}
+    return {
+        "bbox": (fe.bbox or {}).get("box"),
+        "det_score": fe.det_score,
+        "yaw": p.get("yaw"),
+        "pitch": p.get("pitch"),
+        "roll": p.get("roll"),
+        "sharpness": p.get("sharpness"),
+    }
+
+
+def _chinese_whispers(node_ids, adjacency, iterations=25):
+    """Graph clustering by iterative majority vote (Fei 2007). Each node adopts
+    the label with the highest summed edge weight among its neighbours. Robust
+    to single-link chaining because one weak edge can't outvote a real cluster.
+    Returns {node_id: label}."""
+    labels = {n: n for n in node_ids}
+    rng = random.Random(1)  # fixed seed -> reproducible reclusters
+    for _ in range(iterations):
+        order = list(node_ids)
+        rng.shuffle(order)
+        changed = 0
+        for n in order:
+            scores = {}
+            for nb, w in adjacency.get(n, ()):
+                lbl = labels[nb]
+                scores[lbl] = scores.get(lbl, 0.0) + w
+            if not scores:
+                continue
+            best = max(scores, key=scores.get)
+            if labels[n] != best:
+                labels[n] = best
+                changed += 1
+        if changed == 0:
+            break
+    return labels
+
+
+def recluster_faces():
+    """Authoritative clustering: rebuild every person from the full embedding
+    graph using Chinese Whispers. Order-independent and chaining-resistant —
+    unlike the incremental per-photo matcher. Preserves any names already
+    assigned, repicks each person's sharpest frontal key chip."""
+    with session_scope() as session:
+        faces = session.query(FaceEmbedding).all()
+        if not faces:
+            return "No faces to cluster."
+        by_id = {fe.id: fe for fe in faces}
+        node_ids = list(by_id.keys())
+
+        # names to preserve: which old person each face belonged to
+        old_names = {
+            fd.external_id: fd.name
+            for fd in session.query(FaceData).all()
+            if fd.name
+        }
+
+        # edges: each face's nearest neighbours within CLUSTER_DIST (HNSW kNN)
+        sim_min = 1.0 - CLUSTER_DIST
+        rows = session.execute(
+            text(
+                """
+                SELECT a.id AS a, nn.id AS b,
+                       1 - (a.embedding <=> nn.embedding) AS sim
+                FROM face_embedding a
+                CROSS JOIN LATERAL (
+                    SELECT b.id, b.embedding FROM face_embedding b
+                    WHERE b.id <> a.id
+                    ORDER BY b.embedding <=> a.embedding
+                    LIMIT :k
+                ) nn
+                WHERE 1 - (a.embedding <=> nn.embedding) >= :sim_min
+                """
+            ),
+            {"k": CLUSTER_KNN, "sim_min": sim_min},
+        ).fetchall()
+
+        adjacency = {}
+        for a, b, sim in rows:
+            adjacency.setdefault(a, []).append((b, float(sim)))
+            adjacency.setdefault(b, []).append((a, float(sim)))
+
+        labels = _chinese_whispers(node_ids, adjacency)
+
+        clusters = {}
+        for fid, lbl in labels.items():
+            clusters.setdefault(lbl, []).append(fid)
+
+        # wipe old identities; embeddings stay, face_id gets rewritten.
+        # null the FK references before dropping face_data rows.
+        session.query(FaceEmbedding).update(
+            {FaceEmbedding.face_id: None}, synchronize_session=False
+        )
+        session.query(PhotoFaceLink).delete()
+        session.query(FaceData).delete()
+        session.flush()
+
+        people = 0
+        chips = []  # (external_id, photo_id, bbox) to crop+upload after commit
+        for members in clusters.values():
+            best_id = max(members, key=lambda i: face_score(_stored_face(by_id[i])))
+            best = by_id[best_id]
+            best_face = _stored_face(best)
+
+            # a one-off face only becomes a person if it's a clean frontal crop —
+            # keeps junk singletons (turned/soft) out of the people grid
+            if len(members) == 1 and not is_chip_worthy(best_face):
+                continue
+
+            external_id = uuid.uuid4().hex
+            inherited = next(
+                (old_names[by_id[i].face_id] for i in members
+                 if by_id[i].face_id in old_names),
+                None,
+            ) if old_names else None
+            score = face_score(best_face)
+
+            session.add(
+                FaceData(external_id=external_id, name=inherited, key_score=score)
+            )
+            seen_photos = set()
+            for i in members:
+                fe = by_id[i]
+                fe.face_id = external_id
+                if fe.photo_id not in seen_photos:
+                    seen_photos.add(fe.photo_id)
+                    session.add(
+                        PhotoFaceLink(
+                            photo_id=fe.photo_id,
+                            face_id=external_id,
+                            album_id=fe.album_id,
+                        )
+                    )
+            people += 1
+            chips.append((external_id, best.photo_id, best_face["bbox"]))
+
+        session.commit()
+
+        # crop + upload each person's key chip
+        for external_id, photo_id, bbox in chips:
+            row = (
+                session.query(Album.slug, FileMetadata.filename)
+                .join(FileMetadata, FileMetadata.album_id == Album.id)
+                .filter(FileMetadata.id == photo_id)
+                .first()
+            )
+            if not row or not bbox:
+                continue
+            key = f"{row.slug}/{row.filename}"
+            try:
+                img = Image.open(
+                    io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read())
+                ).convert("RGB")
+                buf = io.BytesIO()
+                _crop(img, bbox).save(buf, format="JPEG")
+                buf.seek(0)
+                s3_client.upload_fileobj(
+                    buf, AWS_BUCKET, f"faces/{external_id}.jpg",
+                    ExtraArgs={"ContentType": "image/jpeg"},
+                )
+            except Exception as e:
+                print(f"recluster: chip upload failed for {key}: {e}")
+
+    print(f"recluster_faces: {people} people from {len(node_ids)} faces")
+    return f"{people} people"

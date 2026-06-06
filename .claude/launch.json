@@ -1,0 +1,8 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "client", "runtimeExecutable": "bash", "runtimeArgs": ["-c", "cd client && bun run dev"], "port": 3000 },
+    { "name": "client-worktree", "runtimeExecutable": "bash", "runtimeArgs": ["-c", "cd /Users/geeth/Development/photoaura/.claude/worktrees/photoaura-redesign/client && exec bun run dev"], "port": 3000 },
+    { "name": "marketing-worktree", "runtimeExecutable": "bash", "runtimeArgs": ["-c", "cd /Users/geeth/Development/photoaura/.claude/worktrees/marketing-redesign/marketing && PORT=3001 exec bun run dev"], "port": 3001 }
+  ]
+}

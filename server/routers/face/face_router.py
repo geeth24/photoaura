@@ -9,6 +9,7 @@ from utils.utils import create_album_photos_json
 from utils.face_recog import (
     detect_and_store_faces,
     assign_pending_faces,
+    recluster_faces,
     MATCH_DIST,
     SUGGEST_DIST,
 )
@@ -43,9 +44,9 @@ def _resync_album_faces(album_id: int, album_slug: str):
             done += 1
         except Exception as e:
             print(f"resync: face detection failed for {s3_key}: {e}")
-    # claim turned/soft shots that matched nobody until their person's frontal
-    # anchor was processed (order-independent second pass)
-    assign_pending_faces(album_id)
+    # authoritative global re-cluster (Chinese Whispers) — order-independent,
+    # chaining-resistant, repicks key chips and preserves names
+    recluster_faces()
     print(f"resync: album {album_slug!r} done — processed {done}/{len(photos)} photos")
 
 
@@ -232,6 +233,22 @@ def merge_faces(
 
     session.commit()
     return {"message": "Merged", "target": body.target_face_id}
+
+
+def _recluster_task():
+    recluster_faces()
+
+
+@router.post("/api/faces/recluster")
+async def recluster(
+    background: BackgroundTasks,
+    _admin=Depends(require_admin),
+):
+    """Re-run Chinese Whispers clustering over the stored embeddings — no
+    re-detection, no GPU. Fast way to re-group everyone after a threshold
+    change. Runs in the background."""
+    background.add_task(_recluster_task)
+    return {"message": "Recluster started"}
 
 
 @router.post("/api/album/{album_slug}/resync-faces")
