@@ -151,10 +151,28 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             match = _match_person(session, embedding)
             chip_worthy = is_chip_worthy(face)
 
-            # a known person stays attached even in a turned/soft shot, but we
-            # never mint a NEW person from a sub-par crop — that bred junk tiles
+            # a weak crop that matches nobody YET is parked unassigned (no link)
+            # rather than dropped — a person's frontal anchor may only be
+            # processed later. assign_pending_faces() claims it afterward.
+            # we still never MINT a new person from a sub-par crop (junk tiles).
             if match is None and not chip_worthy:
-                print(f"skip face {index + 1} in {file_path}: weak crop, no match")
+                session.add(
+                    FaceEmbedding(
+                        photo_id=photo_id,
+                        album_id=album_id,
+                        face_id=None,
+                        embedding=embedding,
+                        det_score=face.get("det_score"),
+                        bbox={"box": face["bbox"]},
+                        pose={
+                            "yaw": face.get("yaw"),
+                            "pitch": face.get("pitch"),
+                            "roll": face.get("roll"),
+                            "sharpness": face.get("sharpness"),
+                        },
+                    )
+                )
+                session.commit()
                 continue
             face_id = match or uuid.uuid4().hex
 
@@ -208,3 +226,30 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
             session.commit()
 
     return "Faces processed and stored."
+
+
+def assign_pending_faces(album_id=None):
+    """Second pass: claim parked (unassigned) embeddings now that every person
+    cluster exists. Order-independent — fixes turned shots processed before
+    their person's frontal anchor. Pass album_id to scope to one album."""
+    with session_scope() as session:
+        q = session.query(FaceEmbedding).filter(FaceEmbedding.face_id.is_(None))
+        if album_id is not None:
+            q = q.filter(FaceEmbedding.album_id == album_id)
+        pending = q.all()
+
+        claimed = 0
+        for fe in pending:
+            match = _match_person(session, fe.embedding)
+            if not match:
+                continue
+            fe.face_id = match
+            session.add(
+                PhotoFaceLink(
+                    photo_id=fe.photo_id, face_id=match, album_id=fe.album_id
+                )
+            )
+            claimed += 1
+        session.commit()
+    print(f"assign_pending_faces: claimed {claimed}/{len(pending)} parked faces")
+    return claimed

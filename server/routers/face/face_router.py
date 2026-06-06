@@ -6,7 +6,12 @@ from config import settings
 from db.base import get_session, session_scope
 from db.models import FaceData, FaceEmbedding, PhotoFaceLink, FileMetadata, Album
 from utils.utils import create_album_photos_json
-from utils.face_recog import detect_and_store_faces, MATCH_DIST, SUGGEST_DIST
+from utils.face_recog import (
+    detect_and_store_faces,
+    assign_pending_faces,
+    MATCH_DIST,
+    SUGGEST_DIST,
+)
 from dependencies import get_current_user, require_admin
 from services.aws_service import s3_client
 
@@ -38,6 +43,9 @@ def _resync_album_faces(album_id: int, album_slug: str):
             done += 1
         except Exception as e:
             print(f"resync: face detection failed for {s3_key}: {e}")
+    # claim turned/soft shots that matched nobody until their person's frontal
+    # anchor was processed (order-independent second pass)
+    assign_pending_faces(album_id)
     print(f"resync: album {album_slug!r} done — processed {done}/{len(photos)} photos")
 
 

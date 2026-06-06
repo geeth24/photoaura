@@ -17,7 +17,7 @@ from config import settings
 from db.base import get_session, session_scope
 from db.models import Album, FileMetadata, User
 from services.aws_service import s3_client
-from utils.face_recog import detect_and_store_faces
+from utils.face_recog import detect_and_store_faces, assign_pending_faces
 from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
@@ -214,6 +214,8 @@ async def create_upload_files(
             except Exception as e:
                 print(f"face detection failed for {s3_key}: {e}")
             await _notify("faces", i + 1, n)
+        # claim weak shots that matched nobody until their anchor landed
+        await asyncio.to_thread(assign_pending_faces, album.id)
 
     # stage 3: pre-warm CDN derivatives so the first view isn't a cold SIH render
     done = 0
@@ -317,6 +319,7 @@ async def create_upload_zip(
             except Exception as e:
                 print(f"face detection failed for {s3_key}: {e}")
             await _notify("faces", i + 1, n)
+        await asyncio.to_thread(assign_pending_faces, album.id)
 
     # stage 3: warm CDN derivatives
     done = 0
