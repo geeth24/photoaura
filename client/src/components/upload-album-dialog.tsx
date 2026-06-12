@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { uploadAlbum, type UploadStage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +40,7 @@ const STAGE_LABEL: Record<UploadStage["stage"], string> = {
   uploading: "Uploading photos",
   saving: "Saving",
   faces: "Detecting faces",
+  clustering: "Grouping people",
   warming: "Optimizing images",
   done: "Finishing up",
 }
@@ -68,6 +70,7 @@ export function UploadAlbumDialog({
   initialFiles,
   lockFaceDetection = false,
 }: Props) {
+  const router = useRouter()
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const [name, setName] = useState("")
@@ -118,7 +121,7 @@ export function UploadAlbumDialog({
     setUploading(true)
     setStage({ stage: "uploading", pct: 0 })
     try {
-      await uploadAlbum(
+      const { albumSlug, processing } = await uploadAlbum(
         { files, albumName: resolvedName, userId, faceDetection: faces },
         setStage
       )
@@ -129,6 +132,10 @@ export function UploadAlbumDialog({
       )
       onUploaded()
       setOpen(false)
+      // faces/warming run server-side now — hand off to the live progress page
+      if (processing && albumSlug) {
+        router.push(`/albums/${albumSlug}/processing`)
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed")
       setUploading(false)

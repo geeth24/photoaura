@@ -87,10 +87,32 @@ export type UploadOptions = {
 }
 
 export type UploadStage = {
-  stage: "uploading" | "saving" | "faces" | "warming" | "done"
+  stage: "uploading" | "saving" | "faces" | "clustering" | "warming" | "done"
   pct?: number // for "uploading" (network)
   current?: number // for server stages
   total?: number
+}
+
+export type UploadResult = {
+  albumSlug: string
+  processing: boolean
+}
+
+export type UploadStatus = {
+  album_slug: string
+  active: boolean
+  finished: boolean
+  phase: "saving" | "faces" | "clustering" | "warming" | "done"
+  current: number
+  total: number
+  error: string | null
+  face_detection: boolean
+  image_count?: number
+}
+
+/** Poll background album processing (faces, clustering, cdn warming). */
+export function getUploadStatus(slug: string): Promise<UploadStatus> {
+  return apiFetch<UploadStatus>(`/upload-status/${slug}`)
 }
 
 /**
@@ -104,7 +126,7 @@ export type UploadStage = {
 export function uploadAlbum(
   opts: UploadOptions,
   onStage?: (s: UploadStage) => void
-): Promise<void> {
+): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const token = getToken()
     const wsUrl = API_URL.replace(/^http/, "ws") + "/ws/"
@@ -112,13 +134,13 @@ export function uploadAlbum(
     let settled = false
     let started = false
 
-    const finish = (err?: Error) => {
+    const finish = (err?: Error, result?: UploadResult) => {
       if (settled) return
       settled = true
       try {
         ws.close()
       } catch {}
-      err ? reject(err) : resolve()
+      err ? reject(err) : resolve(result ?? { albumSlug: "", processing: false })
     }
 
     ws.onmessage = (e) => {
@@ -156,7 +178,17 @@ export function uploadAlbum(
       }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          finish()
+          // server returns once files are saved; faces/warming run in the
+          // background and are tracked on the processing page.
+          let result: UploadResult = { albumSlug: "", processing: false }
+          try {
+            const body = JSON.parse(xhr.responseText)
+            result = {
+              albumSlug: body.album_slug ?? "",
+              processing: !!body.processing,
+            }
+          } catch {}
+          finish(undefined, result)
         } else {
           let msg = "Upload failed"
           try {

@@ -22,6 +22,7 @@ from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
 from routers.websocket.websocket_router import manager
+from services import upload_jobs
 from dependencies import oauth2_scheme, get_current_user, require_admin
 from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
@@ -199,7 +200,8 @@ async def create_upload_files(
     face_targets = []
     keys = []  # image keys to warm (videos aren't transformed/warmed)
 
-    # stage 1: save each file to S3 + (for images) record metadata + blur
+    # stage 1: save each file to S3 + (for images) record metadata + blur.
+    # This is the only work that needs the request body, so it stays inline.
     for i, file in enumerate(files):
         content = await file.read()
         ctype = file.content_type or _guess_content_type(file.filename)
@@ -214,46 +216,103 @@ async def create_upload_files(
         session.query(FileMetadata).filter_by(album_id=album.id).count()
     )
     session.commit()
+    image_count = album.image_count
 
-    # stage 2: detect + index faces (off the event loop so progress can flush)
-    if face_targets:
-        n = len(face_targets)
-        for i, (s3_key, meta_id) in enumerate(face_targets):
-            # one bad photo (no detectable face, odd crop, etc.) must never
-            # 500 the whole upload — log and keep going
+    # faces + clustering + cdn warming can run for minutes on a big album —
+    # well past any proxy timeout. Hand them to a background task and return
+    # now so the admin gets routed to a live progress page instead of a 504.
+    processing = bool(face_targets or keys)
+    if processing:
+        upload_jobs.start_job(
+            album_slug, face_detection=bool(face_targets), image_count=image_count
+        )
+        asyncio.create_task(
+            _process_album(
+                album.id, album_slug, face_targets, keys, update, image_count
+            )
+        )
+    else:
+        await _notify("done", total, total)
+
+    return {
+        "filenames": [file.filename for file in files],
+        "album_slug": album_slug,
+        "processing": processing,
+    }
+
+
+async def _process_album(album_id, album_slug, face_targets, keys, update, image_count):
+    """Background: detect faces, regroup, warm the CDN. Updates the job
+    registry (polled by the processing page) and the websocket as it goes."""
+    try:
+        # stage 2: detect + index faces (off the event loop so progress flushes)
+        if face_targets:
+            n = len(face_targets)
+            upload_jobs.update_job(album_slug, phase="faces", current=0, total=n)
+            await _notify("faces", 0, n)
+            for i, (s3_key, meta_id) in enumerate(face_targets):
+                # one bad photo must never abort the whole album — log & continue
+                try:
+                    await asyncio.to_thread(
+                        detect_and_store_faces, s3_key, meta_id, album_id, AWS_BUCKET
+                    )
+                except Exception as e:
+                    print(f"face detection failed for {s3_key}: {e}")
+                upload_jobs.update_job(album_slug, phase="faces", current=i + 1, total=n)
+                await _notify("faces", i + 1, n)
+
+            # authoritative regroup (Chinese Whispers); never fatal — detect
+            # already wrote consistent links, recluster only refines them.
+            upload_jobs.update_job(album_slug, phase="clustering")
+            await _notify("clustering", 0, 0)
             try:
-                await asyncio.to_thread(
-                    detect_and_store_faces, s3_key, meta_id, album.id, AWS_BUCKET
-                )
+                await asyncio.to_thread(recluster_faces)
             except Exception as e:
-                print(f"face detection failed for {s3_key}: {e}")
-            await _notify("faces", i + 1, n)
-        # authoritative regroup (Chinese Whispers) so a new upload can't leave
-        # people mis-merged; cheap on reruns (stable ids + chips reused).
-        # never let a clustering hiccup fail the upload — detect already wrote
-        # consistent links, recluster only refines them.
-        try:
-            await asyncio.to_thread(recluster_faces)
-        except Exception as e:
-            print(f"recluster after upload failed (non-fatal): {e}")
+                print(f"recluster after upload failed (non-fatal): {e}")
 
-    # stage 3: pre-warm CDN derivatives so the first view isn't a cold SIH render
-    done = 0
-    tasks = [asyncio.create_task(asyncio.to_thread(warm_key, k)) for k in keys]
-    await _notify("warming", 0, total)
-    for task in asyncio.as_completed(tasks):
-        await task
-        done += 1
-        await _notify("warming", done, total)
+        # stage 3: pre-warm CDN derivatives so the first view isn't a cold render
+        warm_total = len(keys)
+        done = 0
+        upload_jobs.update_job(album_slug, phase="warming", current=0, total=warm_total)
+        await _notify("warming", 0, warm_total)
+        tasks = [asyncio.create_task(asyncio.to_thread(warm_key, k)) for k in keys]
+        for task in asyncio.as_completed(tasks):
+            await task
+            done += 1
+            upload_jobs.update_job(
+                album_slug, phase="warming", current=done, total=warm_total
+            )
+            await _notify("warming", done, warm_total)
 
-    # re-uploading into an existing album can overwrite photos at the same key;
-    # purge the CDN so it stops serving the old cached image
-    if update:
-        await asyncio.to_thread(invalidate_cdn)
+        # re-uploading can overwrite photos at the same key; purge stale CDN copies
+        if update:
+            await asyncio.to_thread(invalidate_cdn)
 
-    await _notify("done", total, total)
+        upload_jobs.finish_job(album_slug)
+        await _notify("done", image_count, image_count)
+    except Exception as e:
+        print(f"album processing failed for {album_slug}: {e}")
+        upload_jobs.fail_job(album_slug, str(e))
+        await _notify("error", 0, 0)
 
-    return {"filenames": [file.filename for file in files]}
+
+@router.get("/api/upload-status/{album_slug}")
+async def upload_status(album_slug: str, current_user=Depends(require_admin)):
+    """Live status for the admin processing page. Returns finished=True when
+    there's no active job (already done, or the page was opened late)."""
+    job = upload_jobs.get_job(album_slug)
+    if not job:
+        return {
+            "album_slug": album_slug,
+            "active": False,
+            "finished": True,
+            "phase": "done",
+            "current": 0,
+            "total": 0,
+            "error": None,
+            "face_detection": False,
+        }
+    return {"album_slug": album_slug, "active": not job["finished"], **job}
 
 
 @router.post("/api/upload-zip/")
