@@ -218,9 +218,10 @@ def list_category_photos(
         .join(CategoryPhoto, CategoryPhoto.photo_id == FileMetadata.id)
         .join(Album, Album.id == FileMetadata.album_id)
         .filter(CategoryPhoto.category_id == category_id)
-        .order_by(CategoryPhoto.sort_order, CategoryPhoto.id)
         .all()
     )
+    # newest work first, matching the public gallery
+    rows.sort(key=lambda r: capture_time(r[0]), reverse=True)
     return [
         {
             "photo_id": meta.id,
