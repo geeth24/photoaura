@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion } from "motion/react"
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowLeft, Plus, X, ChevronLeft, ChevronRight, ImageOff } from "lucide-react"
+import { ArrowLeft, Plus, X, ChevronLeft, ChevronRight, ImageOff, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 type CuratedPhoto = {
@@ -51,6 +51,8 @@ export default function CurateCategoryPage({
   const [photos, setPhotos] = useState<CuratedPhoto[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const uploadRef = useRef<HTMLInputElement>(null)
 
   const fetchCurated = useCallback(() => {
     Promise.all([
@@ -97,6 +99,28 @@ export default function CurateCategoryPage({
     }
   }
 
+  const handleUpload = async (files: FileList | null) => {
+    if (!files?.length) return
+    setUploading(true)
+    let ok = 0
+    for (const f of Array.from(files)) {
+      try {
+        const form = new FormData()
+        form.append("file", f)
+        await apiFetch(`/categories/${categoryId}/upload`, { method: "POST", body: form })
+        ok++
+      } catch {
+        /* keep going; report at the end */
+      }
+    }
+    setUploading(false)
+    if (uploadRef.current) uploadRef.current.value = ""
+    ok
+      ? toast.success(`Uploaded ${ok} ${ok === 1 ? "image" : "images"}`)
+      : toast.error("Upload failed")
+    fetchCurated()
+  }
+
   const addPhotos = async (photoIds: number[]) => {
     if (!photoIds.length) return
     setSaving(true)
@@ -141,9 +165,27 @@ export default function CurateCategoryPage({
               from any album, no duplication
             </p>
           </div>
-          {user && (
-            <AddPhotosDialog userId={user.id} onAdd={addPhotos} saving={saving} existing={photos} />
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={uploadRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => handleUpload(e.target.files)}
+            />
+            <button
+              onClick={() => uploadRef.current?.click()}
+              disabled={uploading}
+              className="flex h-11 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-50"
+            >
+              <Upload className="size-3.5" />
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+            {user && (
+              <AddPhotosDialog userId={user.id} onAdd={addPhotos} saving={saving} existing={photos} />
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -262,7 +304,7 @@ function AddPhotosDialog({
         <Plus className="size-3.5" />
         Add photos
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-[95vw] overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add photos to this category</DialogTitle>
           <DialogDescription>

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+import os
+
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -270,6 +272,63 @@ def remove_category_photo(
     ).delete()
     session.commit()
     return {"message": "Removed"}
+
+
+@router.post("/api/categories/{category_id}/upload")
+async def upload_category_photo(
+    category_id: int,
+    file: UploadFile = File(...),
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Upload a standalone website-only image and add it to the category. It
+    lands in the category's linked album (or the shared 'website' album),
+    then gets referenced — same as any curated photo."""
+    if not session.get(Category, category_id):
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    album = (
+        session.query(Album)
+        .join(AlbumCategory, Album.id == AlbumCategory.album_id)
+        .filter(AlbumCategory.category_id == category_id)
+        .first()
+    ) or session.query(Album).filter_by(slug="website").first()
+    if not album:
+        raise HTTPException(status_code=400, detail="No album to hold website uploads")
+
+    content = await file.read()
+    filename = os.path.basename(file.filename or "image.jpg")
+    ctype = file.content_type or "image/jpeg"
+
+    # full pipeline (S3 + metadata + blur), no face detection for website art
+    from routers.files.files_router import _store_one_file
+
+    _store_one_file(content, filename, ctype, album, session, False, [], [])
+    meta = (
+        session.query(FileMetadata)
+        .filter_by(album_id=album.id, filename=filename)
+        .first()
+    )
+    if not meta:
+        raise HTTPException(status_code=500, detail="Upload failed")
+
+    if not session.query(CategoryPhoto).filter_by(
+        category_id=category_id, photo_id=meta.id
+    ).first():
+        base = session.query(
+            func.coalesce(func.max(CategoryPhoto.sort_order), -1)
+        ).filter_by(category_id=category_id).scalar() or -1
+        session.add(
+            CategoryPhoto(category_id=category_id, photo_id=meta.id, sort_order=base + 1)
+        )
+    session.commit()
+    return {
+        "photo_id": meta.id,
+        "album_id": meta.album_id,
+        "album_name": album.name,
+        "filename": meta.filename,
+        "compressed_image": build_photo_json(meta, album.slug)["compressed_image"],
+    }
 
 
 class ReorderBody(BaseModel):
