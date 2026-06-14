@@ -1,6 +1,7 @@
 from fastapi import HTTPException, APIRouter, Depends
 import os
 import logging
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from config import settings
@@ -71,6 +72,7 @@ async def get_album(
         "shared": album.shared,
         "upload": album.upload,
         "secret": album.secret,
+        "public": bool(album.public),
         "face_detection": album.face_detection,
         "album_permissions": permissions_list,
         "album_photos": album_photos,
@@ -146,6 +148,56 @@ async def get_all_photos(
     # chronological across every album, newest first
     all_photos.sort(key=capture_time, reverse=True)
     return all_photos
+
+
+@router.get("/api/album/{album_slug}/view")
+async def view_shared_album(
+    album_slug: str,
+    secret: str = None,
+    session: Session = Depends(get_session),
+):
+    """Public share view. A private album requires the matching secret (the
+    one baked into the share link); a public album opens for anyone. Returns
+    only gallery data — never permissions or client emails."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    if not album.public:
+        if not secret or secret != album.secret:
+            raise HTTPException(
+                status_code=403, detail="This gallery is private — open it from the share link."
+            )
+
+    photos = session.query(FileMetadata).filter_by(album_id=album.id).all()
+    return {
+        "album_id": album.id,
+        "album_name": album.name,
+        "slug": album.slug,
+        "image_count": album.image_count,
+        "public": bool(album.public),
+        "album_photos": create_album_photos_json(album.slug, photos),
+    }
+
+
+class VisibilityBody(BaseModel):
+    public: bool
+
+
+@router.patch("/api/album/{album_slug}/visibility")
+async def set_album_visibility(
+    album_slug: str,
+    body: VisibilityBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Toggle whether the album is openable without the share secret (admin)."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    album.public = body.public
+    session.commit()
+    return {"slug": album_slug, "public": bool(album.public)}
 
 
 @router.get("/api/album/{album_slug}/download/{filename:path}")

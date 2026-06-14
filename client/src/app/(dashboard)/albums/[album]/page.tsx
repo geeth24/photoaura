@@ -24,7 +24,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
+import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -155,16 +161,33 @@ export default function AlbumDetailPage({
     }
   }
 
-  const handleShare = async () => {
+  const [isPublic, setIsPublic] = useState(false)
+  useEffect(() => setIsPublic(!!album?.public), [album?.public])
+
+  const copyShare = async (publicLink: boolean) => {
     if (!album) return
-    const link = `${window.location.origin}/share/${albumSlug}${
-      album.secret ? `?s=${album.secret}` : ""
-    }`
+    const base = `${window.location.origin}/share/${albumSlug}`
+    const link = publicLink || !album.secret ? base : `${base}?s=${album.secret}`
     try {
       await navigator.clipboard.writeText(link)
-      toast.success("Share link copied to clipboard")
+      toast.success(publicLink ? "Public link copied" : "Private link copied")
     } catch {
       toast.error("Couldn't copy — your browser blocked clipboard access")
+    }
+  }
+
+  const togglePublic = async () => {
+    const next = !isPublic
+    setIsPublic(next)
+    try {
+      await apiFetch(`/album/${albumSlug}/visibility`, {
+        method: "PATCH",
+        body: JSON.stringify({ public: next }),
+      })
+      toast.success(next ? "Gallery is now public" : "Gallery is now private")
+    } catch (e) {
+      setIsPublic(!next)
+      toast.error(e instanceof Error ? e.message : "Couldn't change visibility")
     }
   }
 
@@ -289,14 +312,38 @@ export default function AlbumDetailPage({
                 Upload Enabled
               </span>
             )}
-            {/* anyone viewing the album can grab the public share link */}
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-            >
-              <Share2 className="size-3" />
-              Share link
-            </button>
+            {/* anyone viewing the album can grab a share link */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <button className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
+                    <Share2 className="size-3" />
+                    Share
+                    {isPublic && <Globe className="size-3 text-brand" />}
+                  </button>
+                }
+              />
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => copyShare(false)}>
+                  <Lock className="size-3.5" />
+                  <span className="flex-1">Copy private link</span>
+                </DropdownMenuItem>
+                {isAdmin && isPublic && (
+                  <DropdownMenuItem onClick={() => copyShare(true)}>
+                    <Globe className="size-3.5" />
+                    <span className="flex-1">Copy public link</span>
+                  </DropdownMenuItem>
+                )}
+                {isAdmin && (
+                  <DropdownMenuItem onClick={togglePublic}>
+                    {isPublic ? <Lock className="size-3.5" /> : <Globe className="size-3.5" />}
+                    <span className="flex-1">
+                      {isPublic ? "Make private" : "Make public"}
+                    </span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

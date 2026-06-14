@@ -20,6 +20,7 @@ import {
   Globe,
   UserCircle,
   Download,
+  Activity,
   LogOut,
 } from "lucide-react"
 import Link from "next/link"
@@ -36,6 +37,7 @@ const navItems = [
   { title: "Users", href: "/users", icon: Users, adminOnly: true },
   { title: "Faces", href: "/faces", icon: Smile, adminOnly: true },
   { title: "Website", href: "/website", icon: Globe, adminOnly: true },
+  { title: "Ops", href: "/ops", icon: Activity, adminOnly: true },
   { title: "Profile", href: "/profile", icon: UserCircle, adminOnly: false },
 ]
 

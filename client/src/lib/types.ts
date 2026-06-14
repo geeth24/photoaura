@@ -29,6 +29,7 @@ export type Album = {
   shared: boolean
   upload: boolean
   secret?: string
+  public?: boolean
   face_detection?: boolean
   album_permissions?: AlbumPermission[]
   album_photos: Photo[]

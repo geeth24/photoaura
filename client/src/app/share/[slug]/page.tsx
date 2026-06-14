@@ -42,7 +42,7 @@ function ShareGallery({ params }: { params: Promise<{ slug: string }> }) {
 
   useEffect(() => {
     const q = secret ? `?secret=${encodeURIComponent(secret)}` : ""
-    fetch(`${API_URL}/album/${slug}/${q}`)
+    fetch(`${API_URL}/album/${slug}/view${q}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then(setAlbum)
       .catch(() => setAlbum(null))

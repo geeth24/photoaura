@@ -80,6 +80,8 @@ class Album(Base):
     # website-management albums (category backings + standalone uploads) are
     # hidden from the client Albums + All Photos views; managed under /website
     is_website: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="false")
+    # public = openable by anyone; private (default) needs the share secret
+    public: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="false")
 
     photos: Mapped[list["FileMetadata"]] = relationship(
         back_populates="album", cascade="all, delete-orphan"

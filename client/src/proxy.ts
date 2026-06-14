@@ -12,8 +12,8 @@ function roleFromToken(token?: string): string | null {
   }
 }
 
-const PROTECTED = ["/dashboard", "/albums", "/photos", "/users", "/faces", "/website", "/profile"]
-const ADMIN_ONLY = ["/dashboard", "/users", "/faces", "/website"]
+const PROTECTED = ["/dashboard", "/albums", "/photos", "/users", "/faces", "/website", "/profile", "/ops"]
+const ADMIN_ONLY = ["/dashboard", "/users", "/faces", "/website", "/ops"]
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value
@@ -47,6 +47,7 @@ export const config = {
     "/faces/:path*",
     "/website/:path*",
     "/profile/:path*",
+    "/ops/:path*",
     "/login",
   ],
 }
