@@ -159,6 +159,24 @@ class AlbumCategory(Base):
     category: Mapped[Optional["Category"]] = relationship()
 
 
+class CategoryPhoto(Base):
+    """A website category curated as an ordered set of individual photos,
+    referencing file_metadata by id — so a category can mix photos pulled
+    from any client album with standalone website-only uploads, with no
+    duplication. Supersedes the one-album-per-category link for display."""
+
+    __tablename__ = "category_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="CASCADE")
+    )
+    photo_id: Mapped[int] = mapped_column(
+        ForeignKey("file_metadata.id", ondelete="CASCADE")
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
 class FaceData(Base):
     __tablename__ = "face_data"
 

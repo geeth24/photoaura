@@ -25,9 +25,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Plus, Trash2, Unlink, Tags, ImageOff, ExternalLink, Star } from "lucide-react"
+import { Plus, Trash2, Unlink, Tags, ImageOff, ExternalLink, Star, ImageIcon } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
+import Link from "next/link"
 
 // the featured album shape returned by /category-albums (note: `name`, `id`)
 type FeaturedAlbum = {
@@ -324,6 +325,17 @@ export default function WebsitePage() {
 
                   {/* featured album + controls */}
                   <div className="space-y-3 p-4">
+                    <Link
+                      href={`/website/${cat.id}`}
+                      className="flex items-center justify-center gap-2 border border-border-default py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-brand hover:text-brand"
+                    >
+                      <ImageIcon className="size-3.5" />
+                      Curate photos
+                    </Link>
+                    <p className="text-[10px] leading-relaxed text-text-faint">
+                      Hand-pick photos from any album (no re-upload). Falls back to the
+                      whole featured album below if none are picked.
+                    </p>
                     <div className="flex items-center justify-between gap-2">
                       {album ? (
                         <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">

@@ -51,6 +51,7 @@ export const isVideo = (p: Photo) =>
   (p.file_metadata.content_type || "").startsWith("video/")
 
 export type FileMetadata = {
+  id?: number
   album_id: number
   filename: string
   content_type: string

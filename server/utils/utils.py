@@ -90,47 +90,49 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
+def build_photo_json(meta, album_slug):
+    """One photo's JSON, with URLs resolved against the album it actually
+    lives in — so curated category lists can mix photos from many albums."""
+    if (meta.content_type or "").startswith("video/"):
+        # SIH can't transform video — serve the raw object via a presigned URL
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": AWS_BUCKET, "Key": f"{album_slug}/{meta.filename}"},
+            ExpiresIn=21600,
+        )
+        compressed_image_url = url
+        image_url = url
+    else:
+        # plain URLs — works with every client version. ?v versioning broke
+        # clients still running the old loader (jams ?v into the S3 key ->
+        # 404); not worth breaking prod for the rare re-upload-overwrite case.
+        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
+        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
+    return {
+        "image": image_url,
+        "compressed_image": compressed_image_url,
+        "file_metadata": {
+            "id": meta.id,
+            "album_id": meta.album_id,
+            "filename": meta.filename,
+            "content_type": meta.content_type,
+            "size": meta.size,
+            "width": meta.width,
+            "height": meta.height,
+            "upload_date": meta.upload_date,
+            "exif_data": meta.exif_data,
+            "blur_data_url": meta.blur_data_url,
+            "orientation": meta.orientation,
+            "description": meta.description,
+            "tags": meta.tags,
+        },
+    }
+
+
 def create_album_photos_json(album_slug, file_metadata):
-    album_photos = []
     # chronological by capture time so the grid + lightbox read like the event
     file_metadata = sorted(file_metadata, key=capture_time)
-    for meta in file_metadata:
-        if (meta.content_type or "").startswith("video/"):
-            # SIH can't transform video — serve the raw object via a presigned URL
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": AWS_BUCKET, "Key": f"{album_slug}/{meta.filename}"},
-                ExpiresIn=21600,
-            )
-            compressed_image_url = url
-            image_url = url
-        else:
-            # plain URLs — works with every client version. ?v versioning broke
-            # clients still running the old loader (jams ?v into the S3 key ->
-            # 404); not worth breaking prod for the rare re-upload-overwrite case.
-            compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
-            image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
-        album_photos.append(
-            {
-                "image": image_url,
-                "compressed_image": compressed_image_url,
-                "file_metadata": {
-                    "album_id": meta.album_id,
-                    "filename": meta.filename,
-                    "content_type": meta.content_type,
-                    "size": meta.size,
-                    "width": meta.width,
-                    "height": meta.height,
-                    "upload_date": meta.upload_date,
-                    "exif_data": meta.exif_data,
-                    "blur_data_url": meta.blur_data_url,
-                    "orientation": meta.orientation,
-                    "description": meta.description,
-                    "tags": meta.tags,
-                },
-            }
-        )
-    return album_photos
+    return [build_photo_json(meta, album_slug) for meta in file_metadata]
 
 
 # Function to extract EXIF data
