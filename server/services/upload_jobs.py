@@ -17,8 +17,11 @@ _jobs: dict[str, dict] = {}
 PHASES = ["saving", "faces", "clustering", "warming", "done"]
 
 
-def start_job(slug: str, *, face_detection: bool, image_count: int) -> None:
+def start_job(
+    slug: str, *, face_detection: bool, image_count: int, kind: str = "upload"
+) -> None:
     _jobs[slug] = {
+        "kind": kind,  # "upload" | "resync" — drives the progress copy
         "phase": "faces" if face_detection else "warming",
         "current": 0,
         "total": 0,
@@ -29,6 +32,11 @@ def start_job(slug: str, *, face_detection: bool, image_count: int) -> None:
         "started_at": time.time(),
         "updated_at": time.time(),
     }
+
+
+def is_active(slug: str) -> bool:
+    job = _jobs.get(slug)
+    return bool(job) and not job["finished"]
 
 
 def update_job(slug: str, *, phase: str, current: int = 0, total: int = 0) -> None:

@@ -108,6 +108,7 @@ export type UploadStatus = {
   error: string | null
   face_detection: boolean
   image_count?: number
+  kind?: "upload" | "resync"
 }
 
 /** Poll background album processing (faces, clustering, cdn warming). */

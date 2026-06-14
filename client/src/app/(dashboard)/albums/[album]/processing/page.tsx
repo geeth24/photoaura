@@ -92,7 +92,10 @@ export default function ProcessingPage({
   }, [status, slug, router])
 
   const faces = status?.face_detection ?? true
-  const steps = STEPS.filter((s) => faces || !s.facesOnly)
+  const isResync = status?.kind === "resync"
+  const steps = STEPS.filter((s) =>
+    isResync ? s.key === "faces" || s.key === "clustering" : faces || !s.facesOnly
+  )
   const phaseIdx = status ? PHASES.indexOf(status.phase) : 0
   const finished = status?.finished ?? false
   const errored = !!status?.error || failedToLoad
@@ -119,15 +122,23 @@ export default function ProcessingPage({
               {errored
                 ? "Processing hit a snag"
                 : finished
-                  ? "All done"
-                  : "Processing your album"}
+                  ? isResync
+                    ? "Faces updated"
+                    : "All done"
+                  : isResync
+                    ? "Re-detecting faces"
+                    : "Processing your album"}
             </h1>
             <p className="text-sm text-muted-foreground">
               {errored
-                ? "Your photos are saved — some background steps didn’t finish."
+                ? "Some background steps didn’t finish."
                 : finished
-                  ? "Your photos are ready to view."
-                  : "Your photos are saved. The rest runs in the background — you can leave this page."}
+                  ? isResync
+                    ? "People have been regrouped."
+                    : "Your photos are ready to view."
+                  : isResync
+                    ? "Finding people across the album. You can leave this page — it keeps running."
+                    : "Your photos are saved. The rest runs in the background — you can leave this page."}
             </p>
           </div>
         </div>

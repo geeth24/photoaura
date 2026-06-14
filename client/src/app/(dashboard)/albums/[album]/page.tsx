@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { use } from "react"
 import { useRouter } from "next/navigation"
-import { apiFetch, deletePhoto } from "@/lib/api"
+import { apiFetch, deletePhoto, getUploadStatus, type UploadStatus } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
 import type { Album, AlbumFace } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace } from "lucide-react"
+import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -80,6 +80,36 @@ export default function AlbumDetailPage({
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // poll background face processing (resync / upload) so we can show a live
+  // spinner on the People row and refresh once it lands
+  const [job, setJob] = useState<UploadStatus | null>(null)
+  const wasActive = useRef(false)
+  useEffect(() => {
+    if (!isAdmin) return
+    let on = true
+    let timer: ReturnType<typeof setTimeout>
+    const tick = async () => {
+      try {
+        const s = await getUploadStatus(albumSlug)
+        if (!on) return
+        setJob(s)
+        if (wasActive.current && !s.active) refresh() // just finished -> reload faces
+        wasActive.current = s.active
+        // poll fast while active, slow idle so a fresh resync is picked up
+        timer = setTimeout(tick, s.active ? 1500 : 8000)
+      } catch {
+        if (on) timer = setTimeout(tick, 8000)
+      }
+    }
+    tick()
+    return () => {
+      on = false
+      clearTimeout(timer)
+    }
+  }, [albumSlug, isAdmin, refresh])
+
+  const processing = !!job?.active
 
   const handleDeletePhoto = async (filename: string) => {
     if (!album) return
@@ -262,11 +292,15 @@ export default function AlbumDetailPage({
           )}
           <button
             onClick={handleResyncFaces}
-            disabled={resyncing}
+            disabled={resyncing || processing}
             className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:pointer-events-none disabled:opacity-50"
           >
-            <ScanFace className="size-3.5" />
-            {resyncing ? "Starting…" : "Resync faces"}
+            {processing ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <ScanFace className="size-3.5" />
+            )}
+            {processing ? "Re-detecting…" : resyncing ? "Starting…" : "Resync faces"}
           </button>
           {user && (
             <UploadAlbumDialog
@@ -323,6 +357,23 @@ export default function AlbumDetailPage({
       </div>
 
       {/* people */}
+      {processing && (
+        <Link
+          href={`/albums/${albumSlug}/processing`}
+          className="flex items-center gap-3 border border-border-subtle bg-surface-elevated px-4 py-3 text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+        >
+          <Loader2 className="size-4 shrink-0 animate-spin text-brand" />
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em]">
+            {job?.phase === "clustering" ? "Grouping people" : "Detecting faces"}
+            {job && job.phase === "faces" && job.total > 0
+              ? ` · ${job.current}/${job.total}`
+              : "…"}
+          </span>
+          <span className="ml-auto text-[10px] uppercase tracking-[0.2em] text-text-faint">
+            View progress
+          </span>
+        </Link>
+      )}
       <AlbumFaces faces={faces} selected={selectedFace} onSelect={setSelectedFace} />
 
       {/* justified masonry */}

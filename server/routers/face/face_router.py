@@ -24,6 +24,7 @@ from utils.face_recog import (
 )
 from dependencies import get_current_user, require_admin
 from services.aws_service import s3_client
+from services import upload_jobs
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -51,30 +52,43 @@ def _accessible_album_ids(current_user, session):
 def _resync_album_faces(album_id: int, album_slug: str):
     """Re-run face detection over every photo in an album. Runs in a
     background task so the request returns immediately. Clears the album's
-    existing face links first so re-runs don't leave stale data."""
-    with session_scope() as session:
-        session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
-        session.query(FaceEmbedding).filter_by(album_id=album_id).delete()
-        photos = (
-            session.query(FileMetadata.filename, FileMetadata.id, FileMetadata.content_type)
-            .filter_by(album_id=album_id)
-            .all()
+    existing face links first so re-runs don't leave stale data. Reports
+    progress through the same job registry the upload flow uses."""
+    try:
+        with session_scope() as session:
+            session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
+            session.query(FaceEmbedding).filter_by(album_id=album_id).delete()
+            photos = (
+                session.query(FileMetadata.filename, FileMetadata.id, FileMetadata.content_type)
+                .filter_by(album_id=album_id)
+                .all()
+            )
+
+        images = [p for p in photos if not (p[2] or "").startswith("video/")]
+        total = len(images)
+        upload_jobs.start_job(
+            album_slug, face_detection=True, image_count=total, kind="resync"
         )
 
-    done = 0
-    for filename, meta_id, content_type in photos:
-        if (content_type or "").startswith("video/"):
-            continue
-        s3_key = f"{album_slug}/{filename}"
-        try:
-            detect_and_store_faces(s3_key, meta_id, album_id, AWS_BUCKET)
-            done += 1
-        except Exception as e:
-            print(f"resync: face detection failed for {s3_key}: {e}")
-    # authoritative global re-cluster (Chinese Whispers) — order-independent,
-    # chaining-resistant, repicks key chips and preserves names
-    recluster_faces()
-    print(f"resync: album {album_slug!r} done — processed {done}/{len(photos)} photos")
+        done = 0
+        for filename, meta_id, content_type in images:
+            s3_key = f"{album_slug}/{filename}"
+            try:
+                detect_and_store_faces(s3_key, meta_id, album_id, AWS_BUCKET)
+                done += 1
+            except Exception as e:
+                print(f"resync: face detection failed for {s3_key}: {e}")
+            upload_jobs.update_job(album_slug, phase="faces", current=done, total=total)
+
+        # authoritative global re-cluster (Chinese Whispers) — order-independent,
+        # chaining-resistant, repicks key chips and preserves names
+        upload_jobs.update_job(album_slug, phase="clustering")
+        recluster_faces()
+        upload_jobs.finish_job(album_slug)
+        print(f"resync: album {album_slug!r} done — processed {done}/{total} photos")
+    except Exception as e:
+        upload_jobs.fail_job(album_slug, str(e))
+        print(f"resync: album {album_slug!r} failed: {e}")
 
 
 @router.get("/api/face")
@@ -333,6 +347,10 @@ async def resync_album_faces(
     album = session.query(Album).filter_by(slug=album_slug).first()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
+    # one resync at a time per album — a second click would interleave its
+    # delete/redetect with the first and leave duplicate embeddings
+    if upload_jobs.is_active(album_slug):
+        raise HTTPException(status_code=409, detail="A resync is already running")
     count = session.query(FileMetadata).filter_by(album_id=album.id).count()
     background.add_task(_resync_album_faces, album.id, album.slug)
     return {"message": "Face resync started", "photos": count}
