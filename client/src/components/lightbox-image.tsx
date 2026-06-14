@@ -48,6 +48,17 @@ export function LightboxImage({ photo }: { photo: Photo }) {
           : undefined
       }
     >
+      {/* instant: the grid thumbnail is already browser-cached, so it shows
+          immediately (sharper than the blur) while the full-res decodes */}
+      {!loaded && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photo.compressed_image}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 block size-full object-contain"
+        />
+      )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -58,7 +69,7 @@ export function LightboxImage({ photo }: { photo: Photo }) {
           setLoaded(true)
           markImageSeen(src)
         }}
-        className={`block h-auto max-h-[82vh] w-auto max-w-[92vw] object-contain transition-opacity duration-300 ${
+        className={`relative block h-auto max-h-[82vh] w-auto max-w-[92vw] object-contain transition-opacity duration-300 ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
       />

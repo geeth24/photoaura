@@ -50,14 +50,22 @@ export function LibraryLightbox({ photos, start, onClose }: Props) {
     }
   }, [onClose, goto, index, showInfo])
 
-  // warm neighbors so arrow nav is instant
+  // predictive prefetch: warm a window of full-res in the direction of travel
+  // so the next few land instantly, plus one the other way
   useEffect(() => {
-    for (const i of [index - 1, index + 1]) {
-      if (i < 0 || i >= photos.length) continue
+    const dir = direction === 0 ? 1 : direction
+    const targets =
+      direction === 0
+        ? [index + 1, index - 1]
+        : [index + dir, index + dir * 2, index + dir * 3, index - dir]
+    const seen = new Set<number>()
+    for (const i of targets) {
+      if (i < 0 || i >= photos.length || seen.has(i)) continue
+      seen.add(i)
       const img = new window.Image()
       img.src = cdnImageLoader({ src: photos[i].image, width: FULL_WIDTH })
     }
-  }, [index, photos])
+  }, [index, photos, direction])
 
   if (!current) return null
 

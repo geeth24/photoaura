@@ -106,15 +106,24 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
   }, [index])
 
-  // warm the full-res of the neighbors so arrow nav lands instantly
+  // predictive prefetch: warm a window of full-res images in the direction of
+  // travel (like Google Photos) so the next few land instantly, plus one the
+  // other way. on first open (direction 0) we warm both immediate neighbours.
   useEffect(() => {
     if (!photos || index < 0) return
-    for (const i of [index - 1, index + 1]) {
-      if (i < 0 || i >= photos.length) continue
+    const dir = direction === 0 ? 1 : direction
+    const targets =
+      direction === 0
+        ? [index + 1, index - 1]
+        : [index + dir, index + dir * 2, index + dir * 3, index - dir]
+    const seen = new Set<number>()
+    for (const i of targets) {
+      if (i < 0 || i >= photos.length || seen.has(i)) continue
+      seen.add(i)
       const img = new window.Image()
       img.src = cdnImageLoader({ src: photos[i].image, width: FULL_WIDTH })
     }
-  }, [photos, index])
+  }, [photos, index, direction])
 
   return (
     <motion.div
