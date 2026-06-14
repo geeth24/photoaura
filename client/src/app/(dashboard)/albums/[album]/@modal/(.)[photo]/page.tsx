@@ -11,11 +11,14 @@ export default function InterceptedPhotoModal({
 }) {
   const { album, photo } = use(params)
   const router = useRouter()
+  // navigate straight to the album, not router.back() — in-lightbox next/prev
+  // rewrites the URL via history.replaceState, which desyncs back() and pops
+  // it all the way to /albums instead of the album detail
   return (
     <PhotoLightbox
       slug={album}
       photo={decodeURIComponent(photo)}
-      onClose={() => router.back()}
+      onClose={() => router.push(`/albums/${album}`)}
     />
   )
 }
