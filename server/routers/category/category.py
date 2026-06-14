@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from db.base import get_session
 from db.models import Category, AlbumCategory, Album, FileMetadata, CategoryPhoto
-from utils.utils import create_album_photos_json, build_photo_json
+from utils.utils import create_album_photos_json, build_photo_json, capture_time
 from dependencies import get_current_user, require_admin
 
 router = APIRouter()
@@ -122,6 +122,9 @@ async def get_album_by_category(
             album.slug, session.query(FileMetadata).filter_by(album_id=album.id).all()
         )
 
+    # website gallery reads newest work first
+    album_photos.sort(key=capture_time, reverse=True)
+
     if not album:
         # curated-only category (no backing album) — name it from the category
         cat = session.get(Category, category_id)
@@ -175,6 +178,9 @@ async def get_albums_by_category(
             if orientation:
                 photos_query = photos_query.filter_by(orientation=orientation)
             album_photos = create_album_photos_json(album.slug, photos_query.all())
+
+        # website gallery reads newest work first
+        album_photos.sort(key=capture_time, reverse=True)
 
         album_details = {
             "id": album.id if album else category.id,
