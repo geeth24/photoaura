@@ -54,9 +54,11 @@ function ShareGallery({ params }: { params: Promise<{ slug: string }> }) {
       <div className="mx-auto max-w-7xl px-5 py-10 lg:px-10 lg:py-16">
         {/* brand */}
         <div className="mb-12 flex items-center justify-between">
-          <span className="font-heading text-2xl tracking-tight text-brand">
-            Reactive Shots
-          </span>
+          <a href="https://reactiveshots.com" target="_blank" rel="noopener noreferrer">
+            <span className="font-blackmud text-3xl tracking-tight text-brand">
+              Reactive Shots
+            </span>
+          </a>
           <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-text-faint">
             Shared Gallery
           </span>
@@ -116,17 +118,46 @@ function ShareGallery({ params }: { params: Promise<{ slug: string }> }) {
           </>
         )}
 
-        {/* credit */}
-        <div className="mt-16 border-t border-border-subtle pt-6 text-center">
-          <a
-            href="https://reactiveshots.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] font-medium uppercase tracking-[0.3em] text-text-faint transition-colors hover:text-text-muted"
-          >
-            reactiveshots.com
+        {/* footer */}
+        <footer className="mt-20 border-t border-border-subtle pt-10 pb-6 text-center">
+          <a href="https://reactiveshots.com" target="_blank" rel="noopener noreferrer">
+            <span className="font-blackmud text-2xl tracking-tight text-brand">
+              Reactive Shots
+            </span>
           </a>
-        </div>
+          <p className="mt-3 text-[11px] uppercase tracking-[0.25em] text-text-muted">
+            Photography &amp; Video · Dallas, TX
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-5 text-[11px] uppercase tracking-[0.2em] text-text-faint">
+            <a
+              href="https://reactiveshots.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-brand"
+            >
+              Website
+            </a>
+            <a
+              href="https://www.instagram.com/reactiveshots/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-brand"
+            >
+              Instagram
+            </a>
+            <a
+              href="https://reactiveshots.com/lets-talk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-brand"
+            >
+              Book a Shoot
+            </a>
+          </div>
+          <p className="mt-6 text-[10px] tracking-[0.2em] text-text-faint">
+            © {new Date().getFullYear()} Reactive Shots
+          </p>
+        </footer>
       </div>
     </div>
   )

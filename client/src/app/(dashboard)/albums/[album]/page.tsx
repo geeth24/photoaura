@@ -289,18 +289,19 @@ export default function AlbumDetailPage({
                 Upload Enabled
               </span>
             )}
+            {/* anyone viewing the album can grab the public share link */}
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+            >
+              <Share2 className="size-3" />
+              Share link
+            </button>
           </div>
         </div>
 
         {isAdmin && (
         <div className="flex flex-wrap gap-3">
-          <button
-            onClick={handleShare}
-            className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-          >
-            <Share2 className="size-3.5" />
-            Share link
-          </button>
           <InviteClientDialog albumSlug={albumSlug} albumName={album.album_name} />
           <AlbumAccessDialog albumSlug={albumSlug} albumName={album.album_name} />
           {album.album_id != null && (
