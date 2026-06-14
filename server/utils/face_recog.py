@@ -495,19 +495,12 @@ def recluster_faces():
             best = by_id[best_id]
             best_face = _stored_face(best)
 
-            # photos where this person is a real subject (face clears prominence)
-            prominent_photos = {
-                by_id[i].photo_id
-                for i in members
-                if _is_prominent((by_id[i].bbox or {}).get("box"), img_w.get(by_id[i].photo_id))
-            }
-
-            # keep anyone who recurs as a subject (>=2 prominent photos) even
-            # without a pristine frontal — otherwise a real guest who only ever
-            # gets candid/profile shots vanishes from People, taking all their
-            # photos with them. only drop one-off clusters that also lack a
-            # usable chip (a lone profile / back-of-head isn't worth a tile).
-            if len(prominent_photos) < 2 and not is_chip_worthy(best_face):
+            # only surface a person we have a clean, front-facing shot of.
+            # profile / back-of-head / arm-over-face clusters make junk tiles
+            # (you can't tell who it is), so skip them regardless of how many
+            # photos they appear in — the photos stay in the album, just not
+            # pinned to a face tile.
+            if not is_chip_worthy(best_face):
                 continue
 
             # reuse the person id this cluster mostly came from -> stable ids +
@@ -555,15 +548,6 @@ def recluster_faces():
                             album_id=fe.album_id,
                         )
                     )
-            # never surface a person with zero photos -> pin at least their key shot
-            if not linked:
-                session.add(
-                    PhotoFaceLink(
-                        photo_id=best.photo_id,
-                        face_id=external_id,
-                        album_id=best.album_id,
-                    )
-                )
             people += 1
             chips.append((external_id, best.photo_id, best_face["bbox"], is_new))
 
