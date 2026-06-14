@@ -28,6 +28,28 @@ def _reachable(url: str, timeout: float = 3.0, head: bool = False) -> bool:
         return False
 
 
+def _cdn_ok(session) -> bool:
+    """Fetch a real (tiny) derivative of an actual photo — the CDN root 404s/
+    times out, so probe a key that genuinely exists."""
+    row = (
+        session.query(FileMetadata.filename, Album.slug)
+        .join(Album, Album.id == FileMetadata.album_id)
+        .filter(~FileMetadata.content_type.ilike("video/%"))
+        .first()
+    )
+    if not row:
+        return True
+    try:
+        r = requests.get(
+            f"https://{CDN}/fit-in/64x0/{row.slug}/{row.filename}",
+            timeout=6,
+            headers={"Accept": "image/*"},
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 @router.get("/api/admin/ops")
 def ops(_admin=Depends(require_admin), session: Session = Depends(get_session)):
     total = session.query(func.count(FileMetadata.id)).scalar() or 0
@@ -67,6 +89,6 @@ def ops(_admin=Depends(require_admin), session: Session = Depends(get_session)):
             "backend": True,  # we're answering, so it's up
             "postgres": True,  # the queries above succeeded
             "face_service": _reachable(f"{FACE_SERVICE_URL}/health"),
-            "cdn": _reachable(f"https://{CDN}/", timeout=4, head=True),
+            "cdn": _cdn_ok(session),
         },
     }
