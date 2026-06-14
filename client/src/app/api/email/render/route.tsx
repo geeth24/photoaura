@@ -3,6 +3,8 @@ import { render } from "@react-email/render"
 import LoginLinkEmail, { loginLinkSubject } from "@/emails/login-link"
 import ClientInviteEmail, { clientInviteSubject } from "@/emails/client-invite"
 import VerifyEmail, { verifyEmailSubject } from "@/emails/verify-email"
+import NewDownloadEmail, { newDownloadSubject } from "@/emails/new-download"
+import NewVideoEmail, { newVideoSubject } from "@/emails/new-video"
 
 // templates registered for the backend to render. add new ones here.
 const templates = {
@@ -17,6 +19,14 @@ const templates = {
   "verify-email": {
     component: VerifyEmail,
     subject: () => verifyEmailSubject(),
+  },
+  "new-download": {
+    component: NewDownloadEmail,
+    subject: (p: { albumName: string }) => newDownloadSubject(p.albumName),
+  },
+  "new-video": {
+    component: NewVideoEmail,
+    subject: (p: { albumName: string }) => newVideoSubject(p.albumName),
   },
 } as const
 

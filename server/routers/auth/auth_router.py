@@ -150,6 +150,7 @@ def verify_link(body: TokenBody, session: Session = Depends(get_session)):
         ue = session.get(UserEmail, ml.user_email_id)
         if ue and ue.user_id == user.id and ue.verified_at is None:
             ue.verified_at = datetime.now()
+    user.last_login_at = datetime.now()
     token = create_token(user, minutes=SESSION_MINUTES)
     return {
         "access_token": token["access_token"],

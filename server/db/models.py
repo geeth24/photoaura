@@ -30,6 +30,7 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(255))
     user_email: Mapped[Optional[str]] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), server_default="client")
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
 
 
 class MagicLink(Base):

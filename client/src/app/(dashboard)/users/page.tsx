@@ -26,8 +26,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Plus, Trash2, UsersRound } from "lucide-react"
+import { Plus, Trash2, UsersRound, Send } from "lucide-react"
 import { toast } from "sonner"
+import Link from "next/link"
+
+function lastLoginLabel(iso?: string | null) {
+  if (!iso) return "Never logged in"
+  const d = new Date(iso)
+  return `Last seen ${d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+}
 
 const brandButton =
   "flex h-11 items-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:pointer-events-none disabled:opacity-50"
@@ -93,6 +100,22 @@ export default function UsersPage() {
       fetchUsers()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete user")
+    }
+  }
+
+  const [sending, setSending] = useState<number | null>(null)
+  const handleSendLink = async (id: number) => {
+    setSending(id)
+    try {
+      await apiFetch(`/users/${id}/notify`, {
+        method: "POST",
+        body: JSON.stringify({ kind: "login_link" }),
+      })
+      toast.success("Login link sent")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't send link")
+    } finally {
+      setSending(null)
     }
   }
 
@@ -216,12 +239,19 @@ export default function UsersPage() {
                 {initialsOf(u.full_name) || "?"}
               </div>
 
-              <div className="min-w-0 flex-1">
+              <Link href={`/users/${u.id}`} className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-text-primary">
                   {u.full_name}
                 </p>
                 <p className="truncate text-[12px] text-text-muted">{u.user_email}</p>
-              </div>
+                <p
+                  className={`mt-0.5 truncate text-[11px] ${
+                    u.last_login_at ? "text-text-faint" : "text-brand"
+                  }`}
+                >
+                  {lastLoginLabel(u.last_login_at)}
+                </p>
+              </Link>
 
               <div className="hidden flex-col items-end pr-2 sm:flex">
                 <span className="font-heading text-xl leading-none text-text-primary">
@@ -231,6 +261,16 @@ export default function UsersPage() {
                   Albums
                 </span>
               </div>
+
+              <button
+                onClick={() => handleSendLink(u.id)}
+                disabled={sending === u.id}
+                title="Email a login link"
+                className="flex h-9 shrink-0 items-center gap-1.5 border border-border-default px-3 text-[10px] font-medium uppercase tracking-[0.15em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-50"
+              >
+                <Send className="size-3.5" />
+                {sending === u.id ? "Sending…" : "Send link"}
+              </button>
 
               <AlertDialog>
                 <AlertDialogTrigger

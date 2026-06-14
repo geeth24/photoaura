@@ -97,12 +97,16 @@ export function ManageDownloadsDialog({ albumId, albumSlug, albumName }: Props) 
 
   const upload = async () => {
     if (!file || selectedUser === "" || uploading) return
+    if (!selectedUser || Number(selectedUser) <= 0) {
+      toast.error("Pick a client first")
+      return
+    }
     setUploading(true)
     try {
       const form = new FormData()
       form.append("file", file)
       form.append("user_id", String(selectedUser))
-      form.append("album_id", String(albumId))
+      if (albumId) form.append("album_id", String(albumId))
       const res = await fetch(`${API_URL}/client-files`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}` },

@@ -75,9 +75,16 @@ async def upload_client_file(
     """Attach a downloadable file to a client (admin only)."""
     user = session.get(UserModel, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if album_id is not None and not session.get(Album, album_id):
-        raise HTTPException(status_code=404, detail="Album not found")
+        raise HTTPException(
+            status_code=404, detail=f"Client not found (user_id={user_id})"
+        )
+    # treat 0/blank album as "no album" rather than a missing-album error
+    if not album_id or album_id <= 0:
+        album_id = None
+    elif not session.get(Album, album_id):
+        raise HTTPException(
+            status_code=404, detail=f"Album not found (album_id={album_id})"
+        )
 
     safe_name = os.path.basename(file.filename or "download")
     s3_key = f"deliverables/{user_id}/{uuid4().hex}-{safe_name}"

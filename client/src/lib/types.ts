@@ -5,7 +5,21 @@ export type User = {
   user_email: string
   role?: "admin" | "client"
   albums?: Album[]
+  last_login_at?: string | null
 }
+
+export type UserDetail = Omit<User, "albums"> & {
+  emails?: { email: string; is_primary: boolean; verified: boolean }[]
+  albums?: { id: number; name: string; slug: string; image_count: number }[]
+  downloads?: { id: number; filename: string; size: number; album_id: number | null }[]
+  videos?: { id: number; title: string | null; album_id: number | null }[]
+}
+
+export type NotifyKind =
+  | "login_link"
+  | "gallery_ready"
+  | "new_download"
+  | "new_video"
 
 export type Album = {
   album_id?: number

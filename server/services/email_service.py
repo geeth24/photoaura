@@ -90,3 +90,28 @@ def send_verify_email(to_email: str, full_name: str, link: str) -> bool:
     if not payload:
         return False
     return _send(to_email, payload["subject"], payload["html"])
+
+
+def send_gallery_ready(to_email: str, full_name: str, link: str, album_name: str) -> bool:
+    # the client-invite template already says "your gallery is ready"
+    return send_invite(to_email, full_name, link, album_name)
+
+
+def send_new_download(to_email: str, full_name: str, link: str, album_name: str) -> bool:
+    payload = _render(
+        "new-download",
+        {"fullName": full_name, "link": link, "albumName": album_name},
+    )
+    if not payload:
+        return False
+    return _send(to_email, payload["subject"], payload["html"])
+
+
+def send_new_video(to_email: str, full_name: str, link: str, album_name: str) -> bool:
+    payload = _render(
+        "new-video",
+        {"fullName": full_name, "link": link, "albumName": album_name},
+    )
+    if not payload:
+        return False
+    return _send(to_email, payload["subject"], payload["html"])

@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -13,7 +14,9 @@ from routers.auth.auth_router import (
     get_password_hash,
     verify_password,
     issue_magic_link,
+    CLIENT_URL,
 )
+from services import email_service
 from services.email_service import send_invite, send_verify_email
 
 router = APIRouter()
@@ -436,6 +439,7 @@ def authenticate_user(user_name: str, user_password: str):
         if not verify_password(user_password, user.user_password):
             return False
 
+        user.last_login_at = datetime.now()
         token = create_token(user)
         return token, user
 
@@ -479,12 +483,14 @@ def create_user(
 
 
 def create_user_json(user):
+    last = getattr(user, "last_login_at", None)
     return {
         "id": user.id,
         "user_name": user.user_name,
         "full_name": user.full_name,
         "user_email": user.user_email,
         "role": getattr(user, "role", "client"),
+        "last_login_at": last.isoformat() if last else None,
     }
 
 
@@ -526,10 +532,29 @@ def read_user(
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    from db.models import ClientFile, Video
+
     user = session.get(UserModel, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return create_user_json(user)
+    data = create_user_json(user)
+    data["albums"] = get_albums_for_user(session, user_id)
+    data["emails"] = [
+        {"email": ue.email, "is_primary": ue.is_primary, "verified": ue.verified_at is not None}
+        for ue in session.query(UserEmail)
+        .filter_by(user_id=user_id)
+        .order_by(UserEmail.is_primary.desc(), UserEmail.id)
+        .all()
+    ]
+    data["downloads"] = [
+        {"id": cf.id, "filename": cf.filename, "size": cf.size, "album_id": cf.album_id}
+        for cf in session.query(ClientFile).filter_by(user_id=user_id).all()
+    ]
+    data["videos"] = [
+        {"id": v.id, "title": getattr(v, "title", None), "album_id": getattr(v, "album_id", None)}
+        for v in session.query(Video).filter_by(client_id=user_id).all()
+    ]
+    return data
 
 
 @router.put("/api/users/{user_id}")
@@ -560,6 +585,89 @@ def delete_user(
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
+    from db.models import MagicLink, ClientFile, Video
+
+    user = session.get(UserModel, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    me = _me(session, current_user)
+    if me.id == user_id:
+        raise HTTPException(
+            status_code=400, detail="Use account deletion to remove your own account."
+        )
+
+    # clear every FK child first — these reference users.id with NO ACTION,
+    # so the row delete fails unless they're gone (this was the bug: only
+    # permissions were cleared, leaving magic_links/emails/files to block it)
+    session.query(MagicLink).filter_by(user_id=user_id).delete()
+    session.query(UserEmail).filter_by(user_id=user_id).delete()
     session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()
+    session.query(ClientFile).filter_by(user_id=user_id).delete()
+    # videos are content, not the person — keep them, just unlink the client
+    session.query(Video).filter_by(client_id=user_id).update(
+        {"client_id": None}, synchronize_session=False
+    )
     session.query(UserModel).filter_by(id=user_id).delete()
+    session.commit()
     return {"message": "User deleted successfully."}
+
+
+def _primary_email(session, user) -> Optional[str]:
+    ue = (
+        session.query(UserEmail)
+        .filter_by(user_id=user.id)
+        .order_by(UserEmail.is_primary.desc(), UserEmail.id)
+        .first()
+    )
+    return (ue.email if ue else None) or user.user_email
+
+
+class NotifyBody(BaseModel):
+    kind: str  # login_link | gallery_ready | new_download | new_video
+    album_id: Optional[int] = None
+
+
+@router.post("/api/users/{user_id}/notify")
+def notify_user(
+    user_id: int,
+    body: NotifyBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Email a client a one-click login link wrapped in a preset notification
+    (gallery ready / new download / new video / plain login link)."""
+    user = session.get(UserModel, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    email = _primary_email(session, user)
+    if not email:
+        raise HTTPException(status_code=400, detail="This user has no email on file")
+
+    name = user.full_name or "there"
+    album_name = "your gallery"
+    if body.album_id:
+        a = session.get(Album, body.album_id)
+        if a:
+            album_name = a.name
+    else:
+        albums = get_albums_for_user(session, user_id)
+        if albums:
+            album_name = albums[0]["name"]
+
+    # the link signs them straight in; persist it before the email goes out
+    token = issue_magic_link(session, user, "login")
+    link = f"{CLIENT_URL}/auth/verify?token={token}"
+    session.commit()
+
+    senders = {
+        "login_link": lambda: email_service.send_login_link(email, name, link),
+        "gallery_ready": lambda: email_service.send_gallery_ready(email, name, link, album_name),
+        "new_download": lambda: email_service.send_new_download(email, name, link, album_name),
+        "new_video": lambda: email_service.send_new_video(email, name, link, album_name),
+    }
+    send = senders.get(body.kind)
+    if not send:
+        raise HTTPException(status_code=400, detail=f"Unknown notification: {body.kind}")
+    if not send():
+        raise HTTPException(status_code=502, detail="Email failed to send")
+    return {"message": "Sent", "to": email, "kind": body.kind}
