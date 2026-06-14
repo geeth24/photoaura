@@ -63,6 +63,43 @@ def _is_media(filename: str) -> bool:
     return ext in _IMAGE_EXTS or ext in _VIDEO_EXTS
 
 
+def _store_video_file(file, filename: str, content_type: str, album, session):
+    """Stream a video to S3 in constant memory (no full read, no blur/exif/
+    faces). A big video read into RAM OOM-killed the pod; videos just need to
+    land in the album so the gallery + lightbox can play them."""
+    s3_key = f"{album.slug}/{filename}"
+    # measure size without loading the file into memory
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    file.file.seek(0)
+    s3_client.upload_fileobj(
+        file.file, AWS_BUCKET, s3_key, ExtraArgs={"ContentType": content_type}
+    )
+
+    existing = (
+        session.query(FileMetadata)
+        .filter_by(album_id=album.id, filename=filename)
+        .first()
+    )
+    fields = dict(
+        content_type=content_type,
+        size=size,
+        width=0,
+        height=0,
+        upload_date=datetime.now(),
+    )
+    if existing:
+        for k, v in fields.items():
+            setattr(existing, k, v)
+        meta = existing
+        session.query(PhotoFaceLink).filter_by(photo_id=meta.id).delete()
+        session.query(FaceEmbedding).filter_by(photo_id=meta.id).delete()
+    else:
+        meta = FileMetadata(album_id=album.id, filename=filename, **fields)
+        session.add(meta)
+    session.commit()
+
+
 def _store_one_file(
     content: bytes,
     filename: str,
@@ -203,12 +240,17 @@ async def create_upload_files(
     # stage 1: save each file to S3 + (for images) record metadata + blur.
     # This is the only work that needs the request body, so it stays inline.
     for i, file in enumerate(files):
-        content = await file.read()
         ctype = file.content_type or _guess_content_type(file.filename)
-        _store_one_file(
-            content, file.filename, ctype, album,
-            session, face_detection, face_targets, keys,
-        )
+        if (ctype or "").startswith("video/"):
+            # stream videos straight to S3 — reading a big one into the pod's
+            # memory OOM-killed the backend. no blur/exif/faces for video.
+            _store_video_file(file, file.filename, ctype, album, session)
+        else:
+            content = await file.read()
+            _store_one_file(
+                content, file.filename, ctype, album,
+                session, face_detection, face_targets, keys,
+            )
         await _notify("saving", i + 1, total)
 
     # keep image_count exact (= actual stored rows), regardless of new/append
