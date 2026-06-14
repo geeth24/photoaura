@@ -6,6 +6,8 @@ GET /api/upload-status/{slug} which reads from here. Single-replica deploy,
 so an in-process dict is sufficient and avoids a schema migration.
 """
 
+from __future__ import annotations
+
 import time
 
 # album_slug -> job dict
