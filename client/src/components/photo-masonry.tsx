@@ -17,6 +17,19 @@ import {
 } from "@/components/ui/alert-dialog"
 import { isVideo, type Photo } from "@/lib/types"
 import { hasSeenImage, markImageSeen } from "@/lib/image-cache"
+import cdnImageLoader from "@/lib/cdn-image-loader"
+import { FULL_WIDTH } from "@/components/lightbox-image"
+
+// hovering a tile warms its full-res so the lightbox opens instantly on click
+const warmed = new Set<string>()
+function prefetchFull(photo: Photo) {
+  if (isVideo(photo)) return
+  const url = cdnImageLoader({ src: photo.image, width: FULL_WIDTH })
+  if (warmed.has(url)) return
+  warmed.add(url)
+  const img = new window.Image()
+  img.src = url
+}
 
 type Props = {
   photos: Photo[]
@@ -144,6 +157,7 @@ export function PhotoMasonry({
                 key={`${m.album_id}-${m.filename}-${i}`}
                 className="group relative shrink-0"
                 style={{ width: w, height: h }}
+                onMouseEnter={() => prefetchFull(photo)}
               >
                 {onOpen ? (
                   <button
