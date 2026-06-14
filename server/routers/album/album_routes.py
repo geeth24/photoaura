@@ -81,15 +81,17 @@ async def get_album(
 async def get_all_albums(
     user_id: int = None, session: Session = Depends(get_session)
 ):
+    # website-management albums live under /website, not the client Albums list
+    not_website = Album.is_website.isnot(True)
     if user_id:
         albums = (
             session.query(Album)
             .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
-            .filter(UserAlbumPermission.user_id == user_id)
+            .filter(UserAlbumPermission.user_id == user_id, not_website)
             .all()
         )
     else:
-        albums = session.query(Album).all()
+        albums = session.query(Album).filter(not_website).all()
 
     all_albums = []
     for album in albums:
@@ -119,15 +121,16 @@ async def get_all_photos(
     orientation: str = None,
     session: Session = Depends(get_session),
 ):
+    not_website = Album.is_website.isnot(True)
     if user_id:
         albums = (
             session.query(Album)
             .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
-            .filter(UserAlbumPermission.user_id == user_id)
+            .filter(UserAlbumPermission.user_id == user_id, not_website)
             .all()
         )
     else:
-        albums = session.query(Album).all()
+        albums = session.query(Album).filter(not_website).all()
 
     all_photos = []
     for album in albums:
@@ -371,17 +374,29 @@ async def delete_photo(
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
+    from db.models import PhotoFaceLink, FaceEmbedding
+
     album = session.query(Album).filter_by(slug=slug).first()
 
     if album is None:
         raise HTTPException(status_code=404, detail="Album not found")
 
-    session.query(FileMetadata).filter_by(
-        album_id=album.id, filename=photo_name
-    ).delete()
+    photo = (
+        session.query(FileMetadata)
+        .filter_by(album_id=album.id, filename=photo_name)
+        .first()
+    )
+    if photo is None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    # clear face references first — photo_face_link's FK has no cascade, so a
+    # tagged photo (one assigned to a person) can't be deleted until these go
+    session.query(PhotoFaceLink).filter_by(photo_id=photo.id).delete()
+    session.query(FaceEmbedding).filter_by(photo_id=photo.id).delete()
+    session.delete(photo)
     session.flush()
 
-    album.image_count = album.image_count - 1
+    album.image_count = max(0, album.image_count - 1)
     session.commit()
 
     return {"message": "Photo deleted successfully."}

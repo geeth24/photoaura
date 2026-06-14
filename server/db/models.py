@@ -77,6 +77,9 @@ class Album(Base):
     upload: Mapped[Optional[bool]] = mapped_column(Boolean)
     secret: Mapped[Optional[str]] = mapped_column(String(255))
     face_detection: Mapped[Optional[bool]] = mapped_column(Boolean)
+    # website-management albums (category backings + standalone uploads) are
+    # hidden from the client Albums + All Photos views; managed under /website
+    is_website: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="false")
 
     photos: Mapped[list["FileMetadata"]] = relationship(
         back_populates="album", cascade="all, delete-orphan"
