@@ -177,7 +177,11 @@ export function ManageDownloadsDialog({ albumId, albumSlug, albumName }: Props) 
                   placeholder={
                     people.length ? "Choose a client…" : "No clients on this album"
                   }
-                />
+                >
+                  {(value) =>
+                    value ? nameForUser(Number(value)) : "Choose a client…"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {people.map((p) => (

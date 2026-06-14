@@ -79,19 +79,22 @@ async def get_album(
 
 @router.get("/api/albums/")
 async def get_all_albums(
-    user_id: int = None, session: Session = Depends(get_session)
+    user_id: int = None,
+    include_website: bool = False,
+    session: Session = Depends(get_session),
 ):
-    # website-management albums live under /website, not the client Albums list
-    not_website = Album.is_website.isnot(True)
+    # website-management albums live under /website, not the client Albums list.
+    # the /website CMS pages pass include_website=true to list them for linking.
+    filters = [] if include_website else [Album.is_website.isnot(True)]
     if user_id:
         albums = (
             session.query(Album)
             .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
-            .filter(UserAlbumPermission.user_id == user_id, not_website)
+            .filter(UserAlbumPermission.user_id == user_id, *filters)
             .all()
         )
     else:
-        albums = session.query(Album).filter(not_website).all()
+        albums = session.query(Album).filter(*filters).all()
 
     all_albums = []
     for album in albums:

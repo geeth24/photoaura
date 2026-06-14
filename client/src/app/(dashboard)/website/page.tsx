@@ -63,7 +63,7 @@ export default function WebsitePage() {
     setLoading(true)
     Promise.all([
       apiFetch<Category[]>("/categories"),
-      apiFetch<Album[]>(`/albums/?user_id=${user.id}`),
+      apiFetch<Album[]>(`/albums/?user_id=${user.id}&include_website=true`),
       apiFetch<CategoryAlbumRow[]>("/category-albums"),
     ])
       .then(([c, a, rows]) => {
@@ -361,7 +361,14 @@ export default function WebsitePage() {
                         disabled={busy}
                       >
                         <SelectTrigger className="h-10 flex-1 bg-surface">
-                          <SelectValue placeholder={album ? "Change album" : "Link an album"} />
+                          <SelectValue placeholder={album ? "Change album" : "Link an album"}>
+                            {(value) =>
+                              albums.find((a) => String(a.album_id) === String(value))
+                                ?.album_name ??
+                              album?.name ??
+                              (album ? "Change album" : "Link an album")
+                            }
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {albums.map((a) => (
