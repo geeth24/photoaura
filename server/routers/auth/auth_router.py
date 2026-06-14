@@ -22,7 +22,9 @@ from dependencies import oauth2_scheme, verify_token
 router = APIRouter()
 
 SESSION_MINUTES = 60 * 24 * 7  # 7-day session for magic-link logins
-MAGIC_TTL_MIN = 30
+MAGIC_TTL_MIN = 30  # login links — clicked right after requesting
+# invites sit in an inbox; a client may not open onboarding email for days
+INVITE_TTL_MIN = 60 * 24 * 7  # 7 days
 CLIENT_URL = os.environ.get("NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com")
 
 
@@ -99,12 +101,13 @@ def issue_magic_link(
 ) -> str:
     """Create a single-use magic-link token for a user."""
     token = _secrets.token_urlsafe(32)
+    ttl = INVITE_TTL_MIN if purpose == "invite" else MAGIC_TTL_MIN
     session.add(
         MagicLink(
             user_id=user.id,
             token=token,
             purpose=purpose,
-            expires_at=datetime.now() + timedelta(minutes=MAGIC_TTL_MIN),
+            expires_at=datetime.now() + timedelta(minutes=ttl),
             user_email_id=user_email_id,
         )
     )
