@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2 } from "lucide-react"
+import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -155,6 +155,19 @@ export default function AlbumDetailPage({
     }
   }
 
+  const handleShare = async () => {
+    if (!album) return
+    const link = `${window.location.origin}/share/${albumSlug}${
+      album.secret ? `?s=${album.secret}` : ""
+    }`
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.success("Share link copied to clipboard")
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access")
+    }
+  }
+
   const [resyncing, setResyncing] = useState(false)
   const handleResyncFaces = async () => {
     if (resyncing) return
@@ -281,6 +294,13 @@ export default function AlbumDetailPage({
 
         {isAdmin && (
         <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleShare}
+            className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+          >
+            <Share2 className="size-3.5" />
+            Share link
+          </button>
           <InviteClientDialog albumSlug={albumSlug} albumName={album.album_name} />
           <AlbumAccessDialog albumSlug={albumSlug} albumName={album.album_name} />
           {album.album_id != null && (
