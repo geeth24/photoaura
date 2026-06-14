@@ -111,6 +111,20 @@ export default function AlbumDetailPage({
     }
   }
 
+  const handleSetCover = async (filename: string) => {
+    if (!selectedFace) return
+    try {
+      await apiFetch(`/faces/${selectedFace}/cover`, {
+        method: "POST",
+        body: JSON.stringify({ album_slug: albumSlug, filename }),
+      })
+      toast.success("Cover updated")
+      fetchFaces()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't set cover")
+    }
+  }
+
   const [resyncing, setResyncing] = useState(false)
   const handleResyncFaces = async () => {
     if (resyncing) return
@@ -317,6 +331,7 @@ export default function AlbumDetailPage({
         albumSlug={albumSlug}
         selectedFace={selectedFace}
         onDelete={isAdmin ? handleDeletePhoto : undefined}
+        onSetCover={isAdmin && selectedFace ? handleSetCover : undefined}
       />
     </div>
   )

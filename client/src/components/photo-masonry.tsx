@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Trash2, Play } from "lucide-react"
+import { Trash2, Play, Star } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +24,8 @@ type Props = {
   albumSlug?: string
   selectedFace?: string | null
   onDelete?: (filename: string) => void
+  // admin, when a person is selected: pin this photo as their cover
+  onSetCover?: (filename: string) => void
   // library mode: tiles call back with the clicked index instead of linking
   onOpen?: (index: number) => void
 }
@@ -67,6 +69,7 @@ export function PhotoMasonry({
   albumSlug,
   selectedFace,
   onDelete,
+  onSetCover,
   onOpen,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
@@ -159,6 +162,19 @@ export function PhotoMasonry({
                   >
                     {media}
                   </Link>
+                )}
+                {onSetCover && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onSetCover(m.filename)
+                    }}
+                    className="absolute left-2 top-2 flex items-center gap-1 border border-border-strong bg-surface/70 px-2 py-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-text-secondary opacity-0 backdrop-blur transition-all hover:text-brand group-hover:opacity-100"
+                    aria-label="Set as cover"
+                  >
+                    <Star className="size-3.5" />
+                    Cover
+                  </button>
                 )}
                 {onDelete && (
                   <AlertDialog>

@@ -70,6 +70,10 @@ CHIP_PITCH_MAX = float(os.environ.get("FACE_PITCH_MAX", "24"))
 CHIP_MIN_PX = int(os.environ.get("FACE_MIN_PX", "90"))
 CHIP_SHARP_MIN = float(os.environ.get("FACE_SHARP_MIN", "120"))
 
+# key_score sentinel for a manually pinned cover. Far above any auto face_score
+# (~195 max), so neither incremental tagging nor recluster ever overwrites it.
+COVER_LOCK = 1_000_000.0
+
 
 def _embed_image(bucket, key):
     """Ask the GPU service for every face's bbox + 512-d embedding."""
@@ -131,7 +135,15 @@ def face_score(face):
     frontal = max(0.0, 1.0 - yaw / 40 - pitch / 25 - roll / 60)
     size = min(area, 60000) / 60000
     sharp = min(face.get("sharpness") or 0, 400) / 400
-    return frontal * 100 + size * 25 + sharp * 20 + (face.get("det_score") or 0) * 15
+    # eyes open? mesh openness ~0.35 open, ~0.15 shut. unknown (old data /
+    # no mesh) -> full marks so we never punish a missing signal. weighted
+    # above size so an open-eyed near-frontal beats a shut-eyed perfect one.
+    eo = face.get("eye_open")
+    eyes = 1.0 if eo is None else max(0.0, min(1.0, (eo - 0.15) / 0.20))
+    return (
+        frontal * 100 + size * 25 + sharp * 20
+        + (face.get("det_score") or 0) * 15 + eyes * 35
+    )
 
 
 def _match_person(session, embedding):
@@ -159,6 +171,48 @@ def _crop(img, bbox, pad=0.2):
     right = min(img.width, int(x2 + w * pad))
     bottom = min(img.height, int(y2 + h * pad))
     return img.crop((left, top, right, bottom))
+
+
+def set_person_cover(face_id, album_slug, filename):
+    """Pin a person's cover chip to their face in a chosen photo. Crops that
+    face, replaces faces/<face_id>.jpg, and locks key_score so auto-scoring
+    never overrides it. Returns (ok, message)."""
+    with session_scope() as session:
+        person = session.query(FaceData).filter_by(external_id=face_id).first()
+        if not person:
+            return False, "Person not found"
+
+        photo = (
+            session.query(FileMetadata)
+            .join(Album, Album.id == FileMetadata.album_id)
+            .filter(Album.slug == album_slug, FileMetadata.filename == filename)
+            .first()
+        )
+        if not photo:
+            return False, "Photo not found"
+
+        fe = (
+            session.query(FaceEmbedding)
+            .filter_by(face_id=face_id, photo_id=photo.id)
+            .first()
+        )
+        if not fe or not (fe.bbox or {}).get("box"):
+            return False, "This person doesn't appear in that photo"
+
+        key = f"{album_slug}/{filename}"
+        img = Image.open(
+            io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read())
+        ).convert("RGB")
+        buf = io.BytesIO()
+        _crop(img, fe.bbox["box"]).save(buf, format="JPEG")
+        buf.seek(0)
+        s3_client.upload_fileobj(
+            buf, AWS_BUCKET, f"faces/{face_id}.jpg",
+            ExtraArgs={"ContentType": "image/jpeg"},
+        )
+        person.key_score = COVER_LOCK
+        session.commit()
+    return True, "Cover updated"
 
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
@@ -201,6 +255,7 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                             "pitch": face.get("pitch"),
                             "roll": face.get("roll"),
                             "sharpness": face.get("sharpness"),
+                            "eye_open": face.get("eye_open"),
                         },
                     )
                 )
@@ -249,6 +304,7 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                         "pitch": face.get("pitch"),
                         "roll": face.get("roll"),
                         "sharpness": face.get("sharpness"),
+                        "eye_open": face.get("eye_open"),
                     },
                 )
             )
@@ -306,6 +362,7 @@ def _stored_face(fe):
         "pitch": p.get("pitch"),
         "roll": p.get("roll"),
         "sharpness": p.get("sharpness"),
+        "eye_open": p.get("eye_open"),
     }
 
 
@@ -357,11 +414,10 @@ def recluster_faces():
         # what each face was assigned to before — lets us keep stable person ids
         # (and names) across reruns, so re-clustering is cheap and idempotent
         old_face_of = {fe.id: fe.face_id for fe in faces}
-        old_names = {
-            fd.external_id: fd.name
-            for fd in session.query(FaceData).all()
-            if fd.name
-        }
+        all_fd = session.query(FaceData).all()
+        old_names = {fd.external_id: fd.name for fd in all_fd if fd.name}
+        # manually pinned covers (locked key_score) survive reclustering
+        old_scores = {fd.external_id: fd.key_score or 0 for fd in all_fd}
 
         # edges: each face's nearest neighbours within CLUSTER_DIST (HNSW kNN)
         sim_min = 1.0 - CLUSTER_DIST
@@ -439,11 +495,19 @@ def recluster_faces():
             best = by_id[best_id]
             best_face = _stored_face(best)
 
-            # only surface a person we have a clean, front-facing shot of.
-            # profile / back-of-head / ear-only clusters aren't useful tiles
-            # (you can't tell who it is), so skip them regardless of size —
-            # the photos stay in the album, just not pinned to a face tile.
-            if not is_chip_worthy(best_face):
+            # photos where this person is a real subject (face clears prominence)
+            prominent_photos = {
+                by_id[i].photo_id
+                for i in members
+                if _is_prominent((by_id[i].bbox or {}).get("box"), img_w.get(by_id[i].photo_id))
+            }
+
+            # keep anyone who recurs as a subject (>=2 prominent photos) even
+            # without a pristine frontal — otherwise a real guest who only ever
+            # gets candid/profile shots vanishes from People, taking all their
+            # photos with them. only drop one-off clusters that also lack a
+            # usable chip (a lone profile / back-of-head isn't worth a tile).
+            if len(prominent_photos) < 2 and not is_chip_worthy(best_face):
                 continue
 
             # reuse the person id this cluster mostly came from -> stable ids +
@@ -466,7 +530,11 @@ def recluster_faces():
                  if old_face_of.get(i) in old_names),
                 None,
             ) if old_names else None
+            # keep a pinned cover sticky; the existing chip is left untouched
+            # below (head_object skip) since the person id is reused
             score = face_score(best_face)
+            if old_scores.get(external_id, 0) >= COVER_LOCK:
+                score = COVER_LOCK
 
             session.add(
                 FaceData(external_id=external_id, name=inherited, key_score=score)
@@ -487,6 +555,15 @@ def recluster_faces():
                             album_id=fe.album_id,
                         )
                     )
+            # never surface a person with zero photos -> pin at least their key shot
+            if not linked:
+                session.add(
+                    PhotoFaceLink(
+                        photo_id=best.photo_id,
+                        face_id=external_id,
+                        album_id=best.album_id,
+                    )
+                )
             people += 1
             chips.append((external_id, best.photo_id, best_face["bbox"], is_new))
 

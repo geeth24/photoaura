@@ -40,6 +40,31 @@ class EmbedRequest(BaseModel):
     key: str
 
 
+# insightface 2d106 mesh: contiguous point groups for each eye contour
+_RIGHT_EYE = list(range(33, 43))
+_LEFT_EYE = list(range(87, 97))
+
+
+def _eye_open(face):
+    """Eye openness from the 106-point mesh: height/width of each eye's point
+    cloud, averaged. Open eyes land ~0.35+, closed or blocked ones < ~0.18.
+    Returns None when the mesh is unavailable so the caller can ignore it."""
+    lmk = getattr(face, "landmark_2d_106", None)
+    if lmk is None:
+        return None
+    try:
+        ratios = []
+        for idx in (_RIGHT_EYE, _LEFT_EYE):
+            pts = lmk[idx]
+            w = float(pts[:, 0].max() - pts[:, 0].min())
+            h = float(pts[:, 1].max() - pts[:, 1].min())
+            if w > 1:
+                ratios.append(h / w)
+        return sum(ratios) / len(ratios) if ratios else None
+    except Exception:
+        return None
+
+
 def _sharpness(arr, bbox):
     """Variance of the Laplacian on a fixed-size crop — a resolution-independent
     blur score. Sharp faces land in the hundreds/thousands, blurry ones < ~80."""
@@ -90,6 +115,7 @@ def embed(req: EmbedRequest):
             "yaw": float(pose[1]) if pose is not None else 0.0,
             "pitch": float(pose[0]) if pose is not None else 0.0,
             "roll": float(pose[2]) if pose is not None else 0.0,
+            "eye_open": _eye_open(f),
         })
 
     return {"img_w": img.width, "img_h": img.height, "faces": out}

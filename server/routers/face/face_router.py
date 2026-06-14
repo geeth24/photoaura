@@ -18,6 +18,7 @@ from utils.face_recog import (
     detect_and_store_faces,
     assign_pending_faces,
     recluster_faces,
+    set_person_cover,
     MATCH_DIST,
     SUGGEST_DIST,
 )
@@ -283,6 +284,25 @@ def merge_faces(
 
     session.commit()
     return {"message": "Merged", "target": body.target_face_id}
+
+
+class SetCoverBody(BaseModel):
+    album_slug: str
+    filename: str
+
+
+@router.post("/api/faces/{face_id}/cover")
+def set_cover(
+    face_id: str,
+    body: SetCoverBody,
+    _admin=Depends(require_admin),
+):
+    """Pin a person's cover to their face in a chosen photo (admin). Sticky:
+    survives reclustering and future uploads until changed again."""
+    ok, msg = set_person_cover(face_id, body.album_slug, body.filename)
+    if not ok:
+        raise HTTPException(status_code=404, detail=msg)
+    return {"message": msg, "face_id": face_id}
 
 
 def _recluster_task():
