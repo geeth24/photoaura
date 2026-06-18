@@ -5,7 +5,7 @@ import { use } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, deletePhoto, getUploadStatus, type UploadStatus } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
-import type { Album, AlbumFace } from "@/lib/types"
+import { isVideo, type Album, type AlbumFace, type Photo } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { UploadAlbumDialog } from "@/components/upload-album-dialog"
 import { AlbumFaces } from "@/components/album-faces"
@@ -30,6 +30,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -45,6 +46,7 @@ export default function AlbumDetailPage({
   const isAdmin = user?.role !== "client"
   const [album, setAlbum] = useState<Album | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mediaTab, setMediaTab] = useState<"photos" | "videos">("photos")
   const [deleting, setDeleting] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [droppedFiles, setDroppedFiles] = useState<File[]>([])
@@ -249,11 +251,19 @@ export default function AlbumDetailPage({
     selectedFace != null
       ? new Set(faces.find((f) => f.face_id === selectedFace)?.filenames ?? [])
       : null
-  const visiblePhotos = selectedFilenames
+  const faceScoped = selectedFilenames
     ? album.album_photos.filter((p) =>
         selectedFilenames.has(p.file_metadata.filename)
       )
     : album.album_photos
+
+  // photos / videos tabs — only when the album actually has video
+  const hasVideos = album.album_photos.some((p) => isVideo(p))
+  const videoCount = faceScoped.filter((p) => isVideo(p)).length
+  const photoCount = faceScoped.length - videoCount
+  const visiblePhotos = !hasVideos
+    ? faceScoped
+    : faceScoped.filter((p) => (mediaTab === "videos" ? isVideo(p) : !isVideo(p)))
 
   return (
     <div
@@ -443,6 +453,19 @@ export default function AlbumDetailPage({
         </Link>
       )}
       <AlbumFaces faces={faces} selected={selectedFace} onSelect={setSelectedFace} />
+
+      {/* photos / videos tabs — only when the album has video */}
+      {hasVideos && (
+        <Tabs
+          value={mediaTab}
+          onValueChange={(v) => setMediaTab(v as "photos" | "videos")}
+        >
+          <TabsList>
+            <TabsTrigger value="photos">Photos ({photoCount})</TabsTrigger>
+            <TabsTrigger value="videos">Videos ({videoCount})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
       {/* justified masonry */}
       <PhotoMasonry

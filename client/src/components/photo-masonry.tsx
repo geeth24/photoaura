@@ -124,10 +124,10 @@ export function PhotoMasonry({
               <>
                 <video
                   src={photo.image}
-                  preload="metadata"
+                  preload="none"
                   muted
                   playsInline
-                  className="size-full object-cover"
+                  className="size-full bg-black object-cover"
                 />
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <span className="flex size-9 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur">
