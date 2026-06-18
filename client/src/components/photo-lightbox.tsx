@@ -27,6 +27,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
   const [index, setIndex] = useState(-1)
   const [direction, setDirection] = useState(0)
   const [showInfo, setShowInfo] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
   // the photo the modal opened on — captured once, used to pick the start index
   const [initialPhoto] = useState(photo)
@@ -96,11 +97,22 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
     [photos, index, slug, faceId]
   )
 
+  // hide immediately on close, then sync the URL. in-lightbox next/prev rewrites
+  // the URL via replaceState, which can leave router.push unable to dismiss the
+  // intercepted modal — local state guarantees it actually closes.
+  const handleClose = useCallback(() => {
+    setDismissed(true)
+    // the desync also makes router.push a no-op, so the address bar can stay on
+    // the photo URL — correct it directly so a refresh shows the album, not this.
+    window.history.replaceState(null, "", `/albums/${slug}`)
+    onClose()
+  }, [onClose, slug])
+
   // keyboard nav + body scroll lock
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Escape closes the info panel first, then the lightbox
-      if (e.key === "Escape") showInfo ? setShowInfo(false) : onClose()
+      if (e.key === "Escape") showInfo ? setShowInfo(false) : handleClose()
       else if (e.key === "ArrowLeft" && hasPrev) goto(index - 1)
       else if (e.key === "ArrowRight" && hasNext) goto(index + 1)
     }
@@ -111,7 +123,7 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
       document.removeEventListener("keydown", onKey)
       document.body.style.overflow = prev
     }
-  }, [onClose, goto, index, hasPrev, hasNext, showInfo])
+  }, [handleClose, goto, index, hasPrev, hasNext, showInfo])
 
   // keep the active thumbnail in view
   useEffect(() => {
@@ -138,13 +150,15 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
     }
   }, [photos, index, direction])
 
+  if (dismissed) return null
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.18 }}
       className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={handleClose}
     >
       {/* top bar */}
       <div className="flex items-center justify-between p-4 text-white/90">
@@ -168,7 +182,10 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
           )}
           {current && <DownloadMenu photo={current} slug={slug} />}
           <button
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleClose()
+            }}
             className="rounded-full p-2 transition-colors hover:bg-white/10"
             aria-label="Close"
           >
