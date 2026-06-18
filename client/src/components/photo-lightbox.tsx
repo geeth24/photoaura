@@ -9,7 +9,7 @@ import cdnImageLoader from "@/lib/cdn-image-loader"
 import { LightboxImage, slide, FULL_WIDTH } from "@/components/lightbox-image"
 import { PhotoInfoPanel } from "@/components/photo-info-panel"
 import { DownloadMenu } from "@/components/download-menu"
-import type { Album, AlbumFace, Photo } from "@/lib/types"
+import { isVideo, type Album, type AlbumFace, type Photo } from "@/lib/types"
 import { X, ChevronLeft, ChevronRight, Info } from "lucide-react"
 
 type Props = {
@@ -48,23 +48,36 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
       .catch(() => setFaceFilenames(new Set()))
   }, [slug, faceId])
 
+  // a video plays on its own — it doesn't belong in the photo swipe/filmstrip
+  const openedItem = useMemo(
+    () => allPhotos?.find((p) => p.file_metadata.filename === initialPhoto) ?? null,
+    [allPhotos, initialPhoto]
+  )
+  const openedIsVideo = !!openedItem && isVideo(openedItem)
+
   const photos = useMemo(() => {
     if (!allPhotos) return null
     if (faceId && !faceFilenames) return null // wait for the filter to load
-    if (faceFilenames)
-      return allPhotos.filter((p) => faceFilenames.has(p.file_metadata.filename))
-    return allPhotos
+    const scoped = faceFilenames
+      ? allPhotos.filter((p) => faceFilenames.has(p.file_metadata.filename))
+      : allPhotos
+    return scoped.filter((p) => !isVideo(p))
   }, [allPhotos, faceId, faceFilenames])
 
   // pick the starting photo once the (possibly filtered) set is ready
-  if (photos && index === -1) {
+  if (!openedIsVideo && photos && index === -1) {
     const i = photos.findIndex((p) => p.file_metadata.filename === initialPhoto)
     setIndex(i >= 0 ? i : 0)
   }
 
-  const current = photos && index >= 0 ? photos[index] : null
-  const hasPrev = index > 0
-  const hasNext = photos != null && index >= 0 && index < photos.length - 1
+  const current = openedIsVideo
+    ? openedItem
+    : photos && index >= 0
+      ? photos[index]
+      : null
+  const hasPrev = !openedIsVideo && index > 0
+  const hasNext =
+    !openedIsVideo && photos != null && index >= 0 && index < photos.length - 1
 
   // navigate internally (no router push) so the slide animation isn't fighting a
   // route re-render; keep the URL in sync via the History API (no re-render).
@@ -216,8 +229,8 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
         )}
       </div>
 
-      {/* thumbnail filmstrip */}
-      {photos && photos.length > 1 && (
+      {/* thumbnail filmstrip — photos only, hidden when viewing a standalone video */}
+      {!openedIsVideo && photos && photos.length > 1 && (
         <div
           ref={stripRef}
           onClick={(e) => e.stopPropagation()}
