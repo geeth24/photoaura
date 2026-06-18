@@ -28,6 +28,9 @@ socket.getaddrinfo = _ipv4_only_getaddrinfo
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
 
 FROM = os.environ.get("EMAIL_FROM", "Reactive Shots <noreply@mail.reactiveshots.com>")
+# blind-copy every client email to our catch-all so we keep a record of what
+# went out (comma-separated; client never sees it)
+BCC = [a.strip() for a in os.environ.get("EMAIL_BCC", "").split(",") if a.strip()]
 CLIENT_URL = os.environ.get("NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com")
 RENDER_URL = f"{CLIENT_URL.rstrip('/')}/api/email/render"
 RENDER_SECRET = os.environ.get("EMAIL_RENDER_SECRET", "")
@@ -59,9 +62,10 @@ def _send(to_email: str, subject: str, html: str) -> bool:
         print("RESEND_API_KEY not set — skipping email to", to_email)
         return False
     try:
-        resend.Emails.send(
-            {"from": FROM, "to": [to_email], "subject": subject, "html": html}
-        )
+        payload = {"from": FROM, "to": [to_email], "subject": subject, "html": html}
+        if BCC:
+            payload["bcc"] = BCC
+        resend.Emails.send(payload)
         return True
     except Exception as e:
         print("resend error:", e)
