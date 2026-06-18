@@ -12,7 +12,7 @@ COPY --from=backend /app /app
 
 # Install system dependencies
 RUN apt-get update -o Acquire::Check-Valid-Until=false && \
-    apt-get install -y libpq-dev && \
+    apt-get install -y libpq-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

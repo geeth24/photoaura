@@ -102,7 +102,7 @@ export type UploadStatus = {
   album_slug: string
   active: boolean
   finished: boolean
-  phase: "saving" | "faces" | "clustering" | "warming" | "done"
+  phase: "saving" | "faces" | "clustering" | "warming" | "transcoding" | "done"
   current: number
   total: number
   error: string | null

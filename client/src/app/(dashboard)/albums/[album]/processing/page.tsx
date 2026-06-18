@@ -15,12 +15,13 @@ import {
   Sparkles,
   Users,
   Zap,
+  Film,
   ImageIcon,
   AlertCircle,
   ArrowRight,
 } from "lucide-react"
 
-const PHASES = ["saving", "faces", "clustering", "warming", "done"] as const
+const PHASES = ["saving", "faces", "clustering", "warming", "transcoding", "done"] as const
 
 type StepDef = {
   key: (typeof PHASES)[number]
@@ -28,6 +29,8 @@ type StepDef = {
   hint: string
   icon: React.ComponentType<{ className?: string }>
   facesOnly?: boolean
+  // only relevant when the album has videos — shown once we reach that phase
+  videoOnly?: boolean
 }
 
 const STEPS: StepDef[] = [
@@ -35,6 +38,7 @@ const STEPS: StepDef[] = [
   { key: "faces", label: "Detecting faces", hint: "Finding people in each photo", icon: ScanFace, facesOnly: true },
   { key: "clustering", label: "Grouping people", hint: "Matching the same person across photos", icon: Users, facesOnly: true },
   { key: "warming", label: "Optimizing delivery", hint: "Pre-rendering for fast loads", icon: Zap },
+  { key: "transcoding", label: "Compressing video", hint: "Encoding for fast streaming", icon: Film, videoOnly: true },
 ]
 
 export default function ProcessingPage({
@@ -93,9 +97,12 @@ export default function ProcessingPage({
 
   const faces = status?.face_detection ?? true
   const isResync = status?.kind === "resync"
-  const steps = STEPS.filter((s) =>
-    isResync ? s.key === "faces" || s.key === "clustering" : faces || !s.facesOnly
-  )
+  const steps = STEPS.filter((s) => {
+    if (isResync) return s.key === "faces" || s.key === "clustering"
+    // the video step only makes sense once the album actually has a video to encode
+    if (s.videoOnly) return status?.phase === "transcoding"
+    return faces || !s.facesOnly
+  })
   const phaseIdx = status ? PHASES.indexOf(status.phase) : 0
   const finished = status?.finished ?? false
   const errored = !!status?.error || failedToLoad

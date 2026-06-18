@@ -21,6 +21,7 @@ from utils.face_recog import detect_and_store_faces, recluster_faces
 from utils.utils import get_file_metadata, add_album_to_user
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
+from services.video_transcode import transcode_to_web
 from routers.websocket.websocket_router import manager
 from services import upload_jobs
 from dependencies import oauth2_scheme, get_current_user, require_admin
@@ -98,6 +99,7 @@ def _store_video_file(file, filename: str, content_type: str, album, session):
         meta = FileMetadata(album_id=album.id, filename=filename, **fields)
         session.add(meta)
     session.commit()
+    return s3_key, meta.id
 
 
 def _store_one_file(
@@ -236,6 +238,7 @@ async def create_upload_files(
     # (s3_key, file_metadata_id) for the faces pass
     face_targets = []
     keys = []  # image keys to warm (videos aren't transformed/warmed)
+    video_targets = []  # (s3_key, meta_id) to transcode to web-friendly mp4
 
     # stage 1: save each file to S3 + (for images) record metadata + blur.
     # This is the only work that needs the request body, so it stays inline.
@@ -244,7 +247,9 @@ async def create_upload_files(
         if (ctype or "").startswith("video/"):
             # stream videos straight to S3 — reading a big one into the pod's
             # memory OOM-killed the backend. no blur/exif/faces for video.
-            _store_video_file(file, file.filename, ctype, album, session)
+            video_targets.append(
+                _store_video_file(file, file.filename, ctype, album, session)
+            )
         else:
             content = await file.read()
             _store_one_file(
@@ -263,14 +268,15 @@ async def create_upload_files(
     # faces + clustering + cdn warming can run for minutes on a big album —
     # well past any proxy timeout. Hand them to a background task and return
     # now so the admin gets routed to a live progress page instead of a 504.
-    processing = bool(face_targets or keys)
+    processing = bool(face_targets or keys or video_targets)
     if processing:
         upload_jobs.start_job(
             album_slug, face_detection=bool(face_targets), image_count=image_count
         )
         asyncio.create_task(
             _process_album(
-                album.id, album_slug, face_targets, keys, update, image_count
+                album.id, album_slug, face_targets, keys, update, image_count,
+                video_targets,
             )
         )
     else:
@@ -283,9 +289,12 @@ async def create_upload_files(
     }
 
 
-async def _process_album(album_id, album_slug, face_targets, keys, update, image_count):
-    """Background: detect faces, regroup, warm the CDN. Updates the job
-    registry (polled by the processing page) and the websocket as it goes."""
+async def _process_album(
+    album_id, album_slug, face_targets, keys, update, image_count, video_targets=None
+):
+    """Background: detect faces, regroup, warm the CDN, transcode videos.
+    Updates the job registry (polled by the processing page) and the websocket
+    as it goes."""
     try:
         # stage 2: detect + index faces (off the event loop so progress flushes)
         if face_targets:
@@ -325,6 +334,22 @@ async def _process_album(album_id, album_slug, face_targets, keys, update, image
                 album_slug, phase="warming", current=done, total=warm_total
             )
             await _notify("warming", done, warm_total)
+
+        # stage 4: transcode videos to a web-friendly faststart mp4. Phone/camera
+        # clips are huge and stream poorly; re-encoding makes them load fast.
+        for s3_key, meta_id in (video_targets or []):
+            upload_jobs.update_job(album_slug, phase="transcoding")
+            await _notify("transcoding", 0, 0)
+            try:
+                new_size = await asyncio.to_thread(transcode_to_web, s3_key)
+                if new_size:
+                    with session_scope() as s:
+                        m = s.query(FileMetadata).filter_by(id=meta_id).first()
+                        if m:
+                            m.size = new_size
+                    await asyncio.to_thread(invalidate_cdn)
+            except Exception as e:
+                print(f"video transcode failed for {s3_key}: {e}")
 
         # re-uploading can overwrite photos at the same key; purge stale CDN copies
         if update:
