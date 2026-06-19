@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Photos
+import AVKit
 import EditorialStyle
 
 struct PhotoViewer: View {
@@ -66,16 +67,22 @@ struct PhotoViewer: View {
 
             TabView(selection: $index) {
                 ForEach(Array(photos.enumerated()), id: \.element.id) { idx, photo in
-                    ZoomablePhoto(
-                        thumbnailURL: URL(string: photo.compressedImage),
-                        fullURL: URL(string: photo.image)
-                    )
-                    .tag(idx)
-                    .onTapGesture {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            chromeVisible.toggle()
+                    Group {
+                        if photo.isVideo {
+                            VideoPlayerCell(url: URL(string: photo.image), isCurrent: idx == index)
+                        } else {
+                            ZoomablePhoto(
+                                thumbnailURL: URL(string: photo.compressedImage),
+                                fullURL: URL(string: photo.image)
+                            )
+                            .onTapGesture {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    chromeVisible.toggle()
+                                }
+                            }
                         }
                     }
+                    .tag(idx)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -168,6 +175,9 @@ struct PhotoViewer: View {
                                 }
                                 .frame(width: idx == index ? 56 : 40, height: 56)
                                 .clipped()
+                                .overlay {
+                                    if photo.isVideo { VideoPlayBadge(size: 9) }
+                                }
                                 .overlay {
                                     if idx == index {
                                         Rectangle().stroke(.white, lineWidth: 2)
@@ -346,9 +356,7 @@ struct PhotoViewer: View {
         }
     }
 
-    private var isVideoPhoto: Bool {
-        photos[index].fileMetadata.contentType?.hasPrefix("video/") == true
-    }
+    private var isVideoPhoto: Bool { photos[index].isVideo }
 
     @MainActor
     private func savePhoto(optimized: Bool) async {
@@ -371,6 +379,46 @@ struct PhotoViewer: View {
             try? await Task.sleep(for: .seconds(2))
             if case .failed = saveState { saveState = .idle }
         }
+    }
+}
+
+// MARK: - Video cell
+
+// Plays the presigned video URL with native AVKit controls. Auto-plays the page
+// you're on, pauses the rest so swiping away stops the audio.
+private struct VideoPlayerCell: View {
+    let url: URL?
+    let isCurrent: Bool
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        Group {
+            if let player {
+                VideoPlayer(player: player)
+            } else {
+                Color.black
+            }
+        }
+        .onAppear {
+            if player == nil, let url { player = AVPlayer(url: url) }
+            if isCurrent { player?.play() }
+        }
+        .onDisappear { player?.pause() }
+        .onChange(of: isCurrent) { _, now in
+            now ? player?.play() : player?.pause()
+        }
+    }
+}
+
+// Small play glyph overlaid on video thumbnails in the grids + filmstrip.
+struct VideoPlayBadge: View {
+    var size: CGFloat = 13
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: size, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(size * 0.6)
+            .background(.black.opacity(0.45), in: Circle())
     }
 }
 

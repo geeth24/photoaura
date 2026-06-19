@@ -100,7 +100,11 @@ def build_photo_json(meta, album_slug):
             Params={"Bucket": AWS_BUCKET, "Key": f"{album_slug}/{meta.filename}"},
             ExpiresIn=21600,
         )
-        compressed_image_url = url
+        # thumbnail = the poster frame ffmpeg extracted on transcode (a real jpg,
+        # so the CDN can resize it); image = the playable video
+        compressed_image_url = (
+            f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}.poster.jpg"
+        )
         image_url = url
     else:
         # plain URLs — works with every client version. ?v versioning broke

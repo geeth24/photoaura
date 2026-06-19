@@ -49,6 +49,7 @@ struct Photo: Codable, Hashable, Identifiable {
     let compressedImage: String
     let fileMetadata: PhotoMetadata
     var id: String { image }
+    var isVideo: Bool { fileMetadata.contentType?.hasPrefix("video/") == true }
 }
 
 struct PhotoMetadata: Codable, Hashable {

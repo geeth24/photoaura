@@ -125,6 +125,7 @@ private struct AllPhotosContent: View {
                                     EditorialColors.surfaceElevated
                                 }
                             }
+                            .overlay { if photo.isVideo { VideoPlayBadge() } }
                             .clipped()
                     }
                     .buttonStyle(.plain)
