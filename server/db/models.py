@@ -98,7 +98,7 @@ class FileMetadata(Base):
     album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"))
     filename: Mapped[Optional[str]] = mapped_column(String(255))
     content_type: Mapped[Optional[str]] = mapped_column(String(50))
-    size: Mapped[Optional[int]] = mapped_column(Integer)
+    size: Mapped[Optional[int]] = mapped_column(BigInteger)
     width: Mapped[Optional[int]] = mapped_column(Integer)
     height: Mapped[Optional[int]] = mapped_column(Integer)
     upload_date: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
@@ -136,7 +136,7 @@ class ClientFile(Base):
     )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(1024), nullable=False)
-    size: Mapped[Optional[int]] = mapped_column(Integer)
+    size: Mapped[Optional[int]] = mapped_column(BigInteger)
     content_type: Mapped[Optional[str]] = mapped_column(String(100))
     created_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
