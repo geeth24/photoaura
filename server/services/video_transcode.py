@@ -30,6 +30,9 @@ def transcode_to_web(s3_key: str) -> int | None:
         subprocess.run(
             [
                 "ffmpeg", "-y", "-i", src,
+                # cap threads so the encode can't pin every core and starve the
+                # event loop (a starved /api fails the liveness probe -> kill)
+                "-threads", "2",
                 # fit inside 1920x1920 (works for landscape + portrait), even dims
                 "-vf", "scale=w=1920:h=1920:force_original_aspect_ratio=decrease:force_divisible_by=2",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",

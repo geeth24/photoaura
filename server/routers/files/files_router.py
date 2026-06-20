@@ -64,17 +64,22 @@ def _is_media(filename: str) -> bool:
     return ext in _IMAGE_EXTS or ext in _VIDEO_EXTS
 
 
-def _store_video_file(file, filename: str, content_type: str, album, session):
+async def _store_video_file(file, filename: str, content_type: str, album, session):
     """Stream a video to S3 in constant memory (no full read, no blur/exif/
     faces). A big video read into RAM OOM-killed the pod; videos just need to
-    land in the album so the gallery + lightbox can play them."""
+    land in the album so the gallery + lightbox can play them.
+
+    The S3 upload runs off the event loop — a synchronous multi-hundred-MB
+    upload here blocks the loop long enough to fail the liveness probe, and
+    k8s kills the pod mid-upload."""
     s3_key = f"{album.slug}/{filename}"
     # measure size without loading the file into memory
     file.file.seek(0, os.SEEK_END)
     size = file.file.tell()
     file.file.seek(0)
-    s3_client.upload_fileobj(
-        file.file, AWS_BUCKET, s3_key, ExtraArgs={"ContentType": content_type}
+    await asyncio.to_thread(
+        s3_client.upload_fileobj,
+        file.file, AWS_BUCKET, s3_key, {"ContentType": content_type},
     )
 
     existing = (
@@ -248,7 +253,7 @@ async def create_upload_files(
             # stream videos straight to S3 — reading a big one into the pod's
             # memory OOM-killed the backend. no blur/exif/faces for video.
             video_targets.append(
-                _store_video_file(file, file.filename, ctype, album, session)
+                await _store_video_file(file, file.filename, ctype, album, session)
             )
         else:
             content = await file.read()
