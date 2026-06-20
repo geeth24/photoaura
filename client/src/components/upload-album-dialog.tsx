@@ -37,7 +37,7 @@ type Props = {
 }
 
 const STAGE_LABEL: Record<UploadStage["stage"], string> = {
-  uploading: "Uploading photos",
+  uploading: "Uploading",
   saving: "Saving",
   faces: "Detecting faces",
   clustering: "Grouping people",
@@ -116,6 +116,12 @@ export function UploadAlbumDialog({
   const faces = lockFaceDetection || faceDetection
   const canUpload = resolvedName.length > 0 && files.length > 0 && !uploading
 
+  // clients upload videos too — say "video"/"item" so it doesn't read "photos"
+  const hasVideos = files.some((f) => f.type.startsWith("video/"))
+  const hasPhotos = files.some((f) => !f.type.startsWith("video/"))
+  const noun = hasVideos && !hasPhotos ? "video" : hasVideos ? "item" : "photo"
+  const plural = files.length === 1 ? "" : "s"
+
   const handleUpload = async () => {
     if (!canUpload) return
     setUploading(true)
@@ -127,8 +133,8 @@ export function UploadAlbumDialog({
       )
       toast.success(
         mode === "new"
-          ? `Created "${resolvedName}" with ${files.length} photo${files.length === 1 ? "" : "s"}`
-          : `Uploaded ${files.length} photo${files.length === 1 ? "" : "s"}`
+          ? `Created "${resolvedName}" with ${files.length} ${noun}${plural}`
+          : `Uploaded ${files.length} ${noun}${plural}`
       )
       onUploaded()
       setOpen(false)
@@ -151,8 +157,8 @@ export function UploadAlbumDialog({
           <DialogTitle>{mode === "new" ? "New album" : `Upload to ${albumName}`}</DialogTitle>
           <DialogDescription>
             {mode === "new"
-              ? "Name the album and drop in your photos."
-              : "Add more photos to this album."}
+              ? "Name the album and drop in your photos & videos."
+              : "Add more photos or videos to this album."}
           </DialogDescription>
         </DialogHeader>
 
@@ -190,7 +196,7 @@ export function UploadAlbumDialog({
             <UploadCloud className="size-7 text-muted-foreground" />
             <div className="text-sm">
               <span className="font-medium text-foreground">Click to choose</span>
-              <span className="text-muted-foreground"> or drag photos here</span>
+              <span className="text-muted-foreground"> or drag files here</span>
             </div>
             <p className="text-xs text-muted-foreground">PNG, JPG, HEIC, MP4, MOV</p>
             <input
@@ -209,7 +215,7 @@ export function UploadAlbumDialog({
                 <ImageIcon className="size-4 text-muted-foreground" />
                 <span className="font-medium">{files.length}</span>
                 <span className="text-muted-foreground">
-                  photo{files.length === 1 ? "" : "s"} ready
+                  {noun}{plural} ready
                 </span>
               </span>
               {!uploading && (
