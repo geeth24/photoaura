@@ -102,8 +102,11 @@ export function PhotoLightbox({ slug, photo, onClose }: Props) {
   // intercepted modal — local state guarantees it actually closes.
   const handleClose = useCallback(() => {
     setDismissed(true)
-    // the desync also makes router.push a no-op, so the address bar can stay on
-    // the photo URL — correct it directly so a refresh shows the album, not this.
+    // the modal often stays mounted (router.push no-ops after our replaceState),
+    // so the scroll-lock effect's cleanup never runs — release it here or the
+    // page can't scroll after closing.
+    document.body.style.overflow = ""
+    // correct the address bar directly so a refresh shows the album, not the photo
     window.history.replaceState(null, "", `/albums/${slug}`)
     onClose()
   }, [onClose, slug])
