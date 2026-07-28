@@ -105,7 +105,7 @@ export function ShareGallery({ slug }: { slug: string }) {
                 Full resolution originals, as one zip.
               </p>
               {/* on a phone the zip lands in Files, not Photos — offer the camera roll too */}
-              <SaveToPhotos photos={album.album_photos} />
+              <SaveToPhotos photos={album.album_photos} albumSlug={slug} />
             </motion.div>
 
             <PhotoMasonry photos={album.album_photos} onOpen={setLightbox} />

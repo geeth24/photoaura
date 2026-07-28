@@ -388,7 +388,7 @@ export default function AlbumDetailPage({
           </div>
 
           {/* phones can't get a zip into the camera roll — offer the share sheet */}
-          <SaveToPhotos photos={album.album_photos} />
+          <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />
         </div>
 
         {isAdmin && (
