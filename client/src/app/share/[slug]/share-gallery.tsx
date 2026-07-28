@@ -7,7 +7,8 @@ import { PhotoMasonry } from "@/components/photo-masonry"
 import { LibraryLightbox } from "@/components/library-lightbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Photo } from "@/lib/types"
-import { ImageOff } from "lucide-react"
+import { downloadSharedAlbumZip } from "@/lib/download"
+import { Download, ImageOff } from "lucide-react"
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
@@ -90,6 +91,17 @@ export function ShareGallery({ slug }: { slug: string }) {
               <p className="mt-3 text-sm font-light text-text-secondary">
                 {album.album_photos.length}{" "}
                 {album.album_photos.length === 1 ? "photo" : "photos"}
+              </p>
+
+              <button
+                onClick={() => downloadSharedAlbumZip(slug, secret)}
+                className="mt-6 flex h-11 items-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)]"
+              >
+                <Download className="size-3.5" />
+                Download all photos
+              </button>
+              <p className="mt-2 text-[11px] text-text-faint">
+                Full resolution originals, as one zip.
               </p>
             </motion.div>
 

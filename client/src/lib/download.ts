@@ -75,6 +75,29 @@ export async function downloadOptimized(photo: Photo) {
   await saveBlob(url, name)
 }
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
+
+/**
+ * Whole album as one zip of originals. A browser navigation can't carry an auth
+ * header, so we swap the session for a short-lived album-scoped ticket first.
+ */
+export async function downloadAlbumZip(slug: string) {
+  const { ticket } = await apiFetch<{ ticket: string }>(
+    `/album/${slug}/download-ticket`,
+    { method: "POST" }
+  )
+  navigateDownload(
+    `${API_URL}/album/${slug}/download-all?ticket=${encodeURIComponent(ticket)}`
+  )
+}
+
+/** Same zip, for a share-link visitor who has no account. */
+export function downloadSharedAlbumZip(slug: string, secret?: string) {
+  const q = secret ? `?secret=${encodeURIComponent(secret)}` : ""
+  navigateDownload(`${API_URL}/album/${slug}/download-all${q}`)
+}
+
 // kept for callers that just want "the good one"
 export async function downloadPhoto(photo: Photo, slug?: string) {
   if (slug) return downloadOriginal(photo, slug)

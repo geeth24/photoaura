@@ -1,6 +1,12 @@
 from fastapi import HTTPException, APIRouter, Depends
+from fastapi.responses import StreamingResponse
 import os
+import io
+import re
+import zipfile
 import logging
+from datetime import datetime, timedelta
+import jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -236,6 +242,140 @@ async def download_original(
         ExpiresIn=3600,
     )
     return {"url": url}
+
+
+DOWNLOAD_SCOPE = "album-download"
+
+
+class _ZipSink(io.RawIOBase):
+    """Buffer zipfile writes into so the generator can flush them downstream.
+    zipfile handles a non-seekable sink by emitting data descriptors."""
+
+    def __init__(self):
+        self._buf = bytearray()
+
+    def writable(self):
+        return True
+
+    def write(self, b):
+        self._buf += b
+        return len(b)
+
+    def drain(self) -> bytes:
+        chunk = bytes(self._buf)
+        del self._buf[:]
+        return chunk
+
+
+def _stream_zip(entries):
+    """Yield a ZIP of (s3_key, name) built on the fly. Stored (not deflated) —
+    photos and video are already compressed, so deflate only burns CPU — and
+    streamed a chunk at a time so a multi-GB album never lands in memory."""
+    sink = _ZipSink()
+    with zipfile.ZipFile(sink, mode="w", compression=zipfile.ZIP_STORED, allowZip64=True) as zf:
+        for s3_key, name in entries:
+            try:
+                body = s3_client.get_object(Bucket=AWS_BUCKET, Key=s3_key)["Body"]
+            except ClientError as e:
+                logging.warning("zip: skipping %s (%s)", s3_key, e)
+                continue
+            with zf.open(name, mode="w") as dest:
+                for chunk in body.iter_chunks(1024 * 1024):
+                    dest.write(chunk)
+                    data = sink.drain()
+                    if data:
+                        yield data
+            data = sink.drain()
+            if data:
+                yield data
+    yield sink.drain()
+
+
+def _safe_zip_name(name: str) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|]+', "-", name).strip() or "gallery"
+    return cleaned[:80]
+
+
+@router.post("/api/album/{album_slug}/download-ticket")
+async def create_download_ticket(
+    album_slug: str,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Short-lived, album-scoped ticket for the zip download. A browser
+    navigation can't send an Authorization header, and putting the real
+    session token in the URL would leak it into proxy logs."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    u = session.query(User).filter_by(user_name=current_user.user_name).first()
+    if not u:
+        raise HTTPException(status_code=401, detail="Unknown user")
+    if u.role != "admin":
+        allowed = (
+            session.query(UserAlbumPermission)
+            .filter_by(user_id=u.id, album_id=album.id)
+            .first()
+        )
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Not your album")
+
+    ticket = jwt.encode(
+        {
+            "sub": current_user.user_name,
+            "album": album_slug,
+            "scope": DOWNLOAD_SCOPE,
+            "exp": datetime.utcnow() + timedelta(minutes=15),
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    return {"ticket": ticket}
+
+
+@router.get("/api/album/{album_slug}/download-all")
+def download_album_zip(
+    album_slug: str,
+    ticket: str = None,
+    secret: str = None,
+    session: Session = Depends(get_session),
+):
+    """Every original in the album as one streamed zip. Authorized either by a
+    download ticket (signed-in client) or the share secret / public flag, so a
+    share-link visitor can grab the whole gallery too."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    allowed = False
+    if ticket:
+        try:
+            payload = jwt.decode(
+                ticket, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+            allowed = (
+                payload.get("scope") == DOWNLOAD_SCOPE
+                and payload.get("album") == album_slug
+            )
+        except jwt.PyJWTError:
+            allowed = False
+    if not allowed and (album.public or (secret and secret == album.secret)):
+        allowed = True
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Not authorized for this gallery")
+
+    photos = session.query(FileMetadata).filter_by(album_id=album.id).all()
+    if not photos:
+        raise HTTPException(status_code=404, detail="Nothing to download")
+
+    entries = [(f"{album.slug}/{p.filename}", p.filename) for p in photos]
+    zip_name = _safe_zip_name(album.name or album.slug)
+    return StreamingResponse(
+        _stream_zip(entries),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}.zip"'},
+    )
 
 
 @router.delete("/api/album/delete/{album_slug}/")
