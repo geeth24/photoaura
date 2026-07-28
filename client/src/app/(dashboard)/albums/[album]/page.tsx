@@ -34,6 +34,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock, Download } from "lucide-react"
 import { downloadAlbumZip } from "@/lib/download"
+import { SaveToPhotos } from "@/components/save-to-photos"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -385,6 +386,9 @@ export default function AlbumDetailPage({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* phones can't get a zip into the camera roll — offer the share sheet */}
+          <SaveToPhotos photos={album.album_photos} />
         </div>
 
         {isAdmin && (

@@ -8,6 +8,7 @@ import { LibraryLightbox } from "@/components/library-lightbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Photo } from "@/lib/types"
 import { downloadSharedAlbumZip } from "@/lib/download"
+import { SaveToPhotos } from "@/components/save-to-photos"
 import { Download, ImageOff } from "lucide-react"
 
 const API_URL =
@@ -103,6 +104,8 @@ export function ShareGallery({ slug }: { slug: string }) {
               <p className="mt-2 text-[11px] text-text-faint">
                 Full resolution originals, as one zip.
               </p>
+              {/* on a phone the zip lands in Files, not Photos — offer the camera roll too */}
+              <SaveToPhotos photos={album.album_photos} />
             </motion.div>
 
             <PhotoMasonry photos={album.album_photos} onOpen={setLightbox} />

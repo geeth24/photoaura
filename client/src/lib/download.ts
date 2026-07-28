@@ -61,18 +61,32 @@ export async function downloadOriginal(photo: Photo, slug?: string) {
 }
 
 /**
+ * Full frame resized to `width` and forced to JPEG (never webp). Served with
+ * CORS, so the browser can also fetch it as a blob. Returns null for video and
+ * for URLs that aren't CDN-transformable.
+ */
+export function optimizedJpegUrl(photo: Photo, width = 2560): string | null {
+  if (isVideo(photo)) return null
+  const m = photo.image.split("?")[0].match(THUMBOR)
+  if (!m) return null
+  const key = decodeURIComponent(m[1])
+  const edits = { rotate: null, resize: { width, fit: "inside" }, toFormat: "jpeg" }
+  try {
+    return `${CDN}/${b64(JSON.stringify({ bucket: BUCKET, key, edits }))}`
+  } catch {
+    return null // non-latin1 key, btoa would throw
+  }
+}
+
+/**
  * Web-optimized copy: full frame, resized + forced to JPEG (never webp), handy
  * for quick sharing. Stills only.
  */
 export async function downloadOptimized(photo: Photo) {
   const name = photo.file_metadata.filename || "download"
   if (isVideo(photo)) return
-  const m = photo.image.split("?")[0].match(THUMBOR)
-  if (!m) return saveBlob(photo.image, name)
-  const key = decodeURIComponent(m[1])
-  const edits = { rotate: null, resize: { width: 2560, fit: "inside" }, toFormat: "jpeg" }
-  const url = `${CDN}/${b64(JSON.stringify({ bucket: BUCKET, key, edits }))}`
-  await saveBlob(url, name)
+  const url = optimizedJpegUrl(photo)
+  await saveBlob(url ?? photo.image, name)
 }
 
 const API_URL =
