@@ -14,6 +14,11 @@ struct AlbumView: View {
     @State private var store: AlbumStore?
     @State private var presentedPhoto: PhotoTarget? = nil
     @State private var activeViewerPhotoID: String? = nil
+    // whole-gallery save to Photos
+    @State private var savedCount = 0
+    @State private var saveTotal = 0
+    @State private var saving = false
+    @State private var saveMessage: String?
 
     var body: some View {
         Group {
@@ -36,6 +41,31 @@ struct AlbumView: View {
         // already have access; sharing the URL would just send the recipient
         // to a sign-in screen for an account that isn't theirs. The photo
         // viewer's share button (per-photo) is the right share affordance.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if saving {
+                    Text("\(savedCount)/\(saveTotal)")
+                        .font(EditorialTypography.sans(size: 12, weight: .semibold))
+                        .foregroundStyle(EditorialColors.textSecondary)
+                } else if let photos = store?.state.photos, !photos.isEmpty {
+                    Button {
+                        saveAll(photos)
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .accessibilityLabel("Save all to Photos")
+                }
+            }
+        }
+        .alert(
+            saveMessage ?? "",
+            isPresented: Binding(
+                get: { saveMessage != nil },
+                set: { if !$0 { saveMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        }
         .fullScreenCover(item: $presentedPhoto) { target in
             if let store {
                 PhotoViewer(
@@ -47,6 +77,40 @@ struct AlbumView: View {
         }
     }
 
+    // save every original into the camera roll, one at a time so a big gallery
+    // doesn't spike memory; one bad file shouldn't stop the rest
+    private func saveAll(_ photos: [Photo]) {
+        saving = true
+        savedCount = 0
+        saveTotal = photos.count
+        Task {
+            do {
+                try await BulkSaver.requestAccess()
+            } catch {
+                saving = false
+                saveMessage = error.localizedDescription
+                return
+            }
+            var failed = 0
+            for photo in photos {
+                let url = photo.isVideo
+                    ? URL(string: photo.image)
+                    : ImageURLHelper.originalSize(from: photo.image)
+                if let url {
+                    do {
+                        try await BulkSaver.save(url: url, isVideo: photo.isVideo)
+                    } catch {
+                        failed += 1
+                    }
+                }
+                savedCount += 1
+            }
+            saving = false
+            saveMessage = failed == 0
+                ? "Saved \(photos.count) to your Photos."
+                : "Saved \(photos.count - failed) of \(photos.count). \(failed) couldn't be saved."
+        }
+    }
 }
 
 // presented to the photo viewer cover — index + the cell's photo id
