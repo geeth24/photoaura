@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import type { User } from "@/lib/types"
@@ -52,6 +53,7 @@ function initialsOf(name: string) {
 }
 
 export default function UsersPage() {
+  useDocumentTitle("Users")
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)

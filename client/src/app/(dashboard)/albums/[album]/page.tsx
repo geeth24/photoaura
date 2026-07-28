@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { use } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, deletePhoto, getUploadStatus, type UploadStatus } from "@/lib/api"
@@ -31,7 +32,8 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock } from "lucide-react"
+import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock, Download } from "lucide-react"
+import { downloadAlbumZip } from "@/lib/download"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -45,9 +47,11 @@ export default function AlbumDetailPage({
   const { user } = useAuth()
   const isAdmin = user?.role !== "client"
   const [album, setAlbum] = useState<Album | null>(null)
+  useDocumentTitle(album?.album_name)
   const [loading, setLoading] = useState(true)
   const [mediaTab, setMediaTab] = useState<"photos" | "videos">("photos")
   const [deleting, setDeleting] = useState(false)
+  const [zipping, setZipping] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [droppedFiles, setDroppedFiles] = useState<File[]>([])
   const [dragDepth, setDragDepth] = useState(0)
@@ -160,6 +164,19 @@ export default function AlbumDetailPage({
       fetchFaces()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't set cover")
+    }
+  }
+
+  const handleDownloadAll = async () => {
+    if (zipping) return
+    setZipping(true)
+    try {
+      await downloadAlbumZip(albumSlug)
+      toast.success("Preparing your download — the zip will start shortly")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't start the download")
+    } finally {
+      setZipping(false)
     }
   }
 
@@ -322,6 +339,19 @@ export default function AlbumDetailPage({
                 Upload Enabled
               </span>
             )}
+            {/* clients asked for this — every original in one zip */}
+            <button
+              onClick={handleDownloadAll}
+              disabled={zipping}
+              className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-50"
+            >
+              {zipping ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Download className="size-3" />
+              )}
+              Download all
+            </button>
             {/* anyone viewing the album can grab a share link */}
             <DropdownMenu>
               <DropdownMenuTrigger

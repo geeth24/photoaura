@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
@@ -12,6 +13,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 export default function AlbumsPage() {
+  useDocumentTitle("Albums")
   const { user } = useAuth()
   const [albums, setAlbums] = useState<Album[]>([])
   const [loading, setLoading] = useState(true)

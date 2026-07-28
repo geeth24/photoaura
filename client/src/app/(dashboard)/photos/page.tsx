@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
 import type { Photo } from "@/lib/types"
@@ -12,6 +13,7 @@ import { ImageOff } from "lucide-react"
 type OrientationFilter = "all" | "portrait" | "landscape"
 
 export default function PhotosPage() {
+  useDocumentTitle("All Photos")
   const { user } = useAuth()
   const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState(true)

@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useCallback, useEffect, useState } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import Link from "next/link"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
@@ -52,6 +53,7 @@ export default function UserDetailPage({
 }) {
   const { id } = use(params)
   const [user, setUser] = useState<UserDetail | null>(null)
+  useDocumentTitle(user?.full_name)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState<NotifyKind | null>(null)
 

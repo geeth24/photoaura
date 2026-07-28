@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import type { Face, Photo } from "@/lib/types"
@@ -26,6 +27,7 @@ type Suggestion = {
 }
 
 export default function FacesPage() {
+  useDocumentTitle("Faces")
   const [faces, setFaces] = useState<Face[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Face | null>(null)

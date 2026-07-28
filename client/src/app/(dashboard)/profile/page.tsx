@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
 import { LogOut, Plus, X, Check, Clock } from "lucide-react"
@@ -14,6 +15,7 @@ type Email = {
 }
 
 export default function ProfilePage() {
+  useDocumentTitle("Profile")
   const { user, logout } = useAuth()
   const [emails, setEmails] = useState<Email[]>([])
   const [emailsLoaded, setEmailsLoaded] = useState(false)

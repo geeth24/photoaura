@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { apiFetch } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
 import { Download, FileArchive, Inbox, X } from "lucide-react"
@@ -54,6 +55,7 @@ function startDownload(url?: string) {
 }
 
 export default function DownloadsPage() {
+  useDocumentTitle("Downloads")
   const { user } = useAuth()
   const isAdmin = user?.role !== "client"
 

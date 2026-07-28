@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -35,6 +36,7 @@ const SERVICE_LABELS: Record<string, string> = {
 }
 
 export default function OpsPage() {
+  useDocumentTitle("Ops")
   const [ops, setOps] = useState<Ops | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)

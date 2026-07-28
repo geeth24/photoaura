@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
@@ -48,6 +49,7 @@ type CategoryAlbumRow = {
 const SITE_GALLERY = "https://reactiveshots.com/gallery"
 
 export default function WebsitePage() {
+  useDocumentTitle("Website")
   const { user } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
   const [albums, setAlbums] = useState<Album[]>([])

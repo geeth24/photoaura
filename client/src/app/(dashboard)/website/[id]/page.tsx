@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import Link from "next/link"
 import Image from "next/image"
 import { motion } from "motion/react"
@@ -48,6 +49,7 @@ export default function CurateCategoryPage({
   const { user } = useAuth()
 
   const [category, setCategory] = useState<Category | null>(null)
+  useDocumentTitle(category?.name)
   const [photos, setPhotos] = useState<CuratedPhoto[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
