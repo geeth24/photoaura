@@ -15,6 +15,7 @@ from db.base import get_session
 from db.models import (
     Album,
     FileMetadata,
+    PhotoFavorite,
     UserAlbumPermission,
     AlbumCategory,
     PhotoFaceLink,
@@ -242,6 +243,108 @@ async def download_original(
         ExpiresIn=3600,
     )
     return {"url": url}
+
+
+class FavoriteBody(BaseModel):
+    filename: str
+    favorite: bool
+
+
+def _album_for_user(album_slug: str, current_user, session: Session):
+    """Resolve the album and confirm the caller may see it."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    u = session.query(User).filter_by(user_name=current_user.user_name).first()
+    if not u:
+        raise HTTPException(status_code=401, detail="Unknown user")
+    if u.role != "admin":
+        allowed = (
+            session.query(UserAlbumPermission)
+            .filter_by(user_id=u.id, album_id=album.id)
+            .first()
+        )
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Not your album")
+    return album, u
+
+
+@router.get("/api/album/{album_slug}/favorites")
+async def list_favorites(
+    album_slug: str,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Filenames the signed-in client has starred in this album."""
+    album, u = _album_for_user(album_slug, current_user, session)
+    rows = (
+        session.query(FileMetadata.filename)
+        .join(PhotoFavorite, PhotoFavorite.photo_id == FileMetadata.id)
+        .filter(PhotoFavorite.user_id == u.id, FileMetadata.album_id == album.id)
+        .all()
+    )
+    return {"filenames": [r[0] for r in rows]}
+
+
+@router.post("/api/album/{album_slug}/favorites")
+async def set_favorite(
+    album_slug: str,
+    body: FavoriteBody,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Star or unstar one photo for the signed-in client."""
+    album, u = _album_for_user(album_slug, current_user, session)
+    photo = (
+        session.query(FileMetadata)
+        .filter_by(album_id=album.id, filename=body.filename)
+        .first()
+    )
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    existing = (
+        session.query(PhotoFavorite)
+        .filter_by(user_id=u.id, photo_id=photo.id)
+        .first()
+    )
+    if body.favorite and not existing:
+        session.add(
+            PhotoFavorite(user_id=u.id, photo_id=photo.id, album_id=album.id)
+        )
+    elif not body.favorite and existing:
+        session.delete(existing)
+    session.commit()
+    return {"filename": body.filename, "favorite": body.favorite}
+
+
+@router.get("/api/album/{album_slug}/favorites/summary")
+async def favorites_summary(
+    album_slug: str,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Every client's picks for this album — what to retouch or print."""
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    rows = (
+        session.query(User.id, User.full_name, User.user_email, FileMetadata.filename)
+        .join(PhotoFavorite, PhotoFavorite.user_id == User.id)
+        .join(FileMetadata, FileMetadata.id == PhotoFavorite.photo_id)
+        .filter(PhotoFavorite.album_id == album.id)
+        .order_by(User.full_name)
+        .all()
+    )
+    by_client: dict = {}
+    for uid, name, email, filename in rows:
+        entry = by_client.setdefault(
+            uid, {"user_id": uid, "full_name": name, "user_email": email, "filenames": []}
+        )
+        entry["filenames"].append(filename)
+    clients = list(by_client.values())
+    return {"clients": clients, "total": sum(len(c["filenames"]) for c in clients)}
 
 
 DOWNLOAD_SCOPE = "album-download"

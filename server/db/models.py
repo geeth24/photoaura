@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     TIMESTAMP,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -180,6 +181,27 @@ class CategoryPhoto(Base):
         ForeignKey("file_metadata.id", ondelete="CASCADE")
     )
     sort_order: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+class PhotoFavorite(Base):
+    """A photo a client picked out of their gallery. The photographer uses the
+    picks to know what to retouch, print, or put in an album."""
+
+    __tablename__ = "photo_favorites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    photo_id: Mapped[int] = mapped_column(
+        ForeignKey("file_metadata.id", ondelete="CASCADE")
+    )
+    album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id", ondelete="CASCADE"))
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "photo_id", name="uq_photo_favorite"),
+    )
 
 
 class FaceData(Base):
