@@ -44,7 +44,9 @@ public enum EditorialTypography {
     public enum FontName {
         public static let headingSerif: String = "DMSerifDisplay-Regular"
         public static let headingSerifItalic: String = "DMSerifDisplay-Italic"
-        public static let bodySans: String = "Outfit"
+        // Outfit ships as one variable font whose only face is named Thin;
+        // the weight comes from the wght axis, not the name
+        public static let bodySans: String = "Outfit-Thin"
         public static let wordmark: String = "Blackmud"
     }
 
@@ -56,8 +58,40 @@ public enum EditorialTypography {
 
     public static func sans(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         ensureFontsRegistered()
+        #if canImport(UIKit)
+        if let scaled = outfit(size: size, weight: weight) { return Font(scaled) }
+        #endif
         return Font.custom(FontName.bodySans, size: size).weight(weight)
     }
+
+    #if canImport(UIKit)
+    // Outfit's variable default instance is Thin (100). SwiftUI's .weight() can't
+    // move a variable axis on a custom font, so every label was rendering hairline —
+    // pin the wght axis on the descriptor instead.
+    private static let wghtAxis: UInt32 = 0x77676874 // 'wght'
+
+    private static func axisValue(for weight: Font.Weight) -> CGFloat {
+        switch weight {
+        case .ultraLight: return 100
+        case .thin: return 200
+        case .light: return 300
+        case .medium: return 500
+        case .semibold: return 600
+        case .bold: return 700
+        case .heavy: return 800
+        case .black: return 900
+        default: return 400
+        }
+    }
+
+    private static func outfit(size: CGFloat, weight: Font.Weight) -> UIFont? {
+        guard let base = UIFont(name: FontName.bodySans, size: size) else { return nil }
+        let descriptor = base.fontDescriptor.addingAttributes([
+            kCTFontVariationAttribute as UIFontDescriptor.AttributeName: [wghtAxis: axisValue(for: weight)]
+        ])
+        return UIFont(descriptor: descriptor, size: size)
+    }
+    #endif
 
     public static func wordmark(size: CGFloat) -> Font {
         ensureFontsRegistered()

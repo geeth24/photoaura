@@ -107,9 +107,9 @@ private struct ProfileContent: View {
 
     private var builtByCredit: some View {
         Link(destination: URL(string: "https://radsoftinc.com")!) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Text("Built by")
-                Image(systemName: "diamond.fill").font(.system(size: 6))
+                RadSoftLogo(height: 11)
                 Text("Rad Soft")
             }
             .font(EditorialTypography.sans(size: EditorialTypography.Size.eyebrow, weight: .medium))

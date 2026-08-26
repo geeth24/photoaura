@@ -11,7 +11,7 @@ import EditorialStyle
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .galleries
 
-    enum AppTab: Hashable { case galleries, allPhotos, profile }
+    enum AppTab: Hashable { case galleries, allPhotos, downloads, profile }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -26,6 +26,10 @@ struct MainTabView: View {
 
             Tab("All Photos", systemImage: "photo.on.rectangle.angled", value: AppTab.allPhotos) {
                 NavigationStack { AllPhotosView() }
+            }
+
+            Tab("Downloads", systemImage: "arrow.down.circle", value: AppTab.downloads) {
+                NavigationStack { DownloadsView() }
             }
 
             Tab("Profile", systemImage: "person.crop.circle", value: AppTab.profile) {

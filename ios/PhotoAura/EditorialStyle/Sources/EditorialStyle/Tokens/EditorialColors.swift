@@ -26,24 +26,24 @@ public enum EditorialColors {
     public static let surfaceCard = dynamic(light: 0xF0F5F9, dark: 0x0A2A3F)
     public static let surfaceHover = dynamic(light: 0xE4ECF2, dark: 0x0D3350)
 
-    // text — light mode bumped for white-background contrast,
-    // dark mode kept aligned with web alpha values
+    // text — the web's alphas are too thin held at arm's length on a phone,
+    // especially outdoors, so every step is weighted up from the web values
     public static let textPrimary = dynamic(light: 0x0A1A28, dark: 0xEDF6FC)
-    public static let textSecondary = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.68,
-                                                   dark: 0xEDF6FC, darkAlpha: 0.55)
-    public static let textMuted = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.52,
-                                               dark: 0xEDF6FC, darkAlpha: 0.42)
-    public static let textFaint = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.28,
-                                               dark: 0xEDF6FC, darkAlpha: 0.24)
+    public static let textSecondary = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.78,
+                                                   dark: 0xEDF6FC, darkAlpha: 0.74)
+    public static let textMuted = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.64,
+                                               dark: 0xEDF6FC, darkAlpha: 0.60)
+    public static let textFaint = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.46,
+                                               dark: 0xEDF6FC, darkAlpha: 0.44)
 
     // borders — light mode needs more weight to be visible on white,
     // dark mode tuned a touch up so inputs read clearly
-    public static let borderSubtle = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.10,
-                                                  dark: 0xEDF6FC, darkAlpha: 0.08)
-    public static let borderDefault = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.18,
-                                                   dark: 0xEDF6FC, darkAlpha: 0.14)
-    public static let borderStrong = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.28,
-                                                  dark: 0xEDF6FC, darkAlpha: 0.22)
+    public static let borderSubtle = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.14,
+                                                  dark: 0xEDF6FC, darkAlpha: 0.12)
+    public static let borderDefault = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.24,
+                                                   dark: 0xEDF6FC, darkAlpha: 0.20)
+    public static let borderStrong = dynamicAlpha(light: 0x0A1A28, lightAlpha: 0.36,
+                                                  dark: 0xEDF6FC, darkAlpha: 0.30)
     public static let borderAccent = brand.opacity(0.35)
 
     // press / overlays

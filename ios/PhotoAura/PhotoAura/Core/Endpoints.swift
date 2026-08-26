@@ -97,6 +97,18 @@ extension APIClient {
         return try await get("/photos/", query: q)
     }
 
+    // POST /api/album/{slug}/download-ticket — short-lived ticket for the zip
+    struct DownloadTicket: Decodable { let ticket: String }
+    func downloadTicket(slug: String) async throws -> String {
+        let r: DownloadTicket = try await post("/album/\(slug)/download-ticket", body: [String: String]())
+        return r.ticket
+    }
+
+    // GET /api/me/files — deliverable files (zips of originals etc.) with presigned URLs
+    func myFiles() async throws -> [ClientFile] {
+        try await get("/me/files")
+    }
+
     // DELETE /api/me  — permanently deletes the signed-in account.
     // Apple App Store requires in-app account deletion (Guideline 5.1.1(v)).
     func deleteAccount() async throws {

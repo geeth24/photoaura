@@ -42,6 +42,9 @@ struct AlbumDetail: Decodable, Hashable {
     let slug: String
     let imageCount: Int
     let albumPhotos: [Photo]
+    // used to build a shareable gallery link
+    let secret: String?
+    let `public`: Bool?
 }
 
 struct Photo: Codable, Hashable, Identifiable {
@@ -85,4 +88,15 @@ struct FaceSummary: Codable, Hashable, Identifiable {
     let filenames: [String]
 
     var id: String { faceId }
+}
+
+// GET /api/me/files — deliverables the photographer prepared for this client
+struct ClientFile: Codable, Hashable, Identifiable {
+    let id: Int
+    let albumName: String?
+    let filename: String
+    let size: Int?
+    let contentType: String?
+    let createdAt: String?
+    let downloadUrl: String?
 }
