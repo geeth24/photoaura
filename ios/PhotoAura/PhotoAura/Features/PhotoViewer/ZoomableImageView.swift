@@ -14,9 +14,13 @@ import SwiftUI
 import UIKit
 
 struct ZoomableImageView<Content: View>: UIViewRepresentable {
+    /// identity of the photo on this page; rebuilding the hosted view for the
+    /// same photo restarts its image load and makes the screen flash
+    var photoID: String
     var maxScale: CGFloat = 6
-    /// paging only works while we're not zoomed in, so the pager is told to stand down
-    var onZoomChange: ((CGFloat) -> Void)? = nil
+    /// fires only when zoomed state flips, never on every delegate tick — a
+    /// per-frame state write re-renders the pager and cancels the zoom transition
+    var onZoomedChange: ((Bool) -> Void)? = nil
     @ViewBuilder var content: () -> Content
 
     func makeUIView(context: Context) -> UIScrollView {
@@ -57,21 +61,28 @@ struct ZoomableImageView<Content: View>: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIScrollView, context: Context) {
+        context.coordinator.onZoomedChange = onZoomedChange
+        // only swap content when the page is actually showing a different photo
+        guard context.coordinator.photoID != photoID else { return }
+        context.coordinator.photoID = photoID
         context.coordinator.host.rootView = content()
-        context.coordinator.onZoomChange = onZoomChange
+        uiView.setZoomScale(1, animated: false)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(host: UIHostingController(rootView: content()))
+        Coordinator(host: UIHostingController(rootView: content()), photoID: photoID)
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
         let host: UIHostingController<Content>
         weak var scrollView: UIScrollView?
-        var onZoomChange: ((CGFloat) -> Void)?
+        var onZoomedChange: ((Bool) -> Void)?
+        var photoID: String
+        private var wasZoomed = false
 
-        init(host: UIHostingController<Content>) {
+        init(host: UIHostingController<Content>, photoID: String) {
             self.host = host
+            self.photoID = photoID
             super.init()
         }
 
@@ -82,8 +93,11 @@ struct ZoomableImageView<Content: View>: UIViewRepresentable {
             let x = max(0, (scrollView.bounds.width - scrollView.contentSize.width) / 2)
             let y = max(0, (scrollView.bounds.height - scrollView.contentSize.height) / 2)
             scrollView.contentInset = UIEdgeInsets(top: y, left: x, bottom: y, right: x)
-            scrollView.isScrollEnabled = scrollView.zoomScale > 1.01
-            onZoomChange?(scrollView.zoomScale)
+            let zoomed = scrollView.zoomScale > 1.01
+            scrollView.isScrollEnabled = zoomed
+            guard zoomed != wasZoomed else { return }
+            wasZoomed = zoomed
+            onZoomedChange?(zoomed)
         }
 
         @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {

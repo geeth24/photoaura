@@ -64,8 +64,8 @@ struct PhotoViewer: View {
     @State private var shareState: ShareState = .idle
     @Environment(APIClient.self) private var api
     @State private var favorites: Set<String> = []
-    // 1 = fit to screen; anything more means the scroll view owns the gestures
-    @State private var zoomScale: CGFloat = 1
+    // true once the scroll view owns the gestures, so paging + dismiss stand down
+    @State private var isZoomed = false
     @State private var shareItems: [Any] = []
     @State private var shareSheetPresented = false
 
@@ -83,9 +83,12 @@ struct PhotoViewer: View {
                         if photo.isVideo {
                             VideoPlayerCell(url: URL(string: photo.image), isCurrent: idx == index)
                         } else {
-                            ZoomableImageView(onZoomChange: { scale in
-                                if idx == index { zoomScale = scale }
-                            }) {
+                            ZoomableImageView(
+                                photoID: photo.id,
+                                onZoomedChange: { zoomed in
+                                    if idx == index { isZoomed = zoomed }
+                                }
+                            ) {
                                 PhotoPage(
                                     thumbnailURL: URL(string: photo.compressedImage),
                                     fullURL: URL(string: photo.image)
@@ -140,7 +143,7 @@ struct PhotoViewer: View {
         }
         .onChange(of: index) { _, newIndex in
             currentPhotoID = photos[newIndex].id
-            zoomScale = 1
+            isZoomed = false
         }
     }
 
@@ -155,7 +158,7 @@ struct PhotoViewer: View {
     private var dismissDrag: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { v in
-                guard zoomScale <= 1.01 else { return }
+                guard !isZoomed else { return }
                 let dy = v.translation.height
                 let dx = v.translation.width
                 guard abs(dy) > abs(dx) else { return }
@@ -167,7 +170,7 @@ struct PhotoViewer: View {
                 }
             }
             .onEnded { v in
-                guard zoomScale <= 1.01 else { return }
+                guard !isZoomed else { return }
                 if abs(v.translation.height) > dismissThreshold {
                     dismiss()
                 } else {

@@ -12,7 +12,6 @@ struct AlbumView: View {
     let album: AlbumSummary
     @Environment(APIClient.self) private var api
     @State private var store: AlbumStore?
-    @State private var presentedPhoto: PhotoTarget? = nil
     @State private var activeViewerPhotoID: String? = nil
     @State private var actionsPresented = false
     // pairs the tapped tile with the viewer so it expands from the thumbnail
@@ -21,7 +20,7 @@ struct AlbumView: View {
     var body: some View {
         Group {
             if let store {
-                AlbumContent(store: store, transition: photoTransition, presentedPhoto: $presentedPhoto)
+                AlbumContent(store: store, transition: photoTransition)
             } else {
                 Color.clear
             }
@@ -57,7 +56,7 @@ struct AlbumView: View {
                 )
             }
         }
-        .fullScreenCover(item: $presentedPhoto) { target in
+        .navigationDestination(for: PhotoTarget.self) { target in
             if let store {
                 PhotoViewer(
                     photos: store.state.photos,
@@ -66,6 +65,8 @@ struct AlbumView: View {
                     albumSlug: store.state.slug
                 )
                 .navigationTransition(.zoom(sourceID: target.sourceID, in: photoTransition))
+                .toolbar(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .tabBar)
             }
         }
     }
@@ -81,7 +82,6 @@ struct PhotoTarget: Hashable, Identifiable {
 private struct AlbumContent: View {
     let store: AlbumStore
     let transition: Namespace.ID
-    @Binding var presentedPhoto: PhotoTarget?
 
     private let columns = [
         GridItem(.flexible(), spacing: 4),
@@ -179,9 +179,7 @@ private struct AlbumContent: View {
         } else {
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(Array(store.state.photos.enumerated()), id: \.element.id) { idx, photo in
-                    Button {
-                        presentedPhoto = PhotoTarget(index: idx, sourceID: photo.id)
-                    } label: {
+                    NavigationLink(value: PhotoTarget(index: idx, sourceID: photo.id)) {
                         Color.clear
                             .aspectRatio(1, contentMode: .fit)
                             .overlay {
