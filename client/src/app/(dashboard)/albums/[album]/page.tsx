@@ -32,7 +32,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock, Download } from "lucide-react"
+import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock, Download, Heart } from "lucide-react"
 import { downloadAlbumZip } from "@/lib/download"
 import { SaveToPhotos } from "@/components/save-to-photos"
 import { toast } from "sonner"
@@ -53,6 +53,8 @@ export default function AlbumDetailPage({
   const [mediaTab, setMediaTab] = useState<"photos" | "videos">("photos")
   const [deleting, setDeleting] = useState(false)
   const [zipping, setZipping] = useState(false)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [droppedFiles, setDroppedFiles] = useState<File[]>([])
   const [dragDepth, setDragDepth] = useState(0)
@@ -79,6 +81,29 @@ export default function AlbumDetailPage({
       .finally(() => setLoading(false))
   }, [albumSlug])
 
+  const fetchFavorites = useCallback(() => {
+    apiFetch<{ filenames: string[] }>(`/album/${albumSlug}/favorites`)
+      .then((r) => setFavorites(new Set(r.filenames)))
+      .catch(() => setFavorites(new Set()))
+  }, [albumSlug])
+
+  const toggleFavorite = async (filename: string) => {
+    const next = new Set(favorites)
+    const nowFavorite = !next.has(filename)
+    nowFavorite ? next.add(filename) : next.delete(filename)
+    setFavorites(next)
+    try {
+      await apiFetch(`/album/${albumSlug}/favorites`, {
+        method: "POST",
+        body: JSON.stringify({ filename, favorite: nowFavorite }),
+      })
+    } catch {
+      // put it back if the server disagreed
+      setFavorites(favorites)
+      toast.error("Couldn't save that pick")
+    }
+  }
+
   const fetchFaces = useCallback(() => {
     apiFetch<AlbumFace[]>(`/album/${albumSlug}/faces`)
       .then(setFaces)
@@ -88,7 +113,8 @@ export default function AlbumDetailPage({
   const refresh = useCallback(() => {
     fetchAlbum()
     fetchFaces()
-  }, [fetchAlbum, fetchFaces])
+    fetchFavorites()
+  }, [fetchAlbum, fetchFaces, fetchFavorites])
 
   useEffect(() => {
     refresh()
@@ -279,9 +305,12 @@ export default function AlbumDetailPage({
   const hasVideos = album.album_photos.some((p) => isVideo(p))
   const videoCount = faceScoped.filter((p) => isVideo(p)).length
   const photoCount = faceScoped.length - videoCount
-  const visiblePhotos = !hasVideos
+  const mediaScoped = !hasVideos
     ? faceScoped
     : faceScoped.filter((p) => (mediaTab === "videos" ? isVideo(p) : !isVideo(p)))
+  const visiblePhotos = onlyFavorites
+    ? mediaScoped.filter((p) => favorites.has(p.file_metadata.filename))
+    : mediaScoped
 
   return (
     <div
@@ -339,6 +368,19 @@ export default function AlbumDetailPage({
               <span className="border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
                 Upload Enabled
               </span>
+            )}
+            {favorites.size > 0 && (
+              <button
+                onClick={() => setOnlyFavorites((v) => !v)}
+                className={`flex items-center gap-1.5 border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] transition-colors ${
+                  onlyFavorites
+                    ? "border-brand text-brand"
+                    : "border-border-default text-text-secondary hover:border-border-strong hover:text-text-primary"
+                }`}
+              >
+                <Heart className="size-3" fill={onlyFavorites ? "currentColor" : "none"} />
+                {favorites.size} {isAdmin ? "picked" : "picks"}
+              </button>
             )}
             {/* clients asked for this — every original in one zip */}
             <button
@@ -508,6 +550,8 @@ export default function AlbumDetailPage({
         selectedFace={selectedFace}
         onDelete={isAdmin ? handleDeletePhoto : undefined}
         onSetCover={isAdmin && selectedFace ? handleSetCover : undefined}
+        favorites={favorites}
+        onToggleFavorite={toggleFavorite}
       />
     </div>
   )

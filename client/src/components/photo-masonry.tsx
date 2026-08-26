@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Trash2, Play, Star } from "lucide-react"
+import { Trash2, Play, Star, Heart } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +39,9 @@ type Props = {
   onDelete?: (filename: string) => void
   // admin, when a person is selected: pin this photo as their cover
   onSetCover?: (filename: string) => void
+  // client picks — starred filenames plus a toggle
+  favorites?: Set<string>
+  onToggleFavorite?: (filename: string) => void
   // library mode: tiles call back with the clicked index instead of linking
   onOpen?: (index: number) => void
 }
@@ -84,6 +87,8 @@ export function PhotoMasonry({
   onDelete,
   onSetCover,
   onOpen,
+  favorites,
+  onToggleFavorite,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -176,6 +181,26 @@ export function PhotoMasonry({
                   >
                     {media}
                   </Link>
+                )}
+                {onToggleFavorite && !isVideo(photo) && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onToggleFavorite(m.filename)
+                    }}
+                    className={`absolute bottom-2 left-2 flex items-center justify-center border border-border-strong bg-surface/70 p-1.5 backdrop-blur transition-all hover:text-brand ${
+                      favorites?.has(m.filename)
+                        ? "text-brand opacity-100"
+                        : "text-text-secondary opacity-0 group-hover:opacity-100"
+                    }`}
+                    aria-label={favorites?.has(m.filename) ? "Remove from picks" : "Add to picks"}
+                  >
+                    <Heart
+                      className="size-3.5"
+                      fill={favorites?.has(m.filename) ? "currentColor" : "none"}
+                    />
+                  </button>
                 )}
                 {onSetCover && (
                   <button

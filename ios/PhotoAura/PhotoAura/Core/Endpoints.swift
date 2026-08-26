@@ -97,6 +97,25 @@ extension APIClient {
         return try await get("/photos/", query: q)
     }
 
+    // GET /api/album/{slug}/favorites — filenames this client starred
+    struct FavoriteList: Decodable { let filenames: [String] }
+    func favorites(slug: String) async throws -> [String] {
+        let r: FavoriteList = try await get("/album/\(slug)/favorites")
+        return r.filenames
+    }
+
+    // POST /api/album/{slug}/favorites — star or unstar one photo
+    struct FavoriteBody: Encodable { let filename: String; let favorite: Bool }
+    struct FavoriteResult: Decodable { let filename: String; let favorite: Bool }
+    @discardableResult
+    func setFavorite(slug: String, filename: String, favorite: Bool) async throws -> Bool {
+        let r: FavoriteResult = try await post(
+            "/album/\(slug)/favorites",
+            body: FavoriteBody(filename: filename, favorite: favorite)
+        )
+        return r.favorite
+    }
+
     // POST /api/album/{slug}/download-ticket — short-lived ticket for the zip
     struct DownloadTicket: Decodable { let ticket: String }
     func downloadTicket(slug: String) async throws -> String {

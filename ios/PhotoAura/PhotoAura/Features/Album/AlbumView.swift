@@ -60,7 +60,8 @@ struct AlbumView: View {
                 PhotoViewer(
                     photos: store.state.photos,
                     startIndex: target.index,
-                    currentPhotoID: $activeViewerPhotoID
+                    currentPhotoID: $activeViewerPhotoID,
+                    albumSlug: store.state.slug
                 )
             }
         }

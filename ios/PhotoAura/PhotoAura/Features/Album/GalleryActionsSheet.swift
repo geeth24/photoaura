@@ -24,8 +24,10 @@ struct GalleryActionsSheet: View {
     @State private var savedCount = 0
     @State private var failedCount = 0
     @State private var task: Task<Void, Never>?
-    @State private var zipURL: URL?
     @State private var preparingZip = false
+    @State private var zipShareItems: [Any] = []
+    @State private var zipSharePresented = false
+    @State private var downloader = ZipDownloader()
 
     enum Phase: Equatable { case idle, saving, finished }
 
@@ -44,7 +46,11 @@ struct GalleryActionsSheet: View {
 
                     switch phase {
                     case .idle:
-                        optionList
+                        if case .downloading = downloader.phase {
+                            zipProgress
+                        } else {
+                            optionList
+                        }
                     case .saving:
                         SaveProgressView(
                             done: savedCount,
@@ -71,7 +77,19 @@ struct GalleryActionsSheet: View {
                 }
             }
         }
-        .onDisappear { task?.cancel() }
+        .onDisappear {
+            task?.cancel()
+            downloader.cancel()
+        }
+        .onChange(of: downloader.phase) { _, newPhase in
+            if case .finished(let url) = newPhase {
+                zipShareItems = [url]
+                zipSharePresented = true
+            }
+        }
+        .sheet(isPresented: $zipSharePresented) {
+            ActivityShareSheet(items: zipShareItems)
+        }
     }
 
     private var header: some View {
@@ -235,9 +253,45 @@ struct GalleryActionsSheet: View {
             let base = api.baseURL.absoluteString.trimmingCharacters(in: ["/"])
             let escaped = ticket.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ticket
             guard let url = URL(string: "\(base)/album/\(slug)/download-all?ticket=\(escaped)") else { return }
-            await MainActor.run { zipURL = url }
-            await UIApplication.shared.open(url)
+            let safeName = albumName
+                .components(separatedBy: CharacterSet(charactersIn: "/\\:*?\"<>|"))
+                .joined(separator: "-")
+            downloader.start(url: url, filename: "\(safeName).zip")
         }
+    }
+
+    private var zipProgress: some View {
+        VStack(spacing: EditorialSpacing.small) {
+            ProgressView(value: downloader.fraction ?? 0)
+                .progressViewStyle(.linear)
+                .tint(EditorialColors.brand)
+
+            Text(downloader.fraction != nil
+                 ? "\(Int((downloader.fraction ?? 0) * 100))% downloaded"
+                 : "Downloaded \(byteText(downloader.receivedBytes))")
+                .font(EditorialTypography.sans(size: EditorialTypography.Size.body, weight: .medium))
+                .foregroundStyle(EditorialColors.textPrimary)
+                .contentTransition(.numericText())
+
+            Text("Building your zip on the server, so the size appears once it starts.")
+                .font(EditorialTypography.sans(size: EditorialTypography.Size.hint))
+                .foregroundStyle(EditorialColors.textMuted)
+                .multilineTextAlignment(.center)
+
+            Button("Cancel") { downloader.cancel() }
+                .font(EditorialTypography.sans(size: EditorialTypography.Size.subtitle, weight: .medium))
+                .foregroundStyle(EditorialColors.textSecondary)
+                .padding(.top, EditorialSpacing.xSmall)
+        }
+        .padding(.vertical, EditorialSpacing.xLarge)
+    }
+
+    private func byteText(_ bytes: Int64) -> String {
+        let units = ["B", "KB", "MB", "GB"]
+        var value = Double(bytes)
+        var i = 0
+        while value >= 1024 && i < units.count - 1 { value /= 1024; i += 1 }
+        return String(format: value >= 10 || i == 0 ? "%.0f %@" : "%.1f %@", value, units[i])
     }
 }
 

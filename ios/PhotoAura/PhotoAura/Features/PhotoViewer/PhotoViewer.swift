@@ -13,6 +13,8 @@ import EditorialStyle
 struct PhotoViewer: View {
     let photos: [Photo]
     let startIndex: Int
+    // set when opened from an album, so photos can be starred as picks
+    var albumSlug: String? = nil
     // bound back to the album view so the reverse hero zoom targets the
     // photo we're currently looking at, not the one we entered on
     @Binding var currentPhotoID: String?
@@ -31,9 +33,15 @@ struct PhotoViewer: View {
     @State private var dragScale: CGFloat = 1.0
     private let dismissThreshold: CGFloat = 140
 
-    init(photos: [Photo], startIndex: Int, currentPhotoID: Binding<String?>) {
+    init(
+        photos: [Photo],
+        startIndex: Int,
+        currentPhotoID: Binding<String?>,
+        albumSlug: String? = nil
+    ) {
         self.photos = photos
         self.startIndex = startIndex
+        self.albumSlug = albumSlug
         self._currentPhotoID = currentPhotoID
         _index = State(initialValue: startIndex)
     }
@@ -54,6 +62,8 @@ struct PhotoViewer: View {
         case failed(String)
     }
     @State private var shareState: ShareState = .idle
+    @Environment(APIClient.self) private var api
+    @State private var favorites: Set<String> = []
     @State private var shareItems: [Any] = []
     @State private var shareSheetPresented = false
 
@@ -118,7 +128,10 @@ struct PhotoViewer: View {
         .animation(.easeInOut(duration: 0.25), value: chromeVisible)
         // viewer is now a fullScreenCover (not nav push) — no navigation chrome
         // to worry about. parent's tab + nav bars stay visible underneath.
-        .onAppear { currentPhotoID = photos[index].id }
+        .onAppear {
+            currentPhotoID = photos[index].id
+            loadFavorites()
+        }
         .onChange(of: index) { _, newIndex in
             currentPhotoID = photos[newIndex].id
         }
@@ -228,6 +241,18 @@ struct PhotoViewer: View {
                 .editorialGlass(in: Capsule())
 
             Spacer()
+
+            if albumSlug != nil, !photos[index].isVideo {
+                Button { toggleFavorite() } label: {
+                    Image(systemName: isCurrentFavorite ? "heart.fill" : "heart")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isCurrentFavorite ? EditorialColors.brand : .white)
+                        .frame(width: 36, height: 36)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .editorialGlass(in: Circle(), interactive: true)
+                .padding(.trailing, 8)
+            }
 
             Button { infoPresented = true } label: {
                 Image(systemName: "info.circle")
@@ -357,6 +382,41 @@ struct PhotoViewer: View {
     }
 
     private var isVideoPhoto: Bool { photos[index].isVideo }
+
+    // MARK: - picks
+
+    private var isCurrentFavorite: Bool {
+        favorites.contains(photos[index].fileMetadata.filename)
+    }
+
+    private func loadFavorites() {
+        guard let albumSlug else { return }
+        Task {
+            if let names = try? await api.favorites(slug: albumSlug) {
+                favorites = Set(names)
+            }
+        }
+    }
+
+    private func toggleFavorite() {
+        guard let albumSlug else { return }
+        let name = photos[index].fileMetadata.filename
+        let wanted = !favorites.contains(name)
+        // flip straight away; the network call just confirms it
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            if wanted { favorites.insert(name) } else { favorites.remove(name) }
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Task {
+            do {
+                try await api.setFavorite(slug: albumSlug, filename: name, favorite: wanted)
+            } catch {
+                withAnimation {
+                    if wanted { favorites.remove(name) } else { favorites.insert(name) }
+                }
+            }
+        }
+    }
 
     @MainActor
     private func savePhoto(optimized: Bool) async {
