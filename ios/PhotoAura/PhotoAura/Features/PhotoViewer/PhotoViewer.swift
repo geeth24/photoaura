@@ -132,7 +132,9 @@ struct PhotoViewer: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom).combined(with: .opacity)))
             }
         }
-        .preferredColorScheme(.dark)
+        // scoped to this view, not the window: preferredColorScheme flips the
+        // whole scene, so pushing from a light-mode album flashed everything dark
+        .environment(\.colorScheme, .dark)
         .statusBarHidden(!chromeVisible)
         .animation(.easeInOut(duration: 0.25), value: chromeVisible)
         // viewer is now a fullScreenCover (not nav push) — no navigation chrome
