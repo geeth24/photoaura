@@ -15,11 +15,13 @@ struct AlbumView: View {
     @State private var presentedPhoto: PhotoTarget? = nil
     @State private var activeViewerPhotoID: String? = nil
     @State private var actionsPresented = false
+    // pairs the tapped tile with the viewer so it expands from the thumbnail
+    @Namespace private var photoTransition
 
     var body: some View {
         Group {
             if let store {
-                AlbumContent(store: store, presentedPhoto: $presentedPhoto)
+                AlbumContent(store: store, transition: photoTransition, presentedPhoto: $presentedPhoto)
             } else {
                 Color.clear
             }
@@ -63,6 +65,7 @@ struct AlbumView: View {
                     currentPhotoID: $activeViewerPhotoID,
                     albumSlug: store.state.slug
                 )
+                .navigationTransition(.zoom(sourceID: target.sourceID, in: photoTransition))
             }
         }
     }
@@ -77,6 +80,7 @@ struct PhotoTarget: Hashable, Identifiable {
 
 private struct AlbumContent: View {
     let store: AlbumStore
+    let transition: Namespace.ID
     @Binding var presentedPhoto: PhotoTarget?
 
     private let columns = [
@@ -191,6 +195,7 @@ private struct AlbumContent: View {
                             .clipped()
                     }
                     .buttonStyle(.plain)
+                    .matchedTransitionSource(id: photo.id, in: transition)
                 }
             }
             .padding(.horizontal, 4)

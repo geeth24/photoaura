@@ -64,6 +64,8 @@ struct PhotoViewer: View {
     @State private var shareState: ShareState = .idle
     @Environment(APIClient.self) private var api
     @State private var favorites: Set<String> = []
+    // 1 = fit to screen; anything more means the scroll view owns the gestures
+    @State private var zoomScale: CGFloat = 1
     @State private var shareItems: [Any] = []
     @State private var shareSheetPresented = false
 
@@ -81,10 +83,14 @@ struct PhotoViewer: View {
                         if photo.isVideo {
                             VideoPlayerCell(url: URL(string: photo.image), isCurrent: idx == index)
                         } else {
-                            ZoomablePhoto(
-                                thumbnailURL: URL(string: photo.compressedImage),
-                                fullURL: URL(string: photo.image)
-                            )
+                            ZoomableImageView(onZoomChange: { scale in
+                                if idx == index { zoomScale = scale }
+                            }) {
+                                PhotoPage(
+                                    thumbnailURL: URL(string: photo.compressedImage),
+                                    fullURL: URL(string: photo.image)
+                                )
+                            }
                             .onTapGesture {
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     chromeVisible.toggle()
@@ -134,6 +140,7 @@ struct PhotoViewer: View {
         }
         .onChange(of: index) { _, newIndex in
             currentPhotoID = photos[newIndex].id
+            zoomScale = 1
         }
     }
 
@@ -148,6 +155,7 @@ struct PhotoViewer: View {
     private var dismissDrag: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { v in
+                guard zoomScale <= 1.01 else { return }
                 let dy = v.translation.height
                 let dx = v.translation.width
                 guard abs(dy) > abs(dx) else { return }
@@ -159,6 +167,7 @@ struct PhotoViewer: View {
                 }
             }
             .onEnded { v in
+                guard zoomScale <= 1.01 else { return }
                 if abs(v.translation.height) > dismissThreshold {
                     dismiss()
                 } else {
@@ -487,11 +496,9 @@ struct VideoPlayBadge: View {
 // Renders the already-cached 720px thumbnail instantly, then crossfades to the
 // 1920px display copy when it loads. Removes the "tap photo → blank + spinner"
 // flash that was happening before.
-private struct ZoomablePhoto: View {
+private struct PhotoPage: View {
     let thumbnailURL: URL?
     let fullURL: URL?
-    @State private var scale: CGFloat = 1
-    @GestureState private var pinch: CGFloat = 1
     @State private var fullLoaded = false
 
     var body: some View {
@@ -518,19 +525,6 @@ private struct ZoomablePhoto: View {
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
-            }
-            .scaleEffect(scale * pinch)
-            .gesture(
-                MagnificationGesture()
-                    .updating($pinch) { value, state, _ in state = value }
-                    .onEnded { value in
-                        scale = max(1, min(scale * value, 4))
-                    }
-            )
-            .onTapGesture(count: 2) {
-                withAnimation(.spring(duration: 0.3)) {
-                    scale = scale > 1 ? 1 : 2
-                }
             }
         }
     }
