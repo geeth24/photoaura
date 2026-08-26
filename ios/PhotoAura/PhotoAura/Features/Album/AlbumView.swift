@@ -183,11 +183,7 @@ private struct AlbumContent: View {
                         Color.clear
                             .aspectRatio(1, contentMode: .fit)
                             .overlay {
-                                AsyncImage(url: URL(string: photo.compressedImage)) { img in
-                                    img.resizable().scaledToFill()
-                                } placeholder: {
-                                    EditorialColors.surfaceElevated
-                                }
+                                CachedImage(url: URL(string: photo.compressedImage), contentMode: .fill)
                             }
                             .overlay { if photo.isVideo { VideoPlayBadge() } }
                             .clipped()

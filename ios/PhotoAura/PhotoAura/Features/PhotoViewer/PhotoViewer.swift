@@ -507,17 +507,12 @@ private struct PhotoPage: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // base layer — always renders instantly from the URLCache hit
-                AsyncImage(url: thumbnailURL) { phase in
-                    if case .success(let img) = phase {
-                        img.resizable().scaledToFit()
-                    } else {
-                        Color.black
-                    }
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
+                // the grid already drew this thumbnail, so it comes straight out
+                // of the cache on the first frame — no empty frame to flash
+                CachedImage(url: thumbnailURL)
+                    .frame(width: geo.size.width, height: geo.size.height)
 
-                // top layer — fades in once the higher-res copy is in memory
+                // full-res crossfades over the top once it arrives
                 AsyncImage(url: fullURL, transaction: Transaction(animation: .easeInOut(duration: 0.25))) { phase in
                     if case .success(let img) = phase {
                         img.resizable()
