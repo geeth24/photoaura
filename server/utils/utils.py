@@ -1,3 +1,5 @@
+import unicodedata
+import re
 from fastapi import UploadFile
 import os
 from PIL import Image
@@ -9,6 +11,19 @@ from config import settings
 from db.base import session_scope
 from db.models import UserAlbumPermission
 from services.aws_service import s3_client
+
+
+def slugify(name: str) -> str:
+    """URL- and S3-safe album slug.
+
+    A name like "Hawaiian Pep Rally - 8/28/26" used to keep its slashes, which
+    404'd the gallery URL and nested the photos into stray S3 folders.
+    """
+    text = unicodedata.normalize("NFKD", name or "")
+    text = text.encode("ascii", "ignore").decode().lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    return re.sub(r"-{2,}", "-", text).strip("-") or "album"
+
 
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 AWS_BUCKET = settings.AWS_BUCKET

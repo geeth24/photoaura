@@ -25,7 +25,7 @@ from db.models import (
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
-from utils.utils import create_album_photos_json, add_album_to_user, capture_time
+from utils.utils import create_album_photos_json, add_album_to_user, capture_time, slugify
 from dependencies import require_admin, get_current_user
 
 router = APIRouter()
@@ -584,7 +584,7 @@ async def update_album(
     session: Session = Depends(get_session),
 ):
     old_slug = slug.lower()
-    new_slug = album_new_name.lower().replace(" ", "-")
+    new_slug = slugify(album_new_name)
 
     try:
         session.query(Album).filter_by(slug=old_slug).update(

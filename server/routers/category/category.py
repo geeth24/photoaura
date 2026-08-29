@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from db.base import get_session
 from db.models import Category, AlbumCategory, Album, FileMetadata, CategoryPhoto
-from utils.utils import create_album_photos_json, build_photo_json, capture_time
+from utils.utils import create_album_photos_json, build_photo_json, capture_time, slugify
 from dependencies import get_current_user, require_admin
 
 router = APIRouter()
@@ -56,7 +56,7 @@ async def create_category(
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    slug = name.lower().replace(" ", "-")
+    slug = slugify(name)
     session.add(Category(name=name, slug=slug))
     return {"message": "Category created successfully"}
 

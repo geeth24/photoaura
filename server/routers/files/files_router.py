@@ -18,7 +18,7 @@ from db.base import get_session, session_scope
 from db.models import Album, FileMetadata, User, PhotoFaceLink, FaceEmbedding
 from services.aws_service import s3_client, invalidate_cdn
 from utils.face_recog import detect_and_store_faces, recluster_faces
-from utils.utils import get_file_metadata, add_album_to_user
+from utils.utils import get_file_metadata, add_album_to_user, slugify
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
 from services.video_transcode import transcode_to_web
@@ -215,7 +215,7 @@ async def create_upload_files(
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    album_slug = album_name.lower().replace(" ", "-")
+    album_slug = slugify(album_name)
     album = session.query(Album).filter_by(slug=album_slug).first()
 
     if not album:
@@ -402,7 +402,7 @@ async def create_upload_zip(
     if not album_name:
         raise HTTPException(status_code=400, detail="album_name is required")
 
-    album_slug = album_name.lower().replace(" ", "-")
+    album_slug = slugify(album_name)
     album = session.query(Album).filter_by(slug=album_slug).first()
     if not album:
         album = Album(
