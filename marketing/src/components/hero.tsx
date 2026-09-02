@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion } from "motion/react"
 import { ArrowRight } from "lucide-react"
 import { GithubMark } from "@/components/icons"
+import { ContactDialog } from "@/components/contact-dialog"
 
 export function Hero() {
   return (
@@ -63,13 +64,12 @@ export function Hero() {
             transition={{ duration: 0.8, delay: 1 }}
             className="mt-10 flex flex-wrap items-center gap-3"
           >
-            <Link
-              href="mailto:info@radsoftinc.com?subject=PhotoAura%20for%20my%20studio"
-              className="group flex h-12 items-center justify-center gap-2 bg-brand px-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_50px_rgba(0,166,251,0.3)]"
-            >
-              Talk to us
-              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-            </Link>
+            <ContactDialog intent="studio">
+              <button className="group flex h-12 cursor-pointer items-center justify-center gap-2 bg-brand px-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_50px_rgba(0,166,251,0.3)]">
+                Talk to us
+                <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+              </button>
+            </ContactDialog>
             <Link
               href="https://github.com/geeth24/photoaura"
               target="_blank"

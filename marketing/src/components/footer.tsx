@@ -1,5 +1,9 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
+
+import { ContactDialog } from "@/components/contact-dialog"
 import { GithubMark, RadSoftMark } from "@/components/icons"
 
 export function Footer() {
@@ -22,12 +26,11 @@ export function Footer() {
           <Link href="/policy" className="transition-colors hover:text-text-primary">
             Privacy
           </Link>
-          <Link
-            href="mailto:info@radsoftinc.com"
-            className="transition-colors hover:text-text-primary"
-          >
-            Contact
-          </Link>
+          <ContactDialog intent="other">
+            <button className="cursor-pointer uppercase tracking-[0.2em] transition-colors hover:text-text-primary">
+              Contact
+            </button>
+          </ContactDialog>
           <Link
             href="https://github.com/geeth24/photoaura"
             target="_blank"

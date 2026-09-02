@@ -98,10 +98,10 @@ export default function PolicyPage() {
             <p className="text-text-muted">Coppell, TX 75019</p>
             <p>
               <Link
-                href="mailto:info@radsoftinc.com"
+                href="mailto:hello@reactiveshots.com"
                 className="text-text-primary transition-colors hover:text-brand"
               >
-                info@radsoftinc.com
+                hello@reactiveshots.com
               </Link>
             </p>
           </div>

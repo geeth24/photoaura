@@ -4,8 +4,20 @@ import Link from "next/link"
 import { motion } from "motion/react"
 import { ArrowRight, Check } from "lucide-react"
 import { GithubMark } from "@/components/icons"
+import { ContactDialog } from "@/components/contact-dialog"
 
-const paths = [
+const brandButton =
+  "group flex h-11 cursor-pointer items-center justify-center gap-2 bg-brand px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)]"
+const ghostButton =
+  "group flex h-11 items-center justify-center gap-2 border border-border-default px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+
+const paths: {
+  eyebrow: string
+  title: string
+  body: string
+  bullets: string[]
+  cta: { label: string; href?: string; intent?: string; brand: boolean }
+}[] = [
   {
     eyebrow: "Hosted by Rad Soft",
     title: "We deploy it for you.",
@@ -18,7 +30,7 @@ const paths = [
     ],
     cta: {
       label: "Talk to us",
-      href: "mailto:info@radsoftinc.com?subject=PhotoAura%20managed%20instance",
+      intent: "managed",
       brand: true,
     },
   },
@@ -105,20 +117,25 @@ export function Ship() {
               </ul>
 
               <div className="mt-2 flex">
-                <Link
-                  href={p.cta.href}
-                  target={p.cta.href.startsWith("http") ? "_blank" : undefined}
-                  rel={p.cta.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                  className={
-                    p.cta.brand
-                      ? "group flex h-11 items-center justify-center gap-2 bg-brand px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)]"
-                      : "group flex h-11 items-center justify-center gap-2 border border-border-default px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-                  }
-                >
-                  {!p.cta.brand && <GithubMark className="size-4" />}
-                  {p.cta.label}
-                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-                </Link>
+                {p.cta.intent ? (
+                  <ContactDialog intent={p.cta.intent}>
+                    <button className={brandButton}>
+                      {p.cta.label}
+                      <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                    </button>
+                  </ContactDialog>
+                ) : (
+                  <Link
+                    href={p.cta.href!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={ghostButton}
+                  >
+                    <GithubMark className="size-4" />
+                    {p.cta.label}
+                    <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                )}
               </div>
             </motion.div>
           ))}
