@@ -3,7 +3,11 @@ import { Resend } from "resend"
 
 import InquiryEmail from "@/emails/inquiry"
 
-const FROM = process.env.CONTACT_FROM ?? "PhotoAura <noreply@mail.reactiveshots.com>"
+const FROM = process.env.CONTACT_FROM ?? "PhotoAura <noreply@mail.photoaura.app>"
+// the shared Resend key also has mail.reactiveshots.com verified; falling back
+// to it beats losing a lead if the photoaura.app sender ever goes unverified
+const FALLBACK_FROM =
+  process.env.CONTACT_FROM_FALLBACK ?? "PhotoAura <noreply@mail.reactiveshots.com>"
 
 const list = (v: string | undefined) =>
   (v ?? "")
@@ -57,8 +61,7 @@ export async function POST(req: NextRequest) {
     const topic = INTENTS[intent] ?? INTENTS.other
     const resend = new Resend(process.env.RESEND_API_KEY)
 
-    const { data, error } = await resend.emails.send({
-      from: FROM,
+    const payload = {
       to: TO,
       bcc: BCC.length ? BCC : undefined,
       replyTo: email,
@@ -73,7 +76,17 @@ export async function POST(req: NextRequest) {
         "",
         message,
       ].join("\n"),
-    })
+    }
+
+    let { data, error } = await resend.emails.send({ ...payload, from: FROM })
+
+    if (error && /not verified/i.test(JSON.stringify(error))) {
+      console.warn("contact:", FROM, "is unverified — sending as", FALLBACK_FROM)
+      ;({ data, error } = await resend.emails.send({
+        ...payload,
+        from: FALLBACK_FROM,
+      }))
+    }
 
     if (error) {
       console.error("contact: resend error", JSON.stringify(error), "to:", TO)
