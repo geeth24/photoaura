@@ -499,6 +499,7 @@ def get_albums_for_user(session: Session, user_id):
         session.query(Album)
         .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
         .filter(UserAlbumPermission.user_id == user_id)
+        .order_by(Album.id.desc())
         .all()
     )
     return [
@@ -650,6 +651,8 @@ def notify_user(
         if a:
             album_name = a.name
     else:
+        # newest first, so a client added to a second album isn't told their
+        # first one is ready
         albums = get_albums_for_user(session, user_id)
         if albums:
             album_name = albums[0]["name"]

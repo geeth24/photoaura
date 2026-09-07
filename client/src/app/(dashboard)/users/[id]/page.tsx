@@ -46,6 +46,9 @@ const ACTIONS: Action[] = [
   { kind: "login_link", label: "Login link", hint: "Plain sign-in link", icon: KeyRound },
 ]
 
+// every kind but the plain sign-in link names an album in the email
+const NEEDS_ALBUM: NotifyKind[] = ["gallery_ready", "new_download", "new_video"]
+
 export default function UserDetailPage({
   params,
 }: {
@@ -56,6 +59,7 @@ export default function UserDetailPage({
   useDocumentTitle(user?.full_name)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState<NotifyKind | null>(null)
+  const [albumId, setAlbumId] = useState<number | null>(null)
 
   const fetchUser = useCallback(() => {
     apiFetch<UserDetail>(`/users/${id}`)
@@ -68,14 +72,23 @@ export default function UserDetailPage({
     fetchUser()
   }, [fetchUser])
 
+  // albums arrive newest first; default to the one they were just given
+  useEffect(() => {
+    setAlbumId((prev) => prev ?? user?.albums?.[0]?.id ?? null)
+  }, [user])
+
   const notify = async (kind: NotifyKind) => {
     setSending(kind)
     try {
+      const album = NEEDS_ALBUM.includes(kind) ? albumId : null
       const res = await apiFetch<{ to: string }>(`/users/${id}/notify`, {
         method: "POST",
-        body: JSON.stringify({ kind }),
+        body: JSON.stringify({ kind, album_id: album }),
       })
-      toast.success(`Email sent to ${res.to}`)
+      const name = user?.albums?.find((a) => a.id === album)?.name
+      toast.success(
+        name ? `Sent to ${res.to} — ${name}` : `Email sent to ${res.to}`,
+      )
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't send email")
     } finally {
@@ -148,6 +161,33 @@ export default function UserDetailPage({
           <span className="block h-px w-12 bg-brand" />
           <span className={eyebrow}>Send email</span>
         </div>
+
+        {(user.albums?.length ?? 0) > 0 && (
+          <div className="space-y-2">
+            <span className="text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted">
+              About which album
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {user.albums?.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => setAlbumId(a.id)}
+                  className={`border px-3 py-2 text-left text-[12px] transition-colors ${
+                    albumId === a.id
+                      ? "border-brand bg-brand/10 text-brand"
+                      : "border-border-default text-text-muted hover:border-border-strong hover:text-text-secondary"
+                  }`}
+                >
+                  {a.name}
+                  <span className="ml-2 text-[10px] text-text-faint">
+                    {a.image_count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {ACTIONS.map((a) => (
             <button
