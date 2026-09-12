@@ -225,7 +225,7 @@ export default function UsersPage() {
         </div>
       ) : (
         <div className="border-y border-border-subtle">
-          {users.map((u, i) => (
+          {users.filter((u) => !u.parent_user_id).map((u, i) => (
             <motion.div
               key={u.id}
               initial={{ opacity: 0, y: 16 }}
@@ -252,6 +252,12 @@ export default function UsersPage() {
                   }`}
                 >
                   {lastLoginLabel(u.last_login_at)}
+                  {(u.family?.length ?? 0) > 0 && (
+                    <span className="text-text-faint">
+                      {" · "}
+                      {u.family!.length} family
+                    </span>
+                  )}
                 </p>
               </Link>
 

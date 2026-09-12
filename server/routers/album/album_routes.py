@@ -25,7 +25,7 @@ from db.models import (
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
-from utils.utils import create_album_photos_json, add_album_to_user, capture_time, slugify
+from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, slugify
 from dependencies import require_admin, get_current_user
 
 router = APIRouter()
@@ -95,6 +95,7 @@ async def get_all_albums(
     # website-management albums live under /website, not the client Albums list.
     # the /website CMS pages pass include_website=true to list them for linking.
     filters = [] if include_website else [Album.is_website.isnot(True)]
+    user_id = access_user_id(session, user_id)
     if user_id:
         albums = (
             session.query(Album)
@@ -134,6 +135,7 @@ async def get_all_photos(
     session: Session = Depends(get_session),
 ):
     not_website = Album.is_website.isnot(True)
+    user_id = access_user_id(session, user_id)
     if user_id:
         albums = (
             session.query(Album)
@@ -227,7 +229,7 @@ async def download_original(
     if u.role != "admin":
         allowed = (
             session.query(UserAlbumPermission)
-            .filter_by(user_id=u.id, album_id=album.id)
+            .filter_by(user_id=u.parent_user_id or u.id, album_id=album.id)
             .first()
         )
         if not allowed:
@@ -261,7 +263,7 @@ def _album_for_user(album_slug: str, current_user, session: Session):
     if u.role != "admin":
         allowed = (
             session.query(UserAlbumPermission)
-            .filter_by(user_id=u.id, album_id=album.id)
+            .filter_by(user_id=u.parent_user_id or u.id, album_id=album.id)
             .first()
         )
         if not allowed:
@@ -418,7 +420,7 @@ async def create_download_ticket(
     if u.role != "admin":
         allowed = (
             session.query(UserAlbumPermission)
-            .filter_by(user_id=u.id, album_id=album.id)
+            .filter_by(user_id=u.parent_user_id or u.id, album_id=album.id)
             .first()
         )
         if not allowed:

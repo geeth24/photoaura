@@ -23,6 +23,7 @@ type Person = {
   full_name?: string | null
   user_email?: string | null
   role?: string | null
+  parent_user_id?: number | null
 }
 
 type Props = {
@@ -48,7 +49,9 @@ export function AlbumAccessDialog({ albumSlug, albumName }: Props) {
         apiFetch<Person[]>("/users/"),
       ])
       setMembers(perms)
-      setAllClients(clients.filter((c) => (c.role || "").toLowerCase() === "client"))
+      setAllClients(
+        clients.filter((c) => (c.role || "").toLowerCase() === "client" && !c.parent_user_id),
+      )
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't load access list")
     }

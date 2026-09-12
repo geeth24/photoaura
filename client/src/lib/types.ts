@@ -6,9 +6,18 @@ export type User = {
   role?: "admin" | "client"
   albums?: Album[]
   last_login_at?: string | null
+  // set on a family member — they see whatever this account was granted
+  parent_user_id?: number | null
+  family?: FamilyMember[]
 }
 
+export type FamilyMember = Pick<
+  User,
+  "id" | "full_name" | "user_email" | "last_login_at" | "parent_user_id"
+>
+
 export type UserDetail = Omit<User, "albums"> & {
+  parent?: FamilyMember | null
   emails?: { email: string; is_primary: boolean; verified: boolean }[]
   albums?: { id: number; name: string; slug: string; image_count: number }[]
   downloads?: { id: number; filename: string; size: number; album_id: number | null }[]

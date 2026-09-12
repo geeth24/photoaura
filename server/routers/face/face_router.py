@@ -44,7 +44,7 @@ def _accessible_album_ids(current_user, session):
     return {
         r[0]
         for r in session.query(UserAlbumPermission.album_id)
-        .filter_by(user_id=u.id)
+        .filter_by(user_id=u.parent_user_id or u.id)
         .all()
     }
 

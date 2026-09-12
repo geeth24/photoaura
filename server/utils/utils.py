@@ -9,7 +9,7 @@ from io import BytesIO
 from datetime import datetime
 from config import settings
 from db.base import session_scope
-from db.models import UserAlbumPermission
+from db.models import User, UserAlbumPermission
 from services.aws_service import s3_client
 
 
@@ -165,8 +165,18 @@ def extract_exif_data(file_content: bytes):
     return exif
 
 
+def access_user_id(session, user_id):
+    """Album permissions live on the primary account; a family member's
+    lookups resolve to theirs."""
+    if not user_id:
+        return user_id
+    u = session.get(User, user_id)
+    return (u.parent_user_id or u.id) if u else user_id
+
+
 def add_album_to_user(user_id, album_id):
     with session_scope() as session:
+        user_id = access_user_id(session, user_id)
         existing = (
             session.query(UserAlbumPermission)
             .filter_by(user_id=user_id, album_id=album_id)

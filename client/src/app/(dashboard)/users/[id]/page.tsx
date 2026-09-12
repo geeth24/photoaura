@@ -5,7 +5,7 @@ import { useDocumentTitle } from "@/lib/use-document-title"
 import Link from "next/link"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
-import type { UserDetail, NotifyKind } from "@/lib/types"
+import type { UserDetail, NotifyKind, FamilyMember } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   ArrowLeft,
@@ -15,6 +15,9 @@ import {
   Film,
   Sparkles,
   KeyRound,
+  Users,
+  Plus,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -60,6 +63,7 @@ export default function UserDetailPage({
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState<NotifyKind | null>(null)
   const [albumId, setAlbumId] = useState<number | null>(null)
+  const [emailFamily, setEmailFamily] = useState(true)
 
   const fetchUser = useCallback(() => {
     apiFetch<UserDetail>(`/users/${id}`)
@@ -83,7 +87,11 @@ export default function UserDetailPage({
       const album = NEEDS_ALBUM.includes(kind) ? albumId : null
       const res = await apiFetch<{ to: string }>(`/users/${id}/notify`, {
         method: "POST",
-        body: JSON.stringify({ kind, album_id: album }),
+        body: JSON.stringify({
+          kind,
+          album_id: album,
+          include_family: emailFamily && (user?.family?.length ?? 0) > 0,
+        }),
       })
       const name = user?.albums?.find((a) => a.id === album)?.name
       toast.success(
@@ -153,6 +161,15 @@ export default function UserDetailPage({
             {lastLoginLabel(user.last_login_at)}
           </span>
         </div>
+        {user.parent && (
+          <Link
+            href={`/users/${user.parent.id}`}
+            className="mt-4 inline-flex items-center gap-2 border border-border-default px-3 py-2 text-[11px] uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+          >
+            <Users className="size-3.5 text-brand" />
+            Family of {user.parent.full_name}
+          </Link>
+        )}
       </motion.div>
 
       {/* email actions */}
@@ -204,10 +221,25 @@ export default function UserDetailPage({
             </button>
           ))}
         </div>
+        {(user.family?.length ?? 0) > 0 && (
+          <label className="flex cursor-pointer items-center gap-3 text-[12px] text-text-secondary">
+            <input
+              type="checkbox"
+              checked={emailFamily}
+              onChange={(e) => setEmailFamily(e.target.checked)}
+              className="size-3.5 accent-brand"
+            />
+            Also email their family ({user.family!.length})
+          </label>
+        )}
         <p className="text-[11px] text-text-faint">
           Every email includes a one-click sign-in link for this client.
         </p>
       </section>
+
+      {!user.parent && (
+        <FamilySection userId={user.id} members={user.family ?? []} onChange={fetchUser} />
+      )}
 
       {/* albums */}
       <DetailList
@@ -320,6 +352,157 @@ function DetailList({
               </div>
             )
           })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+
+function FamilySection({
+  userId,
+  members,
+  onChange,
+}: {
+  userId: number
+  members: FamilyMember[]
+  onChange: () => void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [busy, setBusy] = useState(false)
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      const res = await apiFetch<FamilyMember & { invite_sent: boolean }>(
+        `/users/${userId}/family`,
+        {
+          method: "POST",
+          body: JSON.stringify({ full_name: name, email }),
+        },
+      )
+      toast.success(
+        res.invite_sent
+          ? `Added ${res.full_name} — invite sent`
+          : `Added ${res.full_name} (email not sent)`,
+      )
+      setName("")
+      setEmail("")
+      setAdding(false)
+      onChange()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add them")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async (m: FamilyMember) => {
+    if (!confirm(`Remove ${m.full_name} from this account?`)) return
+    try {
+      await apiFetch(`/users/${userId}/family/${m.id}`, { method: "DELETE" })
+      toast.success(`Removed ${m.full_name}`)
+      onChange()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't remove them")
+    }
+  }
+
+  const field =
+    "h-10 w-full border border-border-default bg-surface px-3 text-[13px] text-text-primary outline-none placeholder:text-text-muted focus:border-brand"
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center gap-4">
+        <span className="block h-px w-12 bg-brand" />
+        <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
+          <Users className="size-3" />
+          Family
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-text-faint">
+          {members.length}
+        </span>
+        <button
+          onClick={() => setAdding((v) => !v)}
+          className="ml-auto flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted transition-colors hover:text-text-primary"
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
+      </div>
+
+      <p className="text-[11px] text-text-faint">
+        Family members sign in with their own email and see every album on this account.
+      </p>
+
+      {adding && (
+        <form
+          onSubmit={add}
+          className="grid gap-3 border border-border-subtle bg-surface-elevated p-4 sm:grid-cols-[1fr_1fr_auto]"
+        >
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Their name"
+            className={field}
+          />
+          <input
+            required
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="their@email.com"
+            className={field}
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="h-10 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-colors hover:bg-text-primary disabled:opacity-50"
+          >
+            {busy ? "Adding…" : "Invite"}
+          </button>
+        </form>
+      )}
+
+      {members.length === 0 ? (
+        !adding && (
+          <p className="border border-dashed border-border-default px-4 py-6 text-center text-[12px] text-text-muted">
+            No family on this account
+          </p>
+        )
+      ) : (
+        <div className="border-y border-border-subtle">
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-b-0"
+            >
+              <Link href={`/users/${m.id}`} className="min-w-0 hover:text-brand">
+                <span className="block truncate text-sm text-text-primary">{m.full_name}</span>
+                <span className="block truncate text-[11px] text-text-muted">{m.user_email}</span>
+              </Link>
+              <div className="flex shrink-0 items-center gap-4">
+                <span
+                  className={`text-[10px] uppercase tracking-[0.15em] ${
+                    m.last_login_at ? "text-text-faint" : "text-brand"
+                  }`}
+                >
+                  {m.last_login_at ? "Signed in" : "Not yet"}
+                </span>
+                <button
+                  onClick={() => remove(m)}
+                  aria-label={`Remove ${m.full_name}`}
+                  className="p-1 text-text-faint transition-colors hover:text-red-400"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </section>

@@ -32,6 +32,10 @@ class User(Base):
     user_email: Mapped[Optional[str]] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), server_default="client")
     last_login_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    # set on a family member; album access comes from this user instead
+    parent_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
 
 class MagicLink(Base):

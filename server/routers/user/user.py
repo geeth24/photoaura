@@ -18,6 +18,7 @@ from routers.auth.auth_router import (
 )
 from services import email_service
 from services.email_service import send_invite, send_verify_email
+from utils.utils import access_user_id
 
 router = APIRouter()
 
@@ -491,10 +492,12 @@ def create_user_json(user):
         "user_email": user.user_email,
         "role": getattr(user, "role", "client"),
         "last_login_at": last.isoformat() if last else None,
+        "parent_user_id": getattr(user, "parent_user_id", None),
     }
 
 
 def get_albums_for_user(session: Session, user_id):
+    user_id = access_user_id(session, user_id)
     albums = (
         session.query(Album)
         .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
@@ -522,8 +525,13 @@ def read_users(
 ):
     all_users = session.query(UserModel).all()
     users = [create_user_json(user) for user in all_users]
+    by_parent: dict = {}
+    for u in users:
+        if u["parent_user_id"]:
+            by_parent.setdefault(u["parent_user_id"], []).append(u)
     for user in users:
         user["albums"] = get_albums_for_user(session, user["id"])
+        user["family"] = by_parent.get(user["id"], [])
     return users
 
 
@@ -540,6 +548,15 @@ def read_user(
         raise HTTPException(status_code=404, detail="User not found")
     data = create_user_json(user)
     data["albums"] = get_albums_for_user(session, user_id)
+    data["family"] = [
+        create_user_json(m)
+        for m in session.query(UserModel)
+        .filter_by(parent_user_id=user_id)
+        .order_by(UserModel.id)
+        .all()
+    ]
+    parent = session.get(UserModel, user.parent_user_id) if user.parent_user_id else None
+    data["parent"] = create_user_json(parent) if parent else None
     data["emails"] = [
         {"email": ue.email, "is_primary": ue.is_primary, "verified": ue.verified_at is not None}
         for ue in session.query(UserEmail)
@@ -573,9 +590,10 @@ def update_user(
     user.full_name = form_data.user.full_name
     user.user_email = form_data.user.user_email
 
-    session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()
+    owner = user.parent_user_id or user.id
+    session.query(UserAlbumPermission).filter_by(user_id=owner).delete()
     for album_id in form_data.album_ids:
-        session.add(UserAlbumPermission(user_id=user_id, album_id=album_id))
+        session.add(UserAlbumPermission(user_id=owner, album_id=album_id))
 
     return {"message": "User updated successfully."}
 
@@ -586,8 +604,6 @@ def delete_user(
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    from db.models import MagicLink, ClientFile, Video
-
     user = session.get(UserModel, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -597,6 +613,17 @@ def delete_user(
             status_code=400, detail="Use account deletion to remove your own account."
         )
 
+    # family only has access through this account, so they go with it
+    for member in session.query(UserModel).filter_by(parent_user_id=user_id).all():
+        _purge_user(session, member.id)
+    _purge_user(session, user_id)
+    session.commit()
+    return {"message": "User deleted successfully."}
+
+
+def _purge_user(session: Session, user_id: int):
+    from db.models import MagicLink, ClientFile, Video, PhotoFavorite
+
     # clear every FK child first — these reference users.id with NO ACTION,
     # so the row delete fails unless they're gone (this was the bug: only
     # permissions were cleared, leaving magic_links/emails/files to block it)
@@ -604,13 +631,12 @@ def delete_user(
     session.query(UserEmail).filter_by(user_id=user_id).delete()
     session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()
     session.query(ClientFile).filter_by(user_id=user_id).delete()
+    session.query(PhotoFavorite).filter_by(user_id=user_id).delete()
     # videos are content, not the person — keep them, just unlink the client
     session.query(Video).filter_by(client_id=user_id).update(
         {"client_id": None}, synchronize_session=False
     )
     session.query(UserModel).filter_by(id=user_id).delete()
-    session.commit()
-    return {"message": "User deleted successfully."}
 
 
 def _primary_email(session, user) -> Optional[str]:
@@ -626,6 +652,7 @@ def _primary_email(session, user) -> Optional[str]:
 class NotifyBody(BaseModel):
     kind: str  # login_link | gallery_ready | new_download | new_video
     album_id: Optional[int] = None
+    include_family: bool = False
 
 
 @router.post("/api/users/{user_id}/notify")
@@ -657,20 +684,102 @@ def notify_user(
         if albums:
             album_name = albums[0]["name"]
 
-    # the link signs them straight in; persist it before the email goes out
-    token = issue_magic_link(session, user, "login")
-    link = f"{CLIENT_URL}/auth/verify?token={token}"
-    session.commit()
-
     senders = {
-        "login_link": lambda: email_service.send_login_link(email, name, link),
-        "gallery_ready": lambda: email_service.send_gallery_ready(email, name, link, album_name),
-        "new_download": lambda: email_service.send_new_download(email, name, link, album_name),
-        "new_video": lambda: email_service.send_new_video(email, name, link, album_name),
+        "login_link": lambda e, n, l: email_service.send_login_link(e, n, l),
+        "gallery_ready": lambda e, n, l: email_service.send_gallery_ready(e, n, l, album_name),
+        "new_download": lambda e, n, l: email_service.send_new_download(e, n, l, album_name),
+        "new_video": lambda e, n, l: email_service.send_new_video(e, n, l, album_name),
     }
     send = senders.get(body.kind)
     if not send:
         raise HTTPException(status_code=400, detail=f"Unknown notification: {body.kind}")
-    if not send():
+
+    recipients = [user]
+    if body.include_family:
+        recipients += (
+            session.query(UserModel).filter_by(parent_user_id=user.id).order_by(UserModel.id).all()
+        )
+
+    # each person gets a link that signs in as *them*; persist before sending
+    links = []
+    for r in recipients:
+        r_email = _primary_email(session, r)
+        if not r_email:
+            continue
+        token = issue_magic_link(session, r, "login")
+        links.append((r_email, r.full_name or "there", f"{CLIENT_URL}/auth/verify?token={token}"))
+    session.commit()
+
+    sent_to = [e for e, n, l in links if send(e, n, l)]
+    if not sent_to:
         raise HTTPException(status_code=502, detail="Email failed to send")
-    return {"message": "Sent", "to": email, "kind": body.kind}
+    return {"message": "Sent", "to": ", ".join(sent_to), "kind": body.kind}
+
+
+class FamilyMemberBody(BaseModel):
+    full_name: str
+    email: str
+
+
+@router.post("/api/users/{user_id}/family")
+def add_family_member(
+    user_id: int,
+    body: FamilyMemberBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Add someone to a client's account. They sign in with their own email
+    and see every album the primary can."""
+    primary = session.get(UserModel, user_id)
+    if not primary:
+        raise HTTPException(status_code=404, detail="User not found")
+    if primary.parent_user_id:
+        raise HTTPException(status_code=400, detail="Add family to the primary account instead")
+
+    email = body.email.strip().lower()
+    name = body.full_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if "@" not in email:
+        raise HTTPException(status_code=400, detail="That email doesn't look right")
+    if (
+        session.query(UserModel).filter_by(user_email=email).first()
+        or session.query(UserEmail).filter_by(email=email).first()
+    ):
+        raise HTTPException(status_code=409, detail="That email already has an account")
+
+    member = UserModel(
+        user_name=email,
+        full_name=name,
+        user_email=email,
+        role="client",
+        parent_user_id=primary.id,
+    )
+    session.add(member)
+    session.flush()
+    session.add(UserEmail(user_id=member.id, email=email, is_primary=True, verified_at=datetime.now()))
+
+    token = issue_magic_link(session, member, "invite")
+    session.commit()
+
+    albums = get_albums_for_user(session, primary.id)
+    album_name = albums[0]["name"] if albums else "your gallery"
+    sent = send_invite(email, name, f"{CLIENT_URL}/auth/verify?token={token}", album_name)
+    out = create_user_json(member)
+    out["invite_sent"] = sent
+    return out
+
+
+@router.delete("/api/users/{user_id}/family/{member_id}")
+def remove_family_member(
+    user_id: int,
+    member_id: int,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    member = session.get(UserModel, member_id)
+    if not member or member.parent_user_id != user_id:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    _purge_user(session, member_id)
+    session.commit()
+    return {"message": "Removed"}
