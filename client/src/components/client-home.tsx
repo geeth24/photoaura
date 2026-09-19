@@ -289,8 +289,8 @@ export function ClientHome() {
             ))}
           </div>
           {phone && (
-            <p className="text-[11px] text-text-faint">
-              Zips open in the Files app on your phone. For your camera roll, use Save to Photos above.
+            <p className="text-[12px] text-text-muted">
+              Zips open in the Files app on your phone. For your camera roll, use the app or Save to Photos above.
             </p>
           )}
         </motion.section>
@@ -407,7 +407,7 @@ function GetPhotos({
           </>
         )}
       </div>
-      <p className="mt-3 text-[11px] leading-relaxed text-text-faint">
+      <p className="mt-4 text-[13px] leading-relaxed text-text-muted">
         {phone ? (
           <>
             The app saves all {album.photo_count} to your camera roll in one tap. Safari

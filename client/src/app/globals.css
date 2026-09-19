@@ -80,9 +80,9 @@
   --surface-hover: #0d3350;
 
   --text-primary: #edf6fc;
-  --text-secondary: rgba(237, 246, 252, 0.55);
-  --text-muted: rgba(237, 246, 252, 0.42);
-  --text-faint: rgba(237, 246, 252, 0.24);
+  --text-secondary: rgba(237, 246, 252, 0.74);
+  --text-muted: rgba(237, 246, 252, 0.58);
+  --text-faint: rgba(237, 246, 252, 0.42);
 
   --border-subtle: rgba(237, 246, 252, 0.08);
   --border-default: rgba(237, 246, 252, 0.14);
@@ -135,9 +135,9 @@
   --surface-hover: #e4ecf2;
 
   --text-primary: #0a1a28;
-  --text-secondary: rgba(10, 26, 40, 0.68);
-  --text-muted: rgba(10, 26, 40, 0.52);
-  --text-faint: rgba(10, 26, 40, 0.28);
+  --text-secondary: rgba(10, 26, 40, 0.78);
+  --text-muted: rgba(10, 26, 40, 0.62);
+  --text-faint: rgba(10, 26, 40, 0.44);
 
   --border-subtle: rgba(10, 26, 40, 0.10);
   --border-default: rgba(10, 26, 40, 0.18);
