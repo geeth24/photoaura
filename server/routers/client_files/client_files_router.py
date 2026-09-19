@@ -165,8 +165,76 @@ def list_my_files(
     me = _me(session, current_user)
     rows = (
         session.query(ClientFile)
-        .filter_by(user_id=me.id)
+        .filter_by(user_id=me.parent_user_id or me.id)
         .order_by(ClientFile.created_at.desc())
         .all()
     )
     return [_file_json(cf, session, with_url=True) for cf in rows]
+
+
+@router.get("/api/me/home")
+def my_home(
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Everything waiting for a client, in one call: each gallery with its
+    photo/video counts and a cover, plus any files to download."""
+    from sqlalchemy import func
+    from db.models import Album, FileMetadata, UserAlbumPermission
+    from utils.utils import build_photo_json
+
+    me = _me(session, current_user)
+    owner = me.parent_user_id or me.id
+
+    albums = (
+        session.query(Album)
+        .join(UserAlbumPermission, Album.id == UserAlbumPermission.album_id)
+        .filter(UserAlbumPermission.user_id == owner, Album.is_website.isnot(True))
+        .order_by(Album.id.desc())
+        .all()
+    )
+    out_albums = []
+    for a in albums:
+        counts = dict(
+            session.query(
+                func.coalesce(FileMetadata.content_type.like("video/%"), False), func.count()
+            )
+            .filter_by(album_id=a.id)
+            .group_by(func.coalesce(FileMetadata.content_type.like("video/%"), False))
+            .all()
+        )
+        cover = (
+            session.query(FileMetadata)
+            .filter(FileMetadata.album_id == a.id, ~FileMetadata.content_type.like("video/%"))
+            .order_by(FileMetadata.id)
+            .first()
+        )
+        out_albums.append(
+            {
+                "id": a.id,
+                "name": a.name,
+                "slug": a.slug,
+                "date": a.date,
+                "location": a.location,
+                "photo_count": int(counts.get(False, 0)),
+                "video_count": int(counts.get(True, 0)),
+                "cover": build_photo_json(cover, a.slug)["compressed_image"] if cover else None,
+            }
+        )
+
+    files = (
+        session.query(ClientFile)
+        .filter_by(user_id=owner)
+        .order_by(ClientFile.created_at.desc())
+        .all()
+    )
+    return {
+        "first_name": (me.full_name or "").split(" ")[0] or None,
+        "albums": out_albums,
+        "files": [_file_json(cf, session, with_url=True) for cf in files],
+        "totals": {
+            "photos": sum(a["photo_count"] for a in out_albums),
+            "videos": sum(a["video_count"] for a in out_albums),
+            "files": len(files),
+        },
+    }

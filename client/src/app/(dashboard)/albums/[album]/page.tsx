@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { use } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { apiFetch, deletePhoto, getUploadStatus, type UploadStatus } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
 import { isVideo, type Album, type AlbumFace, type Photo } from "@/lib/types"
@@ -50,7 +50,10 @@ export default function AlbumDetailPage({
   const [album, setAlbum] = useState<Album | null>(null)
   useDocumentTitle(album?.album_name)
   const [loading, setLoading] = useState(true)
-  const [mediaTab, setMediaTab] = useState<"photos" | "videos">("photos")
+  const search = useSearchParams()
+  const [mediaTab, setMediaTab] = useState<"photos" | "videos">(
+    search.get("tab") === "videos" ? "videos" : "photos",
+  )
   const [deleting, setDeleting] = useState(false)
   const [zipping, setZipping] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())

@@ -11,6 +11,9 @@ function Verifier() {
   const router = useRouter()
   const { verifyMagic } = useAuth()
   const token = params.get("token")
+  // only ever a path on this site — never an absolute URL from the query
+  const rawNext = params.get("next") || ""
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null
   const [error, setError] = useState<string | null>(
     token ? null : "Missing sign-in link."
   )
@@ -21,10 +24,10 @@ function Verifier() {
     ran.current = true
     verifyMagic(token)
       .then((user) =>
-        router.replace(user.role === "client" ? "/albums" : "/dashboard")
+        router.replace(next ?? (user.role === "client" ? "/albums" : "/dashboard"))
       )
       .catch((e) => setError(e instanceof Error ? e.message : "Sign-in failed."))
-  }, [token, router, verifyMagic])
+  }, [token, next, router, verifyMagic])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-6 text-center">

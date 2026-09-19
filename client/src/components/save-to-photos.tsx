@@ -116,13 +116,26 @@ export function SaveToPhotos({
   const done = remaining <= 0
   const preparing = !done && pending === null
 
+  const [spotlit, setSpotlit] = useState(false)
+  useEffect(() => {
+    if (!supported || window.location.hash !== "#save") return
+    setSpotlit(true)
+    const el = document.getElementById("save")
+    const t = setTimeout(() => el?.scrollIntoView({ behavior: "smooth", block: "center" }), 250)
+    return () => clearTimeout(t)
+  }, [supported])
+
   return (
-    <div className="mt-4">
+    <div id="save" className="mt-4">
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={share}
           disabled={done || preparing || sharing}
-          className="flex h-11 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-60"
+          className={`flex h-11 items-center gap-2 border px-5 text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors disabled:opacity-60 ${
+            spotlit && !done
+              ? "border-brand bg-brand text-surface shadow-[0_0_40px_rgba(0,166,251,0.35)] hover:bg-text-primary"
+              : "border-border-default text-text-secondary hover:border-border-strong hover:text-text-primary"
+          }`}
         >
           {done ? (
             <Check className="size-3.5" />

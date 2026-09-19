@@ -409,8 +409,8 @@ def invite_client(
     client_url = os.environ.get(
         "NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com"
     )
-    link = f"{client_url}/auth/verify?token={token}"
-    sent = send_invite(user.user_email, user.full_name, link, album.name)
+    link = _verify_link(token, f"/albums/{album.slug}")
+    sent = send_invite(user.user_email, user.full_name, link, album.name, _album_counts(session, album))
     return {"message": "Invite sent" if sent else "Client added (email not sent)"}
 
 
@@ -649,6 +649,24 @@ def _primary_email(session, user) -> Optional[str]:
     return (ue.email if ue else None) or user.user_email
 
 
+def _album_counts(session: Session, album) -> dict:
+    """What's inside — so the email can say so, and the landing can too."""
+    from db.models import FileMetadata
+
+    if not album:
+        return {}
+    rows = session.query(FileMetadata.content_type).filter_by(album_id=album.id).all()
+    videos = sum(1 for (ct,) in rows if (ct or "").startswith("video/"))
+    return {"photoCount": len(rows) - videos, "videoCount": videos, "albumSlug": album.slug}
+
+
+def _verify_link(token: str, next_path: Optional[str] = None) -> str:
+    from urllib.parse import quote
+
+    link = f"{CLIENT_URL}/auth/verify?token={token}"
+    return f"{link}&next={quote(next_path, safe='/?=&')}" if next_path else link
+
+
 class NotifyBody(BaseModel):
     kind: str  # login_link | gallery_ready | new_download | new_video
     album_id: Optional[int] = None
@@ -672,21 +690,25 @@ def notify_user(
         raise HTTPException(status_code=400, detail="This user has no email on file")
 
     name = user.full_name or "there"
-    album_name = "your gallery"
-    if body.album_id:
-        a = session.get(Album, body.album_id)
-        if a:
-            album_name = a.name
-    else:
+    album = session.get(Album, body.album_id) if body.album_id else None
+    if not album:
         # newest first, so a client added to a second album isn't told their
         # first one is ready
         albums = get_albums_for_user(session, user_id)
-        if albums:
-            album_name = albums[0]["name"]
+        album = session.get(Album, albums[0]["id"]) if albums else None
+    album_name = album.name if album else "your gallery"
+    counts = _album_counts(session, album)
+
+    # land on the thing the email is about, not the library
+    next_path = {
+        "gallery_ready": f"/albums/{album.slug}" if album else None,
+        "new_video": f"/albums/{album.slug}?tab=videos" if album else None,
+        "new_download": "/downloads",
+    }.get(body.kind)
 
     senders = {
         "login_link": lambda e, n, l: email_service.send_login_link(e, n, l),
-        "gallery_ready": lambda e, n, l: email_service.send_gallery_ready(e, n, l, album_name),
+        "gallery_ready": lambda e, n, l: email_service.send_gallery_ready(e, n, l, album_name, counts),
         "new_download": lambda e, n, l: email_service.send_new_download(e, n, l, album_name),
         "new_video": lambda e, n, l: email_service.send_new_video(e, n, l, album_name),
     }
@@ -707,7 +729,7 @@ def notify_user(
         if not r_email:
             continue
         token = issue_magic_link(session, r, "login")
-        links.append((r_email, r.full_name or "there", f"{CLIENT_URL}/auth/verify?token={token}"))
+        links.append((r_email, r.full_name or "there", _verify_link(token, next_path)))
     session.commit()
 
     sent_to = [e for e, n, l in links if send(e, n, l)]
@@ -763,8 +785,14 @@ def add_family_member(
     session.commit()
 
     albums = get_albums_for_user(session, primary.id)
-    album_name = albums[0]["name"] if albums else "your gallery"
-    sent = send_invite(email, name, f"{CLIENT_URL}/auth/verify?token={token}", album_name)
+    album = session.get(Album, albums[0]["id"]) if albums else None
+    sent = send_invite(
+        email,
+        name,
+        _verify_link(token, f"/albums/{album.slug}" if album else None),
+        album.name if album else "your gallery",
+        _album_counts(session, album),
+    )
     out = create_user_json(member)
     out["invite_sent"] = sent
     return out

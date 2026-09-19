@@ -8,11 +8,18 @@ import { apiFetch } from "@/lib/api"
 import type { Album } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { UploadAlbumDialog } from "@/components/upload-album-dialog"
+import { ClientHome } from "@/components/client-home"
 import { Plus, ArrowUpRight, ImageOff } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
 export default function AlbumsPage() {
+  const { user } = useAuth()
+  if (user?.role === "client") return <ClientHome />
+  return <StudioAlbums />
+}
+
+function StudioAlbums() {
   useDocumentTitle("Albums")
   const { user } = useAuth()
   const [albums, setAlbums] = useState<Album[]>([])

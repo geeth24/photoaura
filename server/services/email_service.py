@@ -79,10 +79,16 @@ def send_login_link(to_email: str, full_name: str, link: str) -> bool:
     return _send(to_email, payload["subject"], payload["html"])
 
 
-def send_invite(to_email: str, full_name: str, link: str, album_name: str) -> bool:
+def send_invite(
+    to_email: str,
+    full_name: str,
+    link: str,
+    album_name: str,
+    counts: Optional[dict] = None,
+) -> bool:
     payload = _render(
         "client-invite",
-        {"fullName": full_name, "link": link, "albumName": album_name},
+        {"fullName": full_name, "link": link, "albumName": album_name, **(counts or {})},
     )
     if not payload:
         return False
@@ -96,9 +102,11 @@ def send_verify_email(to_email: str, full_name: str, link: str) -> bool:
     return _send(to_email, payload["subject"], payload["html"])
 
 
-def send_gallery_ready(to_email: str, full_name: str, link: str, album_name: str) -> bool:
+def send_gallery_ready(
+    to_email: str, full_name: str, link: str, album_name: str, counts: Optional[dict] = None
+) -> bool:
     # the client-invite template already says "your gallery is ready"
-    return send_invite(to_email, full_name, link, album_name)
+    return send_invite(to_email, full_name, link, album_name, counts)
 
 
 def send_new_download(to_email: str, full_name: str, link: str, album_name: str) -> bool:
