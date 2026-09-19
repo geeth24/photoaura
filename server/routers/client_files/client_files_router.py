@@ -195,14 +195,9 @@ def my_home(
     )
     out_albums = []
     for a in albums:
-        counts = dict(
-            session.query(
-                func.coalesce(FileMetadata.content_type.like("video/%"), False), func.count()
-            )
-            .filter_by(album_id=a.id)
-            .group_by(func.coalesce(FileMetadata.content_type.like("video/%"), False))
-            .all()
-        )
+        in_album = session.query(func.count(FileMetadata.id)).filter(FileMetadata.album_id == a.id)
+        total = in_album.scalar() or 0
+        videos = in_album.filter(FileMetadata.content_type.like("video/%")).scalar() or 0
         cover = (
             session.query(FileMetadata)
             .filter(FileMetadata.album_id == a.id, ~FileMetadata.content_type.like("video/%"))
@@ -216,8 +211,8 @@ def my_home(
                 "slug": a.slug,
                 "date": a.date,
                 "location": a.location,
-                "photo_count": int(counts.get(False, 0)),
-                "video_count": int(counts.get(True, 0)),
+                "photo_count": total - videos,
+                "video_count": videos,
                 "cover": build_photo_json(cover, a.slug)["compressed_image"] if cover else None,
             }
         )
