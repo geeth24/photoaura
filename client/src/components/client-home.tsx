@@ -332,7 +332,7 @@ export function ClientHome() {
           href={APP_STORE}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-11 shrink-0 items-center justify-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+          className="flex h-13 shrink-0 items-center justify-center gap-2 border border-border-default px-7 text-[12px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
         >
           Get the app
           <ArrowUpRight className="size-3.5" />
@@ -373,9 +373,9 @@ function GetPhotos({
   onZip: () => void
 }) {
   const primary =
-    "flex h-12 flex-1 items-center justify-center gap-2 bg-brand px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary disabled:opacity-60"
+    "flex h-14 items-center justify-center gap-2.5 bg-brand px-8 text-[12px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:opacity-60 sm:min-w-[240px]"
   const secondary =
-    "flex h-12 flex-1 items-center justify-center gap-2 border border-border-default px-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+    "flex h-14 items-center justify-center gap-2.5 border border-border-default px-8 text-[12px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary sm:min-w-[240px]"
 
   return (
     <div className="border border-border-subtle bg-surface-elevated p-5 sm:p-6">
@@ -384,22 +384,22 @@ function GetPhotos({
         {phone ? (
           <>
             <Link href={`/albums/${album.slug}#save`} className={primary}>
-              <Smartphone className="size-3.5" />
+              <Smartphone className="size-4" />
               Save to Photos
             </Link>
             <Link href={`/albums/${album.slug}`} className={secondary}>
-              <Images className="size-3.5" />
+              <Images className="size-4" />
               Browse first
             </Link>
           </>
         ) : (
           <>
             <button onClick={onZip} disabled={zipping} className={primary}>
-              {zipping ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+              {zipping ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
               {zipping ? "Preparing…" : "Download all"}
             </button>
             <Link href={`/albums/${album.slug}`} className={secondary}>
-              <Images className="size-3.5" />
+              <Images className="size-4" />
               Browse the gallery
             </Link>
           </>
