@@ -63,24 +63,21 @@ export default function ClientInviteEmail({
       <Divider />
 
       <Text style={styles.paragraph}>
-        <span style={styles.emphasis}>On your phone?</span> Open the gallery
-        and tap <span style={styles.emphasis}>Save to Photos</span> — every
-        picture goes straight into your camera roll, full quality.
+        <span style={styles.emphasis}>On your iPhone?</span> The PhotoAura app
+        puts every photo into your camera roll in one tap, full quality — and
+        shows new galleries as they land. Sign in with this same email.
       </Text>
+      <Section>
+        <Button href={APP_STORE}>Get the iPhone app</Button>
+      </Section>
       <Text style={styles.paragraph}>
-        <span style={styles.emphasis}>On a computer?</span> Use{" "}
-        <span style={styles.emphasis}>Download all</span> to get one zip of
-        the originals.
-      </Text>
-      <Text style={linkRow}>
+        <span style={styles.emphasis}>On a computer?</span> Open the gallery
+        and use <span style={styles.emphasis}>Download all</span> for one zip
+        of the originals. In Safari on your phone,{" "}
         <Link href={saveLink} style={inlineLink}>
-          Save to my phone →
-        </Link>
-      </Text>
-      <Text style={linkRow}>
-        <Link href={APP_STORE} style={inlineLink}>
-          Get the iPhone app →
-        </Link>
+          Save to Photos
+        </Link>{" "}
+        works too.
       </Text>
 
       <Text style={styles.hint}>
@@ -115,10 +112,6 @@ const statLabel: React.CSSProperties = {
   letterSpacing: "0.25em",
   textTransform: "uppercase",
   margin: 0,
-}
-
-const linkRow: React.CSSProperties = {
-  margin: "0 0 8px",
 }
 
 const inlineLink: React.CSSProperties = {

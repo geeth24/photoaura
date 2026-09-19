@@ -9,11 +9,13 @@ import { apiFetch } from "@/lib/api"
 import { downloadAlbumZip } from "@/lib/download"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AppStoreBadge } from "@/components/app-store-badge"
 import {
   ArrowUpRight,
   Download,
   FileArchive,
   Film,
+  ImageDown,
   ImageIcon,
   Images,
   Loader2,
@@ -46,8 +48,6 @@ type Home = {
   files: HomeFile[]
   totals: { photos: number; videos: number; files: number }
 }
-
-const APP_STORE = "https://apps.apple.com/app/id6477320360"
 
 const eyebrow =
   "text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted"
@@ -223,6 +223,35 @@ export function ClientHome() {
         <GetPhotos album={newest} phone={phone} zipping={zipping === newest.slug} onZip={() => zip(newest.slug)} />
       </motion.section>
 
+      {/* the app — the best way to get photos onto a phone */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.12, ease }}
+        className="relative overflow-hidden border border-border-subtle bg-surface-elevated"
+      >
+        <div className="pointer-events-none absolute -right-20 -top-20 size-64 bg-brand/15 blur-[90px]" />
+        <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="flex items-start gap-4">
+            <span className="flex size-12 shrink-0 items-center justify-center bg-brand/10 text-brand">
+              <Smartphone className="size-5" />
+            </span>
+            <div>
+              <p className={eyebrow}>{phone ? "Recommended for you" : "On your iPhone"}</p>
+              <p className="mt-2 font-heading text-2xl leading-tight tracking-tight text-text-primary">
+                PhotoAura for iPhone
+              </p>
+              <p className="mt-2 max-w-md text-[13px] font-light leading-relaxed text-text-secondary">
+                Every photo into your camera roll in one tap, full quality. Favorites,
+                videos, and new galleries as they land — no browser, no zip files.
+                Sign in with the same email.
+              </p>
+            </div>
+          </div>
+          <AppStoreBadge className="shrink-0 self-start sm:self-center" />
+        </div>
+      </motion.section>
+
       {/* files sent to you */}
       {files.length > 0 && (
         <motion.section
@@ -314,30 +343,6 @@ export function ClientHome() {
         </motion.section>
       )}
 
-      {/* the app */}
-      <section className="flex flex-col gap-5 border border-border-subtle bg-surface-elevated p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-        <div className="flex items-start gap-4">
-          <span className="flex size-10 shrink-0 items-center justify-center bg-brand/10 text-brand">
-            <Smartphone className="size-4" />
-          </span>
-          <div>
-            <p className="text-sm font-medium text-text-primary">PhotoAura for iPhone</p>
-            <p className="mt-1 max-w-md text-[13px] font-light leading-relaxed text-text-secondary">
-              Your galleries, favorites, and one-tap save to your camera roll — no
-              browser needed. Sign in with the same email.
-            </p>
-          </div>
-        </div>
-        <a
-          href={APP_STORE}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-13 shrink-0 items-center justify-center gap-2 border border-border-default px-7 text-[12px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-        >
-          Get the app
-          <ArrowUpRight className="size-3.5" />
-        </a>
-      </section>
     </div>
   )
 }
@@ -383,13 +388,10 @@ function GetPhotos({
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         {phone ? (
           <>
-            <Link href={`/albums/${album.slug}#save`} className={primary}>
-              <Smartphone className="size-4" />
-              Save to Photos
-            </Link>
-            <Link href={`/albums/${album.slug}`} className={secondary}>
-              <Images className="size-4" />
-              Browse first
+            <AppStoreBadge className="w-full justify-center sm:w-auto" />
+            <Link href={`/albums/${album.slug}#save`} className={secondary}>
+              <ImageDown className="size-4" />
+              Save to Photos in Safari
             </Link>
           </>
         ) : (
@@ -406,9 +408,17 @@ function GetPhotos({
         )}
       </div>
       <p className="mt-3 text-[11px] leading-relaxed text-text-faint">
-        {phone
-          ? "Save to Photos puts full-quality originals straight into your camera roll, twenty at a time."
-          : `Download all gives you one zip of the ${plural(album.photo_count, "original")}. On your phone, open the gallery to save straight to your camera roll.`}
+        {phone ? (
+          <>
+            The app saves all {album.photo_count} to your camera roll in one tap. Safari
+            can do it too, twenty at a time.{" "}
+            <Link href={`/albums/${album.slug}`} className="text-text-secondary underline-offset-2 hover:underline">
+              Or just browse first.
+            </Link>
+          </>
+        ) : (
+          `Download all gives you one zip of the ${plural(album.photo_count, "original")}. On your phone, the app puts them straight into your camera roll.`
+        )}
       </p>
     </div>
   )
