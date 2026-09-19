@@ -64,6 +64,14 @@ function fmtBytes(n: number | null) {
   return `${v.toFixed(i >= 2 ? 1 : 0)} ${u[i]}`
 }
 
+// album dates are free text; only tidy the ones that parse
+function fmtDate(d: string | null) {
+  if (!d) return ""
+  const t = Date.parse(d.replace(" ", "T"))
+  if (Number.isNaN(t)) return d
+  return new Date(t).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
+}
+
 function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`
 }
@@ -195,7 +203,7 @@ export function ClientHome() {
               <div className="min-w-0">
                 <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/60">
                   {albums.length > 1 ? "Newest" : "Gallery"}
-                  {newest.date ? ` · ${newest.date}` : ""}
+                  {fmtDate(newest.date) ? ` · ${fmtDate(newest.date)}` : ""}
                 </p>
                 <h2 className="mt-2 truncate font-heading text-3xl leading-tight tracking-tight text-white sm:text-4xl">
                   {newest.name}
