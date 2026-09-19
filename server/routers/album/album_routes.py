@@ -26,7 +26,7 @@ from db.models import (
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, slugify
-from dependencies import require_admin, get_current_user
+from dependencies import is_admin_caller, require_admin, get_current_user
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -91,11 +91,13 @@ async def get_all_albums(
     user_id: int = None,
     include_website: bool = False,
     session: Session = Depends(get_session),
+    admin: bool = Depends(is_admin_caller),
 ):
     # website-management albums live under /website, not the client Albums list.
     # the /website CMS pages pass include_website=true to list them for linking.
     filters = [] if include_website else [Album.is_website.isnot(True)]
-    user_id = access_user_id(session, user_id)
+    # iOS always sends its own user_id; an admin should still see every album
+    user_id = None if admin else access_user_id(session, user_id)
     if user_id:
         albums = (
             session.query(Album)
@@ -133,9 +135,10 @@ async def get_all_photos(
     user_id: int = None,
     orientation: str = None,
     session: Session = Depends(get_session),
+    admin: bool = Depends(is_admin_caller),
 ):
     not_website = Album.is_website.isnot(True)
-    user_id = access_user_id(session, user_id)
+    user_id = None if admin else access_user_id(session, user_id)
     if user_id:
         albums = (
             session.query(Album)

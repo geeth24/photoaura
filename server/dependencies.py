@@ -7,6 +7,7 @@ from config import settings
 from db.base import get_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 
 class TokenData:
@@ -51,3 +52,21 @@ def require_admin(
     current_user.role = role
     return current_user
 
+
+
+def is_admin_caller(
+    token: Optional[str] = Depends(oauth2_optional),
+    session: Session = Depends(get_session),
+) -> bool:
+    """True when the bearer token belongs to an admin; False for clients,
+    bad tokens, or no token — never raises."""
+    if not token:
+        return False
+    try:
+        data = verify_token(token, HTTPException(status_code=401))
+    except HTTPException:
+        return False
+    from db.models import User
+
+    u = session.query(User).filter_by(user_name=data.user_name).first()
+    return bool(u and u.role == "admin")
