@@ -72,11 +72,12 @@ export default function ClientInviteEmail({
         <span style={styles.emphasis}>Download all</span> to get one zip of
         the originals.
       </Text>
-      <Text style={styles.paragraph}>
+      <Text style={linkRow}>
         <Link href={saveLink} style={inlineLink}>
           Save to my phone →
         </Link>
-        {"   "}
+      </Text>
+      <Text style={linkRow}>
         <Link href={APP_STORE} style={inlineLink}>
           Get the iPhone app →
         </Link>
@@ -114,6 +115,10 @@ const statLabel: React.CSSProperties = {
   letterSpacing: "0.25em",
   textTransform: "uppercase",
   margin: 0,
+}
+
+const linkRow: React.CSSProperties = {
+  margin: "0 0 8px",
 }
 
 const inlineLink: React.CSSProperties = {

@@ -664,7 +664,7 @@ def _verify_link(token: str, next_path: Optional[str] = None) -> str:
     from urllib.parse import quote
 
     link = f"{CLIENT_URL}/auth/verify?token={token}"
-    return f"{link}&next={quote(next_path, safe='/?=&')}" if next_path else link
+    return f"{link}&next={quote(next_path, safe='/')}" if next_path else link
 
 
 class NotifyBody(BaseModel):
