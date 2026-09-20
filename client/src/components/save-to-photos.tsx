@@ -111,11 +111,9 @@ export function SaveToPhotos({
     setPending(null)
   }
 
-  if (!supported || stills.length === 0) return null
-
-  const done = remaining <= 0
-  const preparing = !done && pending === null
-
+  // arriving via #save (from the email or the home page) — scroll here and
+  // make the button the obvious thing on screen. Hooks stay above the early
+  // return so the count never changes between renders.
   const [spotlit, setSpotlit] = useState(false)
   useEffect(() => {
     if (!supported || window.location.hash !== "#save") return
@@ -124,6 +122,11 @@ export function SaveToPhotos({
     const t = setTimeout(() => el?.scrollIntoView({ behavior: "smooth", block: "center" }), 250)
     return () => clearTimeout(t)
   }, [supported])
+
+  if (!supported || stills.length === 0) return null
+
+  const done = remaining <= 0
+  const preparing = !done && pending === null
 
   return (
     <div id="save" className="mt-4">
