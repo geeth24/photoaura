@@ -43,6 +43,7 @@ export const config = {
     "/dashboard/:path*",
     "/albums/:path*",
     "/photos/:path*",
+    "/downloads/:path*",
     "/users/:path*",
     "/faces/:path*",
     "/website/:path*",
