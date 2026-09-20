@@ -32,8 +32,8 @@ import { RadSoftMark } from "@/components/icons"
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
   { title: "Albums", href: "/albums", icon: FolderOpen, adminOnly: false },
-  { title: "Photos", href: "/photos", icon: Images, adminOnly: false },
-  { title: "Downloads", href: "/downloads", icon: Download, adminOnly: false },
+  { title: "Photos", href: "/photos", icon: Images, adminOnly: true },
+  { title: "Downloads", href: "/downloads", icon: Download, adminOnly: true },
   { title: "Users", href: "/users", icon: Users, adminOnly: true },
   { title: "Faces", href: "/faces", icon: Smile, adminOnly: true },
   { title: "Website", href: "/website", icon: Globe, adminOnly: true },

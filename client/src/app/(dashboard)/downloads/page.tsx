@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { apiFetch } from "@/lib/api"
-import { useAuth } from "@/context/auth-context"
 import { Download, FileArchive, Inbox, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -56,15 +55,11 @@ function startDownload(url?: string) {
 
 export default function DownloadsPage() {
   useDocumentTitle("Downloads")
-  const { user } = useAuth()
-  const isAdmin = user?.role !== "client"
-
   const [files, setFiles] = useState<ClientFile[]>([])
   const [loaded, setLoaded] = useState(false)
 
   const fetchFiles = useCallback(() => {
-    const path = isAdmin ? "/client-files" : "/me/files"
-    apiFetch<ClientFile[]>(path)
+    apiFetch<ClientFile[]>("/client-files")
       .then((rows) => {
         setFiles(rows)
         setLoaded(true)
@@ -73,7 +68,7 @@ export default function DownloadsPage() {
         setFiles([])
         setLoaded(true)
       })
-  }, [isAdmin])
+  }, [])
 
   useEffect(() => {
     fetchFiles()
@@ -99,12 +94,10 @@ export default function DownloadsPage() {
           </span>
         </div>
         <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
-          {isAdmin ? "Client downloads" : "Your downloads"}
+          Client downloads
         </h1>
         <p className="mt-3 text-sm font-light text-text-secondary">
-          {isAdmin
-            ? "Every file you've shared with clients. Attach new ones from an album."
-            : "Full-resolution files your photographer prepared for you."}
+          Every file you&apos;ve shared with clients. Attach new ones from an album.
         </p>
       </div>
 
@@ -119,9 +112,7 @@ export default function DownloadsPage() {
             Nothing here yet
           </p>
           <p className="mt-1 text-sm font-light text-text-muted">
-            {isAdmin
-              ? "Open an album → Downloads to attach a file for a client."
-              : "When your photographer shares a download, it'll appear here."}
+            Open an album → Downloads to attach a file for a client.
           </p>
         </div>
       ) : (
@@ -132,10 +123,7 @@ export default function DownloadsPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-text-primary">{f.filename}</p>
                 <p className="truncate text-[11px] uppercase tracking-[0.15em] text-text-muted">
-                  {(isAdmin
-                    ? [f.client_name || f.client_email, f.album_name, fmtSize(f.size)]
-                    : [f.album_name, fmtSize(f.size), fmtDate(f.created_at)]
-                  )
+                  {[f.client_name || f.client_email, f.album_name, fmtSize(f.size), fmtDate(f.created_at)]
                     .filter(Boolean)
                     .join("  ·  ")}
                 </p>
@@ -147,15 +135,13 @@ export default function DownloadsPage() {
                 <Download className="size-3.5" />
                 Download
               </button>
-              {isAdmin && (
-                <button
-                  onClick={() => remove(f.id)}
-                  className="shrink-0 text-text-muted opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                  aria-label="Remove"
-                >
-                  <X className="size-4" />
-                </button>
-              )}
+              <button
+                onClick={() => remove(f.id)}
+                className="shrink-0 text-text-muted opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                aria-label="Remove"
+              >
+                <X className="size-4" />
+              </button>
             </div>
           ))}
         </div>

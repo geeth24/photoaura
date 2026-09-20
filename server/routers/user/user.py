@@ -703,7 +703,7 @@ def notify_user(
     next_path = {
         "gallery_ready": f"/albums/{album.slug}" if album else None,
         "new_video": f"/albums/{album.slug}?tab=videos" if album else None,
-        "new_download": "/downloads",
+        "new_download": "/albums",
     }.get(body.kind)
 
     senders = {
