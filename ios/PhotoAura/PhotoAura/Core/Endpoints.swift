@@ -73,6 +73,11 @@ extension APIClient {
         return try await patch("/me", body: body)
     }
 
+    // GET /api/me/home — galleries with counts, files to download, totals
+    func home() async throws -> HomeSummary {
+        try await get("/me/home")
+    }
+
     // GET /api/albums/?user_id=N  — albums the user has permission to see
     func myAlbums(userId: Int) async throws -> [AlbumSummary] {
         try await get("/albums/", query: ["user_id": String(userId)])

@@ -9,18 +9,30 @@ import SwiftUI
 import EditorialStyle
 
 struct MainTabView: View {
+    @Environment(AuthStore.self) private var auth
     @State private var selectedTab: AppTab = .galleries
 
     enum AppTab: Hashable { case galleries, allPhotos, downloads, profile }
 
+    private var isClient: Bool {
+        if case .signedIn(let user) = auth.status { return user.role == "client" }
+        return true
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab("Galleries", systemImage: "photo.stack", value: AppTab.galleries) {
+            // a client gets a home that says what's waiting; the studio keeps its library
+            Tab(isClient ? "Home" : "Galleries", systemImage: isClient ? "house" : "photo.stack", value: AppTab.galleries) {
                 NavigationStack {
-                    GalleriesView()
-                        .navigationDestination(for: AlbumSummary.self) { album in
-                            AlbumView(album: album)
-                        }
+                    Group {
+                        if isClient { HomeView() } else { GalleriesView() }
+                    }
+                    .navigationDestination(for: AlbumSummary.self) { album in
+                        AlbumView(album: album)
+                    }
+                    .navigationDestination(for: HomeSaveTarget.self) { target in
+                        AlbumView(album: target.album, openActions: true)
+                    }
                 }
             }
 
@@ -28,8 +40,11 @@ struct MainTabView: View {
                 NavigationStack { AllPhotosView() }
             }
 
-            Tab("Downloads", systemImage: "arrow.down.circle", value: AppTab.downloads) {
-                NavigationStack { DownloadsView() }
+            // their files live on the home now
+            if !isClient {
+                Tab("Downloads", systemImage: "arrow.down.circle", value: AppTab.downloads) {
+                    NavigationStack { DownloadsView() }
+                }
             }
 
             Tab("Profile", systemImage: "person.crop.circle", value: AppTab.profile) {

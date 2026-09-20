@@ -91,6 +91,35 @@ struct FaceSummary: Codable, Hashable, Identifiable {
 }
 
 // GET /api/me/files — deliverables the photographer prepared for this client
+// GET /api/me/home — everything waiting for a client, in one call
+struct HomeSummary: Decodable {
+    let firstName: String?
+    let albums: [HomeAlbum]
+    let files: [ClientFile]
+    let totals: HomeTotals
+}
+
+struct HomeTotals: Decodable {
+    let photos: Int
+    let videos: Int
+    let files: Int
+}
+
+struct HomeAlbum: Decodable, Hashable, Identifiable {
+    let id: Int
+    let name: String
+    let slug: String
+    let date: String?
+    let photoCount: Int
+    let videoCount: Int
+    let cover: String?
+
+    // the album screen takes a summary; counts are all it needs from us
+    var summary: AlbumSummary {
+        AlbumSummary(albumId: id, albumName: name, slug: slug, imageCount: photoCount + videoCount, albumPhotos: nil)
+    }
+}
+
 struct ClientFile: Codable, Hashable, Identifiable {
     let id: Int
     let albumName: String?

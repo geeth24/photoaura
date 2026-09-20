@@ -10,6 +10,8 @@ import EditorialStyle
 
 struct AlbumView: View {
     let album: AlbumSummary
+    // the home's "save all" lands here with the sheet up as soon as photos load
+    var openActions: Bool = false
     @Environment(APIClient.self) private var api
     @State private var store: AlbumStore?
     @State private var activeViewerPhotoID: String? = nil
@@ -31,6 +33,9 @@ struct AlbumView: View {
                 store = s
                 s.send(.load)
             }
+        }
+        .onChange(of: store?.state.photos.isEmpty ?? true) { _, empty in
+            if openActions, !empty, !actionsPresented { actionsPresented = true }
         }
         .navigationTitle(album.albumName)
         .navigationBarTitleDisplayMode(.large)
