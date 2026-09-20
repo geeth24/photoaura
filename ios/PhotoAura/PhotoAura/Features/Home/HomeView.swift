@@ -32,7 +32,19 @@ struct HomeView: View {
             store = s
             s.send(.load)
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("Home")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            // same get-your-photos entry the album screen has, for the newest gallery
+            if let newest = store?.state.summary?.albums.first {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: HomeSaveTarget(album: newest.summary)) {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .accessibilityLabel("Get your photos")
+                }
+            }
+        }
     }
 }
 
@@ -48,7 +60,7 @@ private struct HomeContent: View {
                     content
                 }
                 .padding(.horizontal, EditorialSpacing.screenGutter)
-                .padding(.top, EditorialSpacing.xLarge)
+                .padding(.top, EditorialSpacing.small)
                 .padding(.bottom, EditorialSpacing.xxxLarge)
             }
             .refreshable { store.send(.refresh) }
@@ -91,8 +103,6 @@ private struct HomeContent: View {
 
     private func welcome(_ home: HomeSummary) -> some View {
         VStack(alignment: .leading, spacing: EditorialSpacing.medium) {
-            EditorialEyebrow("Your photos")
-
             VStack(alignment: .leading, spacing: 0) {
                 Text(home.firstName.map { "Hi \($0)." } ?? "Welcome.")
                     .font(EditorialTypography.serif(size: 36))
