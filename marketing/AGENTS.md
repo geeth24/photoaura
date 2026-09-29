@@ -39,6 +39,13 @@ Defined in `src/app/globals.css` (dark default + `.light`). Corners are sharp ev
 - next-themes `attribute="class"` with `defaultTheme="dark"` — dark is the showcase; `.light` overrides cover the light pass
 - **Heading descenders gotcha:** at tight `leading-[0.85]`, "y / g / p" descenders clip under the box. Either use `leading-[0.95]` or add `pb-[0.15em]` to the clipping container.
 
+## Device mockups
+`public/mockups/*.webp` (3D MacBooks and iPhones) are generated, not hand-made: the shelfshot repo
+(`~/Development/radsoft/shelfshot`) captures the web app with fictional mocked data and renders them
+with Rotato — `bun projects/photoaura/web/capture.ts` then `bun run mockups projects/photoaura`, which
+exports straight into this folder. Change a screen there and re-run; don't edit the WebPs. Every
+person, photo and email in them is fictional — keep it that way.
+
 ## SEO infrastructure
 - **Metadata:** all site-wide tags in `src/app/layout.tsx` (title template, description, keywords, openGraph, twitter card, robots, alternates canonical). Override per page with `export const metadata` when adding routes.
 - **Structured data:** `src/components/structured-data.tsx` renders Organization + SoftwareApplication + WebSite JSON-LD; mounted in the root layout.
