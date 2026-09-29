@@ -1,6 +1,8 @@
 // JSON-LD structured data for search-engine understanding
 // Renders in <body> via server component; harmless if duplicated across pages.
 
+import { APP_STORE, PLAY_STORE } from "@/lib/stores"
+
 const SITE_URL = "https://photoaura.app"
 
 const organization = {
@@ -17,11 +19,12 @@ const software = {
   "@type": "SoftwareApplication",
   name: "PhotoAura",
   applicationCategory: "PhotographyApplication",
-  operatingSystem: "Web, Linux, macOS, Windows (Docker)",
+  operatingSystem: "Web, iOS, Android, Linux, macOS, Windows (Docker)",
   description:
     "Self-hosted or managed photo gallery for photography studios. Client galleries, face recognition, branded shared albums.",
   url: SITE_URL,
   image: `${SITE_URL}/logo-color.png`,
+  downloadUrl: [APP_STORE, PLAY_STORE],
   publisher: {
     "@type": "Organization",
     name: "Rad Soft",
@@ -32,7 +35,8 @@ const software = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free and open-source for self-host. Managed deployments available.",
+    description:
+      "Free and open-source for self-host. Managed deployments available. Free client apps for iOS and Android.",
   },
 }
 

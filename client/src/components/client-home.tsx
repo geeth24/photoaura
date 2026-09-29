@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/api"
 import { downloadAlbumZip } from "@/lib/download"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AppStoreBadge } from "@/components/app-store-badge"
+import { AppStoreBadge, StoreBadges } from "@/components/store-badges"
 import {
   ArrowUpRight,
   Download,
@@ -237,9 +237,9 @@ export function ClientHome() {
               <Smartphone className="size-5" />
             </span>
             <div>
-              <p className={eyebrow}>{phone ? "Recommended for you" : "On your iPhone"}</p>
+              <p className={eyebrow}>{phone ? "Recommended for you" : "On your phone"}</p>
               <p className="mt-2 font-heading text-2xl leading-tight tracking-tight text-text-primary">
-                PhotoAura for iPhone
+                PhotoAura for iPhone and Android
               </p>
               <p className="mt-2 max-w-md text-[13px] font-light leading-relaxed text-text-secondary">
                 Every photo into your camera roll in one tap, full quality. Favorites,
@@ -248,7 +248,7 @@ export function ClientHome() {
               </p>
             </div>
           </div>
-          <AppStoreBadge className="shrink-0 self-start sm:self-center" />
+          <StoreBadges className="shrink-0 self-start sm:self-center" />
         </div>
       </motion.section>
 

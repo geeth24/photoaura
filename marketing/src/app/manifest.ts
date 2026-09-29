@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next"
+import { APP_STORE, PLAY_STORE } from "@/lib/stores"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -10,6 +11,10 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#030d14",
     theme_color: "#030d14",
+    related_applications: [
+      { platform: "play", url: PLAY_STORE, id: "com.radsoftinc.photoaura" },
+      { platform: "itunes", url: APP_STORE },
+    ],
     icons: [
       {
         src: "/logo-color.png",

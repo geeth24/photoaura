@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { StructuredData } from "@/components/structured-data"
+import { PLATFORM_SCRIPT } from "@/lib/stores"
 
 const dmSerif = DM_Serif_Display({
   subsets: ["latin"],
@@ -113,6 +114,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${dmSerif.variable} ${outfit.variable} ${blackMud.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PLATFORM_SCRIPT }} />
+      </head>
       <body className="font-body antialiased min-h-dvh flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <Navbar />
