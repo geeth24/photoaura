@@ -168,9 +168,10 @@ const sections: { heading: string; content: ReactNode }[] = [
     heading: "Children",
     content: (
       <P>
-        PhotoAura isn&rsquo;t made for children, and accounts are for the adults who book a shoot. Children may
-        appear in photos a photographer shares with their parent or guardian. If you think a child has an account,
-        contact us and we&rsquo;ll remove it.
+        PhotoAura is for people 16 and over, such as the clients who book a shoot and teens receiving their own
+        senior portraits. It isn&rsquo;t made for younger children, though they may appear in photos a
+        photographer shares with their parent or guardian. If you think a child under 16 has an account, contact
+        us and we&rsquo;ll remove it.
       </P>
     ),
   },
