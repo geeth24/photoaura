@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # the base image). 1.18 defaulted to CUDA 11 -> libcublasLt.so.11 not found.
 RUN pip3 install --no-cache-dir \
         numpy==1.26.4 \
-        onnxruntime-gpu==1.20.1 \
+        onnxruntime-gpu==1.20.2 \
         insightface==0.7.3 \
         fastapi "uvicorn[standard]" boto3 pillow
 
