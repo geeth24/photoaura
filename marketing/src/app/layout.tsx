@@ -75,21 +75,11 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: `${SITE_NAME} — ${TAGLINE}`,
     description: DESCRIPTION,
-    images: [
-      {
-        // bump v when the image changes; social sites cache previews by URL
-        url: "/opengraph-image?v=2",
-        width: 1200,
-        height: 630,
-        alt: "PhotoAura — Your photos, beautifully managed.",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: `${SITE_NAME} — ${TAGLINE}`,
     description: DESCRIPTION,
-    images: ["/opengraph-image?v=2"],
   },
   robots: {
     index: true,
