@@ -141,6 +141,8 @@
   }
   html {
     scroll-behavior: auto;
+    /* anchors land below the sticky navbar */
+    scroll-padding-top: 4rem;
   }
   body {
     @apply bg-background text-foreground;

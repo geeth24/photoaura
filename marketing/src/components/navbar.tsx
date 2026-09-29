@@ -5,8 +5,10 @@ import Link from "next/link"
 import { ModeToggle } from "./mode-toggle"
 
 const links = [
+  { label: "Gallery", href: "/#gallery" },
+  { label: "Studio", href: "/#studio" },
+  { label: "Clients", href: "/#clients" },
   { label: "Features", href: "/#features" },
-  { label: "Privacy", href: "/policy" },
   { label: "GitHub", href: "https://github.com/geeth24/photoaura", external: true },
 ]
 

@@ -54,8 +54,8 @@ export function Hero() {
             className="mt-8 max-w-xl text-[15px] font-light leading-[1.8] text-text-secondary"
           >
             An editorial photo home built for working photographers. Client
-            galleries, face recognition, branded shared albums — on your domain,
-            on your terms. Hosted by us, or self-host the source.
+            galleries that feel like Photos, face recognition, and an iPhone app
+            your clients actually use. Hosted by us, or self-host the source.
           </motion.p>
 
           <motion.div
@@ -82,25 +82,42 @@ export function Hero() {
           </motion.div>
         </motion.div>
 
-        {/* screenshot */}
-        <motion.div
-          initial={{ opacity: 0, y: 60 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
-          className="relative mt-20 lg:mt-28"
-        >
-          <div className="absolute inset-x-0 -top-12 mx-auto h-32 max-w-3xl bg-brand/20 blur-[100px]" />
-          <div className="relative overflow-hidden border border-border-default bg-surface-elevated">
+        {/* studio on a Mac, the client's app in front */}
+        <div className="relative mt-16 lg:mt-24">
+          <div className="pointer-events-none absolute inset-x-0 top-1/4 mx-auto h-64 max-w-4xl bg-brand/20 blur-[120px]" />
+          <motion.div
+            initial={{ opacity: 0, y: 60 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1.1, delay: 1.1, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-[86%] lg:ml-[4%] lg:w-[76%]"
+          >
             <Image
-              src="/web.png"
-              alt="PhotoAura studio dashboard — overview with albums, photos, faces, and recent collections"
-              width={3214}
-              height={1958}
-              className="w-full"
+              src="/mockups/hero-mac.webp"
+              alt="PhotoAura studio on a MacBook — a wedding album with its people and photo grid"
+              width={2465}
+              height={1808}
+              sizes="(max-width: 1024px) 88vw, 1000px"
+              className="h-auto w-full"
               priority
             />
-          </div>
-        </motion.div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 80, rotate: 4 }}
+            animate={{ opacity: 1, y: 0, rotate: 0 }}
+            transition={{ duration: 1.1, delay: 1.45, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute right-[2%] bottom-[-4%] w-[28%] lg:right-[14%] lg:w-[21%]"
+          >
+            <Image
+              src="/mockups/app-viewer.webp"
+              alt="The PhotoAura iPhone app showing a photo from a client's gallery"
+              width={929}
+              height={1656}
+              sizes="(max-width: 1024px) 30vw, 300px"
+              className="h-auto w-full"
+              priority
+            />
+          </motion.div>
+        </div>
       </div>
     </section>
   )
