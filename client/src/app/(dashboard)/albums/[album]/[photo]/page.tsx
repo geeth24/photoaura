@@ -1,21 +1,14 @@
 "use client"
 
 import { use } from "react"
-import { useRouter } from "next/navigation"
-import { PhotoLightbox } from "@/components/photo-lightbox"
+import { AlbumView } from "../album-view"
 
-export default function PhotoPage({
+// a shared or refreshed photo link: the album, with that photo already open
+export default function AlbumPhotoPage({
   params,
 }: {
   params: Promise<{ album: string; photo: string }>
 }) {
   const { album, photo } = use(params)
-  const router = useRouter()
-  return (
-    <PhotoLightbox
-      slug={album}
-      photo={decodeURIComponent(photo)}
-      onClose={() => router.push(`/albums/${album}`)}
-    />
-  )
+  return <AlbumView albumSlug={album} initialPhoto={decodeURIComponent(photo)} />
 }

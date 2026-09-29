@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { motion } from "motion/react"
-import { PhotoMasonry } from "@/components/photo-masonry"
-import { LibraryLightbox } from "@/components/library-lightbox"
+import { PhotoGrid } from "@/components/photo-grid"
+import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { Photo } from "@/lib/types"
+import { isVideo, type Photo } from "@/lib/types"
 import { downloadSharedAlbumZip } from "@/lib/download"
 import { SaveToPhotos } from "@/components/save-to-photos"
 import { Download, ImageOff } from "lucide-react"
@@ -27,7 +27,16 @@ export function ShareGallery({ slug }: { slug: string }) {
 
   const [album, setAlbum] = useState<ShareAlbum | null>(null)
   const [loading, setLoading] = useState(true)
-  const [lightbox, setLightbox] = useState<number | null>(null)
+  const [viewer, setViewer] = useState<number | null>(null)
+  const [video, setVideo] = useState<Photo | null>(null)
+  const stills = useMemo(
+    () => (album?.album_photos ?? []).filter((p) => !isVideo(p)),
+    [album],
+  )
+  const openPhoto = useCallback(
+    (p: Photo) => (isVideo(p) ? setVideo(p) : setViewer(stills.indexOf(p))),
+    [stills],
+  )
 
   useEffect(() => {
     const q = secret ? `?secret=${encodeURIComponent(secret)}` : ""
@@ -39,7 +48,7 @@ export function ShareGallery({ slug }: { slug: string }) {
   }, [slug, secret])
 
   return (
-    <div className="min-h-dvh bg-surface">
+    <div data-zoom-root className="min-h-dvh bg-surface">
       <div className="mx-auto max-w-7xl px-5 py-10 lg:px-10 lg:py-16">
         {/* brand */}
         <div className="mb-12 flex items-center justify-between">
@@ -108,15 +117,9 @@ export function ShareGallery({ slug }: { slug: string }) {
               <SaveToPhotos photos={album.album_photos} albumSlug={slug} />
             </motion.div>
 
-            <PhotoMasonry photos={album.album_photos} onOpen={setLightbox} />
-
-            {lightbox !== null && (
-              <LibraryLightbox
-                photos={album.album_photos}
-                start={lightbox}
-                onClose={() => setLightbox(null)}
-              />
-            )}
+            <PhotoGrid photos={album.album_photos} onOpen={openPhoto} />
+            <PhotoViewer photos={stills} openIndex={viewer} onClose={() => setViewer(null)} />
+            <VideoViewer photo={video} onClose={() => setVideo(null)} />
           </>
         )}
 

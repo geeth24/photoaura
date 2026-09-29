@@ -8,3 +8,5 @@ ios/PhotoAura/PhotoAura.xcodeproj/project.xcworkspace/xcuserdata/geeth.xcuserdat
 ios/PhotoAura/EditorialStyle/.build/
 ios/PhotoAura/EditorialStyle/.swiftpm/
 .claude/
+.vercel
+.env*

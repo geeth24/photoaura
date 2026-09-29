@@ -34,7 +34,7 @@ export function DownloadMenu({ photo, slug }: { photo: Photo; slug?: string }) {
         <span className={`block px-2 py-1.5 ${hint}`}>Download</span>
         <DropdownMenuItem onClick={() => downloadOriginal(photo, slug)}>
           <span className="flex-1">Original</span>
-          <span className={hint}>{dims}</span>
+          <span className={`whitespace-nowrap ${hint}`}>{dims}</span>
         </DropdownMenuItem>
         {!isVideo(photo) && (
           <DropdownMenuItem onClick={() => downloadOptimized(photo)}>

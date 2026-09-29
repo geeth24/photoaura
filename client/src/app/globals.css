@@ -217,3 +217,53 @@
     background-clip: text;
   }
 }
+
+/* photo viewer (PhotoSwipe underneath, our controls on top) */
+.pswp.pa-viewer {
+  /* below dropdowns and toasts so the download menu opens above the photo */
+  --pswp-root-z-index: 45;
+  --pswp-bg: #000;
+  --pswp-placeholder-bg: #0b1620;
+  --pswp-icon-color: #fff;
+  --pswp-icon-color-secondary: transparent;
+  --pswp-icon-stroke-color: transparent;
+}
+.pa-viewer-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.pa-viewer-layer aside {
+  pointer-events: auto;
+}
+.pa-viewer .pswp__button--arrow {
+  transition: opacity 200ms ease;
+}
+.pa-viewer .pswp__button--arrow .pswp__icn {
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  left: 18px;
+  padding: 9px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  backdrop-filter: blur(14px);
+}
+.pa-viewer .pswp__button--arrow--next .pswp__icn {
+  left: auto;
+  right: 18px;
+}
+.pa-viewer .pswp__button--arrow:hover .pswp__icn {
+  background: rgb(255 255 255 / 0.2);
+}
+.pa-viewer.pa-chrome-hidden .pswp__button--arrow {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* grid density changes morph tile to tile */
+::view-transition-group(*) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}

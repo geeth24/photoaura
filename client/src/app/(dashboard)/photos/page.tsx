@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
-import type { Photo } from "@/lib/types"
+import { isVideo, type Photo } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PhotoMasonry } from "@/components/photo-masonry"
-import { LibraryLightbox } from "@/components/library-lightbox"
+import { PhotoGrid } from "@/components/photo-grid"
+import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { ImageOff } from "lucide-react"
 
 type OrientationFilter = "all" | "portrait" | "landscape"
@@ -19,6 +19,12 @@ export default function PhotosPage() {
   const [loading, setLoading] = useState(true)
   const [orientation, setOrientation] = useState<OrientationFilter>("all")
   const [viewer, setViewer] = useState<number | null>(null)
+  const [video, setVideo] = useState<Photo | null>(null)
+  const stills = useMemo(() => photos.filter((p) => !isVideo(p)), [photos])
+  const openPhoto = useCallback(
+    (p: Photo) => (isVideo(p) ? setVideo(p) : setViewer(stills.indexOf(p))),
+    [stills],
+  )
 
   const fetchPhotos = useCallback(() => {
     if (!user) return
@@ -102,16 +108,11 @@ export default function PhotosPage() {
           </p>
         </div>
       ) : (
-        <PhotoMasonry photos={photos} onOpen={(i) => setViewer(i)} />
+        <PhotoGrid photos={photos} onOpen={openPhoto} />
       )}
 
-      {viewer !== null && (
-        <LibraryLightbox
-          photos={photos}
-          start={viewer}
-          onClose={() => setViewer(null)}
-        />
-      )}
+      <PhotoViewer photos={stills} openIndex={viewer} onClose={() => setViewer(null)} />
+      <VideoViewer photo={video} onClose={() => setVideo(null)} />
     </div>
   )
 }
