@@ -32,7 +32,8 @@ class ApiException(val status: Int, override val message: String) : Exception(me
 
 /** Paths mirror server/routers — plural `albums` lists, singular `album` is one by slug. */
 object Api {
-    const val BASE = "https://aura-api.reactiveshots.com/api"
+    // follows the studio picked at sign-in
+    val BASE: String get() = Studios.selected.apiUrl
     const val WEB = "https://aura.reactiveshots.com"
 
     @OptIn(ExperimentalSerializationApi::class)

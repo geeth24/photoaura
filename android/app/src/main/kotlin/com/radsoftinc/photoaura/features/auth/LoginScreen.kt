@@ -18,7 +18,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -33,6 +37,7 @@ import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.AuthResponse
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.Store
+import com.radsoftinc.photoaura.core.Studios
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.AuraField
 import com.radsoftinc.photoaura.ui.BrandButton
@@ -104,6 +109,11 @@ class LoginStore : Store<LoginState, LoginIntent>(LoginState()) {
 @Composable
 fun LoginScreen(store: LoginStore = viewModel()) {
     val s by store.state.collectAsStateWithLifecycle()
+    var picking by remember { mutableStateOf(false) }
+    // an error from the previous studio doesn't apply to the new one
+    LaunchedEffect(Studios.selectedId) { store.send(LoginIntent.ModeChanged(s.mode)) }
+    if (picking) StudioPickerSheet { picking = false }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -157,6 +167,8 @@ fun LoginScreen(store: LoginStore = viewModel()) {
             style = Type.sans(15), color = aura.textSecondary,
         )
         Spacer(Modifier.height(28.dp))
+        StudioField { picking = true }
+        Spacer(Modifier.height(20.dp))
 
         if (s.mode == LoginMode.Magic) {
             AuraField(
