@@ -16,11 +16,13 @@ concurrency:
 jobs:
   release:
     name: Bundle & upload to Play
-    runs-on: ubuntu-latest
+    # photoaura-runner on the homelab runners box: Android SDK + JDK 21 installed, Gradle cache kept warm
+    runs-on: [self-hosted, universal]
     defaults:
       run:
         working-directory: android
     env:
+      ANDROID_HOME: /home/geeth/android-sdk
       KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       # flip the repo variable PLAY_UPLOADS to "on" once the first bundle is in Play Console
@@ -29,11 +31,6 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # the version code is the commit count
-
-      - uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: temurin
 
       - name: Decode keystore
         run: |
@@ -45,6 +42,7 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
           ./gradlew :app:bundleRelease --no-daemon
+          rm -f app/release-key.jks
           echo "Built $(grep '^versionName=' version.properties | cut -d= -f2) ($(git rev-list --count HEAD))" >> "$GITHUB_STEP_SUMMARY"
 
       # the first bundle has to go up by hand in Play Console; every build is kept as an artifact too
