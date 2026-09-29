@@ -26,6 +26,9 @@ export function Footer() {
           <Link href="/policy" className="transition-colors hover:text-text-primary">
             Privacy
           </Link>
+          <Link href="/delete-account" className="transition-colors hover:text-text-primary">
+            Delete account
+          </Link>
           <ContactDialog intent="other">
             <button className="cursor-pointer uppercase tracking-[0.2em] transition-colors hover:text-text-primary">
               Contact

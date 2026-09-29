@@ -226,6 +226,7 @@ def delete_my_account(
       - all `magic_links` for this user (immediate logout, no relogin possible)
       - all `user_album_permissions` (loses access to galleries shared with them)
       - all `user_emails` (frees the addresses for re-use elsewhere)
+      - all `photo_favorites` (the client's picks)
       - the `users` row is anonymized in-place (FK targets stay valid for audit)
 
     What stays — albums belong to the studio, not the user:
@@ -238,7 +239,7 @@ def delete_my_account(
     Admin (photographer) accounts cannot be deleted from this endpoint — they
     own the studio's data and need a different offboarding flow.
     """
-    from db.models import MagicLink
+    from db.models import MagicLink, PhotoFavorite
     import uuid
 
     me = _me(session, current_user)
@@ -255,6 +256,7 @@ def delete_my_account(
     session.query(UserAlbumPermission).filter_by(user_id=me.id).delete()
     # remove all linked emails (so the address could be reused later)
     session.query(UserEmail).filter_by(user_id=me.id).delete()
+    session.query(PhotoFavorite).filter_by(user_id=me.id).delete()
 
     # anonymize the user row so foreign-key references (audit, etc.) survive
     # without leaking personal data
