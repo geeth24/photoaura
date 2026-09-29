@@ -40,4 +40,38 @@ enum ImageURLHelper {
         comps.path = "/fit-in/\(width)x0" + comps.path
         return comps.url ?? original
     }
+
+    // The CDN's /fit-in/ variants resize the raw pixels and leave the EXIF
+    // rotation flag on, so a portrait shot stored landscape comes back
+    // 720x481 and only looks right because UIImage rotates it — at two
+    // thirds the width we asked for. SIH's base64 "edits" form takes
+    // rotate:null, which bakes the rotation in before resizing.
+    //
+    // Widths must match the warmer's EDIT_WIDTHS to hit the warmed cache,
+    // and the JSON must serialise exactly like the web loader's
+    // JSON.stringify — same key order, no spaces — or CloudFront keys differ.
+    static func autoOriented(from urlString: String, width: Int) -> URL {
+        let original = originalSize(from: urlString)
+        guard let comps = URLComponents(url: original, resolvingAgainstBaseURL: false),
+              let host = comps.host, host == cdnHost else { return original }
+        let key = String(comps.path.dropFirst())
+        guard !key.isEmpty else { return original }
+
+        let json = #"{"bucket":"\#(bucket)","key":\#(jsonString(key)),"edits":{"rotate":null,"resize":{"width":\#(width),"fit":"inside"}}}"#
+        let token = Data(json.utf8).base64EncodedString()
+        return URL(string: "https://\(host)/\(token)") ?? original
+    }
+
+    private static let cdnHost = "aura-cdn.reactiveshots.com"
+    private static let bucket = "photoaura"
+
+    // the key travels inside JSON, so quote it the way JSON.stringify would —
+    // without escaping slashes, or the base64 differs and every request misses
+    // the warmed CloudFront entry
+    private static func jsonString(_ value: String) -> String {
+        guard let data = try? JSONSerialization.data(
+                withJSONObject: [value], options: [.withoutEscapingSlashes]),
+              let arr = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return String(arr.dropFirst().dropLast())
+    }
 }

@@ -188,7 +188,7 @@ private struct AlbumContent: View {
                         Color.clear
                             .aspectRatio(1, contentMode: .fit)
                             .overlay {
-                                CachedImage(url: URL(string: photo.compressedImage), contentMode: .fill)
+                                CachedImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750), contentMode: .fill)
                             }
                             .overlay { if photo.isVideo { VideoPlayBadge() } }
                             .clipped()

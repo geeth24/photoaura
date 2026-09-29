@@ -146,8 +146,8 @@ private struct HomeContent: View {
                 EditorialColors.surfaceCard
                     .aspectRatio(4/3, contentMode: .fit)
                     .overlay {
-                        if let cover = album.cover, let url = URL(string: cover) {
-                            CachedImage(url: url, contentMode: .fill)
+                        if let cover = album.cover {
+                            CachedImage(url: ImageURLHelper.autoOriented(from: cover, width: 750), contentMode: .fill)
                         }
                     }
                     .clipped()
@@ -295,8 +295,8 @@ private struct HomeContent: View {
                 ForEach(albums) { album in
                     NavigationLink(value: album.summary) {
                         EditorialPhotoCard(title: album.name, caption: countsText(album), aspect: 4 / 5) {
-                            if let cover = album.cover, let url = URL(string: cover) {
-                                CachedImage(url: url, contentMode: .fill)
+                            if let cover = album.cover {
+                                CachedImage(url: ImageURLHelper.autoOriented(from: cover, width: 750), contentMode: .fill)
                             } else {
                                 EditorialColors.surfaceElevated
                             }

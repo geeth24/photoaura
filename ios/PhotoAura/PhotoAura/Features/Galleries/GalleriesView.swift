@@ -100,7 +100,8 @@ private struct GalleriesContent: View {
                             caption: "\(album.imageCount) photos",
                             aspect: 4 / 5
                         ) {
-                            if let cover = album.coverImage, let url = URL(string: cover) {
+                            if let cover = album.coverImage {
+                                let url = ImageURLHelper.autoOriented(from: cover, width: 750)
                                 AsyncImage(url: url) { img in
                                     img.resizable().scaledToFill()
                                 } placeholder: {

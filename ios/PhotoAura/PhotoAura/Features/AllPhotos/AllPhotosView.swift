@@ -119,7 +119,7 @@ private struct AllPhotosContent: View {
                         Color.clear
                             .aspectRatio(1, contentMode: .fit)
                             .overlay {
-                                AsyncImage(url: URL(string: photo.compressedImage)) { img in
+                                AsyncImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750)) { img in
                                     img.resizable().scaledToFill()
                                 } placeholder: {
                                     EditorialColors.surfaceElevated

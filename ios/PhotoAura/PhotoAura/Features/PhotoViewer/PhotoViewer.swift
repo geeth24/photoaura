@@ -90,8 +90,10 @@ struct PhotoViewer: View {
                                 }
                             ) {
                                 PhotoPage(
-                                    thumbnailURL: URL(string: photo.compressedImage),
-                                    fullURL: URL(string: photo.image)
+                                    thumbnailURL: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750),
+                                    fullURL: photo.isVideo
+                                        ? URL(string: photo.image)
+                                        : ImageURLHelper.autoOriented(from: photo.image, width: 2048)
                                 )
                             }
                             .onTapGesture {
@@ -195,7 +197,7 @@ struct PhotoViewer: View {
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) { index = idx }
                             } label: {
-                                AsyncImage(url: URL(string: photo.compressedImage)) { img in
+                                AsyncImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750)) { img in
                                     img.resizable().scaledToFill()
                                 } placeholder: {
                                     Color.white.opacity(0.05)
