@@ -3,13 +3,13 @@
 import Image from "next/image"
 import { motion } from "motion/react"
 import { Check } from "lucide-react"
-import { AppStoreBadge } from "@/components/app-store-badge"
+import { StoreBadges } from "@/components/store-badges"
 
 const perks = [
   "A sign-in link by email — no passwords to lose",
   "Their galleries, the moment you mark them ready",
   "Download everything as one zip, or photo by photo",
-  "On iPhone, save the whole album to the camera roll",
+  "On their phone, save the whole album to the camera roll",
 ]
 
 const ease = [0.22, 1, 0.36, 1] as const
@@ -74,8 +74,8 @@ export function ClientShowcase() {
             <span className="text-brand">actually open.</span>
           </h2>
           <p className="mt-6 max-w-md text-[15px] font-light leading-[1.8] text-text-secondary">
-            Clients land on their photos, not a login wall. On the web or in the
-            iPhone app, it&apos;s the same gallery with your name on it.
+            Clients land on their photos, not a login wall. On the web, iPhone or
+            Android, it&apos;s the same gallery with your name on it.
           </p>
 
           <ul className="mt-10 space-y-3 border-t border-border-subtle pt-8">
@@ -87,7 +87,7 @@ export function ClientShowcase() {
             ))}
           </ul>
 
-          <AppStoreBadge className="mt-10" />
+          <StoreBadges className="mt-10" />
         </motion.div>
       </div>
     </section>

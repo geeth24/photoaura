@@ -13,7 +13,8 @@ type Props = {
 export const clientInviteSubject = (albumName: string) =>
   `Your gallery is ready — ${albumName}`
 
-const APP_STORE = "https://apps.apple.com/app/id6477320360"
+// photoaura.app sends phones to their own store
+const GET_THE_APP = "https://photoaura.app/app"
 
 function Stat({ n, label }: { n: number; label: string }) {
   return (
@@ -63,12 +64,12 @@ export default function ClientInviteEmail({
       <Divider />
 
       <Text style={styles.paragraph}>
-        <span style={styles.emphasis}>On your iPhone?</span> The PhotoAura app
+        <span style={styles.emphasis}>On your phone?</span> The PhotoAura app
         puts every photo into your camera roll in one tap, full quality — and
         shows new galleries as they land. Sign in with this same email.
       </Text>
       <Section>
-        <Button href={APP_STORE}>Get the iPhone app</Button>
+        <Button href={GET_THE_APP}>Get the app</Button>
       </Section>
       <Text style={styles.paragraph}>
         <span style={styles.emphasis}>On a computer?</span> Open the gallery

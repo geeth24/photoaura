@@ -73,7 +73,7 @@ export default async function OpenGraphImage() {
           </div>
 
           <div style={{ display: "flex", fontSize: 22, color: "rgba(237,246,252,0.55)" }}>
-            Client galleries · Face recognition · iPhone app
+            Client galleries · Face recognition · iPhone & Android apps
           </div>
         </div>
 

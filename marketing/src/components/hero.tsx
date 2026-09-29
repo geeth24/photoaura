@@ -54,8 +54,8 @@ export function Hero() {
             className="mt-8 max-w-xl text-[15px] font-light leading-[1.8] text-text-secondary"
           >
             An editorial photo home built for working photographers. Client
-            galleries that feel like Photos, face recognition, and an iPhone app
-            your clients actually use. Hosted by us, or self-host the source.
+            galleries that feel like Photos, face recognition, and iPhone and
+            Android apps your clients actually use. Hosted by us, or self-host the source.
           </motion.p>
 
           <motion.div

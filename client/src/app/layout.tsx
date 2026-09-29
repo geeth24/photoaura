@@ -4,6 +4,7 @@ import localFont from "next/font/local"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
 import { Analytics } from "@vercel/analytics/next"
+import { PLATFORM_SCRIPT } from "@/lib/stores"
 
 const dmSerif = DM_Serif_Display({
   subsets: ["latin"],
@@ -42,6 +43,9 @@ export default function RootLayout({
       lang="en"
       className={`dark ${dmSerif.variable} ${outfit.variable} ${blackMud.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PLATFORM_SCRIPT }} />
+      </head>
       <body className="font-body antialiased min-h-dvh">
         {children}
         <Toaster richColors />
