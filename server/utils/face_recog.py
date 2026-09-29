@@ -393,6 +393,42 @@ def _chinese_whispers(node_ids, adjacency, iterations=25):
     return labels
 
 
+def _plan_people(clusters, by_id):
+    """Turn raw clusters into people. A cluster becomes a person when ANY of its
+    faces is chip-worthy, and that face is its thumbnail; judging only the
+    top-scoring face threw away people whose best-scored shot was a bit soft.
+    Faces left in clusters with no clean shot then join the nearest person
+    within MATCH_DIST, so turned heads and soft frames still tag their photos.
+    Returns [(member_ids, chip_face_id)], biggest first."""
+    kept, leftovers = [], []
+    for members in sorted(clusters.values(), key=len, reverse=True):
+        worthy = [i for i in members if is_chip_worthy(_stored_face(by_id[i]))]
+        if not worthy:
+            leftovers.extend(members)
+            continue
+        best = max(worthy, key=lambda i: face_score(_stored_face(by_id[i])))
+        kept.append((list(members), best))
+
+    if kept and leftovers:
+        owner, vecs = [], []
+        for k, (members, _) in enumerate(kept):
+            for i in members:
+                owner.append(k)
+                vecs.append(_unit(by_id[i].embedding))
+        K = np.array(vecs)
+        # chunked so a big library never builds one huge similarity matrix
+        for start in range(0, len(leftovers), 1000):
+            chunk = leftovers[start:start + 1000]
+            L = np.array([_unit(by_id[i].embedding) for i in chunk])
+            sims = L @ K.T
+            best_j = sims.argmax(axis=1)
+            for row, i in enumerate(chunk):
+                j = best_j[row]
+                if 1.0 - sims[row, j] <= MATCH_DIST:
+                    kept[owner[j]][0].append(i)
+    return kept
+
+
 def recluster_faces():
     """Authoritative clustering: rebuild every person from the full embedding
     graph using Chinese Whispers. Order-independent and chaining-resistant —
@@ -476,11 +512,14 @@ def recluster_faces():
         clusters = {}
         for fid, lbl in labels.items():
             clusters.setdefault(lbl, []).append(fid)
+        people_plan = _plan_people(clusters, by_id)
 
         # wipe old identities; embeddings stay, face_id gets rewritten.
         # null the FK references before dropping face_data rows.
+        # "evaluate" nulls the loaded rows too; with False, re-assigning a face
+        # its old id looked unchanged and never got written back
         session.query(FaceEmbedding).update(
-            {FaceEmbedding.face_id: None}, synchronize_session=False
+            {FaceEmbedding.face_id: None}, synchronize_session="evaluate"
         )
         session.query(PhotoFaceLink).delete()
         session.query(FaceData).delete()
@@ -490,18 +529,9 @@ def recluster_faces():
         used_ids = set()
         chips = []  # (external_id, photo_id, bbox, is_new) to crop+upload after commit
         # biggest clusters first so they claim their original person id
-        for members in sorted(clusters.values(), key=len, reverse=True):
-            best_id = max(members, key=lambda i: face_score(_stored_face(by_id[i])))
+        for members, best_id in people_plan:
             best = by_id[best_id]
             best_face = _stored_face(best)
-
-            # only surface a person we have a clean, front-facing shot of.
-            # profile / back-of-head / arm-over-face clusters make junk tiles
-            # (you can't tell who it is), so skip them regardless of how many
-            # photos they appear in — the photos stay in the album, just not
-            # pinned to a face tile.
-            if not is_chip_worthy(best_face):
-                continue
 
             # reuse the person id this cluster mostly came from -> stable ids +
             # we can skip re-cropping an unchanged chip. fall back to a new id.

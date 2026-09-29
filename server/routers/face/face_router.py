@@ -388,6 +388,10 @@ async def get_album_faces(
         # tile that would surface unrelated photos
         if not face:
             continue
+        # a one-photo stranger isn't worth a chip for clients; admins still see
+        # them so they can name or merge
+        if allowed is not None and len(filenames) < 2 and not face.name:
+            continue
         faces.append(
             {
                 "face_id": face_id,
