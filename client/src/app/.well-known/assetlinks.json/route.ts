@@ -3,8 +3,9 @@
 
 export const dynamic = "force-static"
 
-// Play's app signing key goes first once the app exists in Play Console
 const fingerprints = [
+  // Play app signing — what installs from Google Play are signed with
+  "21:69:CE:9D:C9:FF:70:F4:E3:EE:AC:DA:18:74:D6:35:57:A2:E0:64:BB:A4:B8:99:47:9A:70:F7:26:94:87:6B",
   // upload key
   "27:E8:2B:9C:9F:83:8E:4F:01:2F:D6:00:AE:9E:E8:ED:76:12:2A:ED:69:7C:5A:E1:F1:A5:B1:5A:B2:98:93:02",
   // local debug builds

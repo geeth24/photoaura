@@ -97,9 +97,15 @@ android {
     }
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            // drops the unused icon set and dead code; the bundle was 18 MB without it
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (file("release-key.jks").exists()) {
                 signingConfig = signingConfigs.getByName("release")
+            } else if (providers.gradleProperty("releaseWithDebugKey").isPresent) {
+                // installs a shrunk build over a debug one, keeping its signed-in session
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }

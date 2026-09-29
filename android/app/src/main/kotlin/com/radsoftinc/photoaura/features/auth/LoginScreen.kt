@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -112,12 +113,16 @@ fun LoginScreen(store: LoginStore = viewModel()) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp),
     ) {
-        Spacer(Modifier.height(40.dp))
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(painterResource(R.mipmap.ic_launcher_foreground), null, Modifier.size(84.dp))
-            Text("PHOTOAURA", style = Type.eyebrow(12, 0.35.em), color = aura.textSecondary)
+        // same brand header as iOS: the light/dark logo, not the launcher icon
+        Column(
+            Modifier.fillMaxWidth().padding(top = 48.dp, bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Image(painterResource(R.drawable.logo), "PhotoAura", Modifier.size(56.dp))
+            Text("PHOTOAURA", style = Type.eyebrow(11, 0.27.em).copy(fontWeight = FontWeight.SemiBold), color = aura.brand)
         }
-        Spacer(Modifier.height(48.dp))
+        Spacer(Modifier.height(32.dp))
 
         Eyebrow("PhotoAura")
         Spacer(Modifier.height(14.dp))

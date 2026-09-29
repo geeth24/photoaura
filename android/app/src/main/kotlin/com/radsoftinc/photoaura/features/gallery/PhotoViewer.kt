@@ -17,7 +17,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
@@ -653,11 +655,14 @@ private fun Scrubber(photos: List<Photo>, index: Int, onPick: (Int) -> Unit, onH
 }
 
 private suspend fun centre(list: androidx.compose.foundation.lazy.LazyListState, i: Int, density: androidx.compose.ui.unit.Density, animate: Boolean = false) {
-    // with half-screen padding, scrolling an item to the start of the content puts it at the centre;
-    // pull back half its width so its middle sits on the line
-    val item = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }
-    val back = -((item?.size ?: with(density) { 46.dp.roundToPx() }) / 2)
-    if (animate) list.animateScrollToItem(i, back) else list.scrollToItem(i, back)
+    // bring it on screen first, then measure: its real width is only known once laid out
+    if (list.layoutInfo.visibleItemsInfo.none { it.index == i }) list.scrollToItem(i)
+    val info = list.layoutInfo
+    val item = info.visibleItemsInfo.firstOrNull { it.index == i } ?: return
+    val mid = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+    val delta = item.offset + item.size / 2f - mid
+    if (abs(delta) < 1f) return
+    if (animate) list.animateScrollBy(delta) else list.scrollBy(delta)
 }
 
 // MARK: - info
