@@ -15,6 +15,7 @@ struct AlbumView: View {
     @Environment(APIClient.self) private var api
     @State private var store: AlbumStore?
     @State private var activeViewerPhotoID: String? = nil
+    @State private var openPhoto: PhotoTarget?
     @State private var actionsPresented = false
     // pairs the tapped tile with the viewer so it expands from the thumbnail
     @Namespace private var photoTransition
@@ -22,7 +23,7 @@ struct AlbumView: View {
     var body: some View {
         Group {
             if let store {
-                AlbumContent(store: store, transition: photoTransition)
+                AlbumContent(store: store, transition: photoTransition) { openPhoto = $0 }
             } else {
                 Color.clear
             }
@@ -61,7 +62,7 @@ struct AlbumView: View {
                 )
             }
         }
-        .navigationDestination(for: PhotoTarget.self) { target in
+        .navigationDestination(item: $openPhoto) { target in
             if let store {
                 PhotoViewer(
                     photos: store.state.photos,
@@ -87,12 +88,7 @@ struct PhotoTarget: Hashable, Identifiable {
 private struct AlbumContent: View {
     let store: AlbumStore
     let transition: Namespace.ID
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 4),
-        GridItem(.flexible(), spacing: 4),
-        GridItem(.flexible(), spacing: 4),
-    ]
+    let onOpen: (PhotoTarget) -> Void
 
     var body: some View {
         ZStack {
@@ -158,12 +154,7 @@ private struct AlbumContent: View {
     @ViewBuilder
     private var content: some View {
         if store.state.isLoading && !store.state.hasLoadedOnce {
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(0..<9, id: \.self) { _ in
-                    EditorialSkeleton(aspect: 1)
-                }
-            }
-            .padding(.horizontal, 4)
+            PhotoGridSkeleton()
         } else if let err = store.state.error, store.state.photos.isEmpty {
             EditorialEmptyState(
                 systemImage: "exclamationmark.triangle",
@@ -182,22 +173,7 @@ private struct AlbumContent: View {
             )
             .padding(.horizontal, EditorialSpacing.screenGutter)
         } else {
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(Array(store.state.photos.enumerated()), id: \.element.id) { idx, photo in
-                    NavigationLink(value: PhotoTarget(index: idx, sourceID: photo.id)) {
-                        Color.clear
-                            .aspectRatio(1, contentMode: .fit)
-                            .overlay {
-                                CachedImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750), contentMode: .fill)
-                            }
-                            .overlay { if photo.isVideo { VideoPlayBadge() } }
-                            .clipped()
-                    }
-                    .buttonStyle(.plain)
-                    .matchedTransitionSource(id: photo.id, in: transition)
-                }
-            }
-            .padding(.horizontal, 4)
+            PhotoGrid(photos: store.state.photos, transition: transition, onOpen: onOpen)
         }
     }
 }

@@ -21,7 +21,7 @@ struct PhotoViewer: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var index: Int
-    // chrome visible by default so X button + filmstrip + actions are
+    // chrome visible by default so X button + scrubber + actions are
     // discoverable on entry. Tap photo once to hide for immersive viewing.
     @State private var chromeVisible = true
     @State private var saveState: SaveState = .idle
@@ -44,6 +44,7 @@ struct PhotoViewer: View {
         self.albumSlug = albumSlug
         self._currentPhotoID = currentPhotoID
         _index = State(initialValue: startIndex)
+        _strip = State(initialValue: ScrollPosition(id: startIndex, anchor: .center))
     }
 
     // close button via system back chevron — since the viewer is now pushed,
@@ -68,6 +69,8 @@ struct PhotoViewer: View {
     @State private var isZoomed = false
     @State private var shareItems: [Any] = []
     @State private var shareSheetPresented = false
+    @State private var strip = ScrollPosition(idType: Int.self)
+    @State private var scrubbing = false
 
     var body: some View {
         ZStack {
@@ -115,23 +118,23 @@ struct PhotoViewer: View {
             if chromeVisible {
                 VStack {
                     topBar
-                    Spacer()
-                    VStack(spacing: 12) {
-                        filmstrip
-                        bottomBar
-                    }
-                    // soft gradient gives the bottom chrome enough contrast
-                    // without a heavy glass card — same trick as Apple Photos
-                    .background(
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.55), .black.opacity(0.85)],
-                            startPoint: .top,
-                            endPoint: .bottom
+                        .padding(.bottom, 28)
+                        // soft gradients carry the chrome over bright photos
+                        // without a glass card — same trick as Apple Photos
+                        .background(
+                            LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
+                                .ignoresSafeArea(edges: .top)
                         )
-                        .ignoresSafeArea(edges: .bottom)
-                    )
+                    Spacer()
+                    scrubber
+                        .padding(.top, 28)
+                        .padding(.bottom, EditorialSpacing.small)
+                        .background(
+                            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+                                .ignoresSafeArea(edges: .bottom)
+                        )
                 }
-                .transition(.opacity.combined(with: .move(edge: .bottom).combined(with: .opacity)))
+                .transition(.opacity)
             }
         }
         // scoped to this view, not the window: preferredColorScheme flips the
@@ -148,6 +151,12 @@ struct PhotoViewer: View {
         .onChange(of: index) { _, newIndex in
             currentPhotoID = photos[newIndex].id
             isZoomed = false
+        }
+        .sheet(isPresented: $infoPresented) {
+            PhotoInfoSheet(photo: photos[index])
+        }
+        .sheet(isPresented: $shareSheetPresented) {
+            ActivityShareSheet(items: shareItems)
         }
     }
 
@@ -186,188 +195,188 @@ struct PhotoViewer: View {
             }
     }
 
-    // horizontal scroll of small thumbnails — current one is the brand-tinted
-    // square, others stay muted. Tapping or scrolling drives `index`.
-    private var filmstrip: some View {
+    // the web gallery's scrubber: the current photo at its real shape, the rest
+    // as slivers. Dragging the strip changes the photo under the centre line.
+    private static let sliver: CGFloat = 22
+    private static let stripHeight: CGFloat = 46
+    private static let gap: CGFloat = 2
+
+    private func thumbWidth(_ idx: Int) -> CGFloat {
+        guard idx == index else { return Self.sliver }
+        let m = photos[idx].fileMetadata
+        let aspect = m.height > 0 ? CGFloat(m.width) / CGFloat(m.height) : 1
+        return (Self.stripHeight * aspect).clamped(to: Self.sliver...Self.stripHeight * 1.6)
+    }
+
+    // which photo sits under the centre line, from the strip's scroll position
+    private func photoIndex(atContentX x: CGFloat) -> Int {
+        let step = Self.sliver + Self.gap
+        let currentStart = CGFloat(index) * step
+        let currentEnd = currentStart + thumbWidth(index)
+        let i: Int
+        if x < currentStart {
+            i = Int(x / step)
+        } else if x <= currentEnd + Self.gap {
+            i = index
+        } else {
+            i = index + 1 + Int((x - currentEnd - Self.gap) / step)
+        }
+        return min(max(i, 0), photos.count - 1)
+    }
+
+    private var scrubber: some View {
         GeometryReader { geo in
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(photos.enumerated()), id: \.element.id) { idx, photo in
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.2)) { index = idx }
-                            } label: {
-                                AsyncImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750)) { img in
-                                    img.resizable().scaledToFill()
-                                } placeholder: {
-                                    Color.white.opacity(0.05)
-                                }
-                                .frame(width: idx == index ? 56 : 40, height: 56)
-                                .clipped()
-                                .overlay {
-                                    if photo.isVideo { VideoPlayBadge(size: 9) }
-                                }
-                                .overlay {
-                                    if idx == index {
-                                        Rectangle().stroke(.white, lineWidth: 2)
-                                    }
-                                }
-                                .opacity(idx == index ? 1 : 0.55)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: Self.gap) {
+                    ForEach(photos.indices, id: \.self) { idx in
+                        let photo = photos[idx]
+                        Color.white.opacity(0.08)
+                            .overlay {
+                                CachedImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750), contentMode: .fill)
                             }
-                            .buttonStyle(.plain)
+                            .overlay { if photo.isVideo && idx == index { VideoPlayBadge(size: 8) } }
+                            .frame(width: thumbWidth(idx), height: Self.stripHeight)
+                            .clipped()
+                            .opacity(idx == index ? 1 : 0.75)
+                            .contentShape(Rectangle())
+                            .onTapGesture { withAnimation(.smooth(duration: 0.25)) { index = idx } }
                             .id(idx)
-                        }
-                    }
-                    .padding(.horizontal, geo.size.width / 2 - 20) // let edges scroll to centre
-                    .padding(.vertical, 8)
-                }
-                .onChange(of: index) { _, newValue in
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        proxy.scrollTo(newValue, anchor: .center)
                     }
                 }
-                .onAppear {
-                    proxy.scrollTo(index, anchor: .center)
+                .scrollTargetLayout()
+            }
+            // half a screen of margin so the first and last photos reach the centre
+            .contentMargins(.horizontal, geo.size.width / 2, for: .scrollContent)
+            .scrollPosition($strip, anchor: .center)
+            .onScrollPhaseChange { _, phase in
+                scrubbing = phase == .interacting || phase == .decelerating
+                if phase == .idle { withAnimation(.smooth(duration: 0.25)) { strip.scrollTo(id: index, anchor: .center) } }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { $0.visibleRect.midX } action: { _, midX in
+                guard scrubbing else { return }
+                let i = photoIndex(atContentX: midX)
+                if i != index {
+                    index = i
+                    UISelectionFeedbackGenerator().selectionChanged()
                 }
             }
+            .onChange(of: index) { _, i in
+                guard !scrubbing else { return }
+                withAnimation(.smooth(duration: 0.3)) { strip.scrollTo(id: i, anchor: .center) }
+            }
+            .task {
+                // the lazy strip lays out after the first pass; centre again once it has
+                try? await Task.sleep(for: .milliseconds(60))
+                strip.scrollTo(id: index, anchor: .center)
+            }
+            .animation(.smooth(duration: 0.25), value: index)
         }
-        .frame(height: 72)
-        // edge-to-edge — sits flat on the photo with the gradient below for
-        // contrast, no glass card around the thumbnails
+        .frame(height: Self.stripHeight)
+    }
+
+    private static let dayFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .long
+        return f
+    }()
+    private static let timeFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f
+    }()
+
+    // "September 6, 2026" over "6:05 PM · 3 of 15", or just the count
+    private var titleLines: (String, String?) {
+        let count = "\(index + 1) of \(photos.count)"
+        guard let taken = photos[index].fileMetadata.takenAt else { return (count, nil) }
+        return (Self.dayFormat.string(from: taken), "\(Self.timeFormat.string(from: taken)) · \(count)")
     }
 
     private var topBar: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 36, height: 36)
-            }
-            .editorialGlass(in: Circle(), interactive: true)
-
-            Spacer()
-
-            Text("\(index + 1) / \(photos.count)")
-                .font(EditorialTypography.sans(size: 11, weight: .medium))
-                .tracking(2)
-                .textCase(.uppercase)
-                .foregroundStyle(.white.opacity(0.7))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .editorialGlass(in: Capsule())
-
-            Spacer()
-
-            if albumSlug != nil, !photos[index].isVideo {
-                Button { toggleFavorite() } label: {
-                    Image(systemName: isCurrentFavorite ? "heart.fill" : "heart")
+        ZStack {
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(isCurrentFavorite ? EditorialColors.brand : .white)
-                        .frame(width: 36, height: 36)
-                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 38, height: 38)
                 }
                 .editorialGlass(in: Circle(), interactive: true)
-                .padding(.trailing, 8)
+                .accessibilityLabel("Close")
+
+                Spacer()
+
+                actionsPill
             }
 
-            Button { infoPresented = true } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 36, height: 36)
+            let (title, sub) = titleLines
+            VStack(spacing: 1) {
+                Text(title)
+                    .font(EditorialTypography.sans(size: 15, weight: .semibold))
+                if let sub {
+                    Text(sub)
+                        .font(EditorialTypography.sans(size: 11))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
-            .editorialGlass(in: Circle(), interactive: true)
+            .lineLimit(1)
+            .frame(maxWidth: 170)
+            .allowsHitTesting(false)
         }
         .padding(.horizontal, EditorialSpacing.screenGutter)
         .padding(.top, EditorialSpacing.xSmall)
         .foregroundStyle(.white)
-        .sheet(isPresented: $infoPresented) {
-            PhotoInfoSheet(photo: photos[index])
-        }
     }
 
-    private var bottomBar: some View {
-        HStack(spacing: 12) {
+    private var actionsPill: some View {
+        HStack(spacing: 0) {
+            if albumSlug != nil, !photos[index].isVideo {
+                Button { toggleFavorite() } label: {
+                    Image(systemName: isCurrentFavorite ? "heart.fill" : "heart")
+                        .foregroundStyle(isCurrentFavorite ? EditorialColors.brand : .white)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 38, height: 38)
+                }
+                .accessibilityLabel(isCurrentFavorite ? "Remove from picks" : "Add to picks")
+            }
+
+            Button { infoPresented = true } label: {
+                Image(systemName: "info.circle").frame(width: 38, height: 38)
+            }
+            .accessibilityLabel("Info")
+
             Menu {
                 Button { Task { await savePhoto(optimized: false) } } label: {
-                    Label("Original", systemImage: "photo")
+                    Label("Save original", systemImage: "photo")
                 }
                 if !isVideoPhoto {
                     Button { Task { await savePhoto(optimized: true) } } label: {
-                        Label("Optimized", systemImage: "arrow.down.circle")
+                        Label("Save optimized", systemImage: "arrow.down.circle")
                     }
                 }
+                Button { Task { await prepareShare() } } label: {
+                    Label("Share…", systemImage: "square.and.arrow.up")
+                }
             } label: {
-                actionLabel(systemImage: saveIcon, label: saveLabel)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                Image(systemName: downloadIcon)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 38, height: 38)
             }
-            .editorialGlass(in: Capsule(), interactive: true)
-            .disabled(saveState == .saving || saveState == .saved)
-
-            actionButton(systemImage: shareIcon, label: shareLabel) {
-                Task { await prepareShare() }
-            }
-            .disabled(shareState == .preparing)
+            .disabled(saveState == .saving || shareState == .preparing)
+            .accessibilityLabel("Save or share")
         }
-        .padding(.horizontal, EditorialSpacing.screenGutter)
-        .padding(.bottom, EditorialSpacing.medium)
-        .foregroundStyle(.white)
-        .sheet(isPresented: $shareSheetPresented) {
-            ActivityShareSheet(items: shareItems)
-        }
-    }
-
-    private var shareIcon: String {
-        switch shareState {
-        case .idle: return "square.and.arrow.up"
-        case .preparing: return "arrow.triangle.2.circlepath"
-        case .failed: return "exclamationmark.triangle"
-        }
-    }
-
-    private var shareLabel: String {
-        switch shareState {
-        case .idle: return "Share"
-        case .preparing: return "Loading"
-        case .failed: return "Failed"
-        }
-    }
-
-    private func actionButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            actionLabel(systemImage: systemImage, label: label)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-        }
+        .font(.system(size: 15, weight: .semibold))
+        .padding(.horizontal, 3)
         .editorialGlass(in: Capsule(), interactive: true)
     }
 
-    private func actionLabel(systemImage: String, label: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
-            Text(label)
-                .font(EditorialTypography.sans(size: 11, weight: .semibold))
-                .tracking(1.6)
-                .textCase(.uppercase)
-        }
-    }
-
-    private var saveIcon: String {
+    // the download button doubles as save/share progress
+    private var downloadIcon: String {
+        if shareState == .preparing { return "arrow.triangle.2.circlepath" }
         switch saveState {
         case .idle: return "arrow.down.to.line"
         case .saving: return "arrow.triangle.2.circlepath"
         case .saved: return "checkmark"
         case .failed: return "exclamationmark.triangle"
-        }
-    }
-
-    private var saveLabel: String {
-        switch saveState {
-        case .idle: return "Save"
-        case .saving: return "Saving"
-        case .saved: return "Saved"
-        case .failed: return "Failed"
         }
     }
 
@@ -486,7 +495,7 @@ private struct VideoPlayerCell: View {
     }
 }
 
-// Small play glyph overlaid on video thumbnails in the grids + filmstrip.
+// Small play glyph overlaid on video thumbnails in the grids + scrubber.
 struct VideoPlayBadge: View {
     var size: CGFloat = 13
     var body: some View {
@@ -577,4 +586,8 @@ enum PhotoSaver {
             req.addResource(with: .photo, data: data, options: nil)
         }
     }
+}
+
+private extension Comparable {
+    func clamped(to r: ClosedRange<Self>) -> Self { min(max(self, r.lowerBound), r.upperBound) }
 }

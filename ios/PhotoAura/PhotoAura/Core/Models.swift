@@ -129,3 +129,27 @@ struct ClientFile: Codable, Hashable, Identifiable {
     let createdAt: String?
     let downloadUrl: String?
 }
+
+extension PhotoMetadata {
+    /// EXIF as a dictionary. Some uploads store it JSON-encoded twice, so a
+    /// string that parses to another string gets one more pass.
+    var exif: [String: Any]? {
+        guard let raw = exifData, let data = raw.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
+        else { return nil }
+        if let dict = parsed as? [String: Any] { return dict }
+        if let inner = parsed as? String, let d = inner.data(using: .utf8) {
+            return (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+        }
+        return nil
+    }
+
+    /// When the shutter fired, from EXIF DateTimeOriginal.
+    var takenAt: Date? {
+        guard let s = (exif?["DateTimeOriginal"] as? String) ?? (exif?["DateTime"] as? String) else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return f.date(from: s)
+    }
+}

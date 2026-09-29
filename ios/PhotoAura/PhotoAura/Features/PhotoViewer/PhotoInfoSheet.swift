@@ -84,10 +84,7 @@ struct PhotoInfoSheet: View {
     }
 
     private var cameraRows: [(String, String)] {
-        guard let raw = meta.exifData,
-              let data = raw.data(using: .utf8),
-              let e = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        else { return [] }
+        guard let e = meta.exif else { return [] }
 
         var r: [(String, String)] = []
         let make = (e["Make"] as? String ?? "").trimmingCharacters(in: .whitespaces)

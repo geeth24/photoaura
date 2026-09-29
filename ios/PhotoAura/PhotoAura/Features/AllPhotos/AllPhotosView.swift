@@ -12,13 +12,15 @@ struct AllPhotosView: View {
     @Environment(APIClient.self) private var api
     @Environment(AuthStore.self) private var auth
     @State private var store: AllPhotosStore?
-    @State private var presentedPhoto: PhotoTarget? = nil
     @State private var activeViewerPhotoID: String? = nil
+    @State private var openPhoto: PhotoTarget?
+    // pairs the tapped tile with the viewer so it grows out of the thumbnail
+    @Namespace private var photoTransition
 
     var body: some View {
         Group {
             if let store {
-                AllPhotosContent(store: store, presentedPhoto: $presentedPhoto)
+                AllPhotosContent(store: store, transition: photoTransition) { openPhoto = $0 }
             } else {
                 Color.clear
             }
@@ -31,13 +33,16 @@ struct AllPhotosView: View {
         }
         .navigationTitle("Your photos")
         .navigationBarTitleDisplayMode(.large)
-        .fullScreenCover(item: $presentedPhoto) { target in
+        .navigationDestination(item: $openPhoto) { target in
             if let store {
                 PhotoViewer(
                     photos: store.state.photos,
                     startIndex: target.index,
                     currentPhotoID: $activeViewerPhotoID
                 )
+                .navigationTransition(.zoom(sourceID: target.sourceID, in: photoTransition))
+                .toolbar(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .tabBar)
             }
         }
     }
@@ -45,13 +50,8 @@ struct AllPhotosView: View {
 
 private struct AllPhotosContent: View {
     let store: AllPhotosStore
-    @Binding var presentedPhoto: PhotoTarget?
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 4),
-        GridItem(.flexible(), spacing: 4),
-        GridItem(.flexible(), spacing: 4),
-    ]
+    let transition: Namespace.ID
+    let onOpen: (PhotoTarget) -> Void
 
     var body: some View {
         ZStack {
@@ -91,10 +91,7 @@ private struct AllPhotosContent: View {
     @ViewBuilder
     private var grid: some View {
         if store.state.isLoading && !store.state.hasLoadedOnce {
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(0..<9, id: \.self) { _ in EditorialSkeleton(aspect: 1) }
-            }
-            .padding(.horizontal, 4)
+            PhotoGridSkeleton()
         } else if let err = store.state.error, store.state.photos.isEmpty {
             EditorialEmptyState(
                 systemImage: "exclamationmark.triangle",
@@ -111,27 +108,7 @@ private struct AllPhotosContent: View {
             )
             .padding(.horizontal, EditorialSpacing.screenGutter)
         } else {
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(Array(store.state.photos.enumerated()), id: \.element.id) { idx, photo in
-                    Button {
-                        presentedPhoto = PhotoTarget(index: idx, sourceID: photo.id)
-                    } label: {
-                        Color.clear
-                            .aspectRatio(1, contentMode: .fit)
-                            .overlay {
-                                AsyncImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750)) { img in
-                                    img.resizable().scaledToFill()
-                                } placeholder: {
-                                    EditorialColors.surfaceElevated
-                                }
-                            }
-                            .overlay { if photo.isVideo { VideoPlayBadge() } }
-                            .clipped()
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 4)
+            PhotoGrid(photos: store.state.photos, transition: transition, onOpen: onOpen)
         }
     }
 }
