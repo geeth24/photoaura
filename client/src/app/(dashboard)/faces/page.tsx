@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
-import type { Face, Photo } from "@/lib/types"
+import { isVideo, type Face, type Photo } from "@/lib/types"
+import { PhotoGrid } from "@/components/photo-grid"
+import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -40,6 +42,13 @@ export default function FacesPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [merging, setMerging] = useState<string | null>(null)
+  const [viewer, setViewer] = useState<number | null>(null)
+  const [video, setVideo] = useState<Photo | null>(null)
+  const stills = useMemo(() => facePhotos.filter((p) => !isVideo(p)), [facePhotos])
+  const openPhoto = useCallback(
+    (p: Photo) => (isVideo(p) ? setVideo(p) : setViewer(stills.indexOf(p))),
+    [stills],
+  )
 
   const fetchFaces = () => {
     setLoading(true)
@@ -214,8 +223,8 @@ export default function FacesPage() {
 
         {/* photo grid */}
         {photosLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
+          <div className="grid grid-cols-3 gap-[2px] max-sm:ml-[calc(50%-50vw)] max-sm:w-screen sm:grid-cols-4 sm:gap-[3px] lg:grid-cols-5">
+            {Array.from({ length: 10 }).map((_, i) => (
               <Skeleton key={i} className="aspect-square w-full" />
             ))}
           </div>
@@ -230,30 +239,11 @@ export default function FacesPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {facePhotos.map((photo, i) => (
-              <motion.div
-                key={photo.compressed_image}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.5,
-                  delay: Math.min(i * 0.02, 0.3),
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                className="group relative aspect-square overflow-hidden border border-border-subtle bg-surface-elevated"
-              >
-                <Image
-                  src={photo.compressed_image}
-                  alt=""
-                  fill
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                />
-              </motion.div>
-            ))}
-          </div>
+          <PhotoGrid photos={facePhotos} onOpen={openPhoto} />
         )}
+
+        <PhotoViewer photos={stills} openIndex={viewer} onClose={() => setViewer(null)} />
+        <VideoViewer photo={video} onClose={() => setVideo(null)} />
 
         <EditSheet
           open={editOpen}

@@ -13,7 +13,7 @@ from db.models import (
     User,
     UserAlbumPermission,
 )
-from utils.utils import create_album_photos_json
+from utils.utils import build_photo_json
 from utils.face_recog import (
     detect_and_store_faces,
     assign_pending_faces,
@@ -439,27 +439,7 @@ async def get_face(
         if not album:
             continue
 
-        album_slug = album.slug
-
-        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{photo.filename}"
-        image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{photo.filename}"
-        face_photos.append(
-            {
-                "image": image_url,
-                "compressed_image": compressed_image_url,
-                "file_metadata": {
-                    "id": photo.id,
-                    "album_id": photo.album_id,
-                    "name": photo.filename,
-                    "slug": album_slug,
-                    "location": photo.content_type,
-                    "date": photo.size,
-                    "upload_date": photo.upload_date,
-                    "exif_data": photo.exif_data,
-                    "blur_data_url": photo.blur_data_url,
-                },
-            }
-        )
+        face_photos.append(build_photo_json(photo, album.slug))
 
     return {
         "id": face.id,
