@@ -5,7 +5,7 @@ import uuid
 
 import numpy as np
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -200,8 +200,8 @@ def set_person_cover(face_id, album_slug, filename):
             return False, "This person doesn't appear in that photo"
 
         key = f"{album_slug}/{filename}"
-        img = Image.open(
-            io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read())
+        img = ImageOps.exif_transpose(
+            Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))
         ).convert("RGB")
         buf = io.BytesIO()
         _crop(img, fe.bbox["box"]).save(buf, format="JPEG")
@@ -222,8 +222,8 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
         return "No faces detected."
 
     # one image fetch for the key-face crops
-    img = Image.open(
-        io.BytesIO(s3_client.get_object(Bucket=bucket, Key=file_path)["Body"].read())
+    img = ImageOps.exif_transpose(
+        Image.open(io.BytesIO(s3_client.get_object(Bucket=bucket, Key=file_path)["Body"].read()))
     ).convert("RGB")
 
     with session_scope() as session:
@@ -574,8 +574,8 @@ def recluster_faces():
                 continue
             key = f"{row.slug}/{row.filename}"
             try:
-                img = Image.open(
-                    io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read())
+                img = ImageOps.exif_transpose(
+                    Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))
                 ).convert("RGB")
                 buf = io.BytesIO()
                 _crop(img, bbox).save(buf, format="JPEG")

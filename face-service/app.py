@@ -13,7 +13,7 @@ import boto3
 import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException
-from PIL import Image
+from PIL import Image, ImageOps
 from pydantic import BaseModel
 from insightface.app import FaceAnalysis
 
@@ -94,7 +94,9 @@ def embed(req: EmbedRequest):
         raise HTTPException(status_code=400, detail=f"s3 fetch failed: {e}")
 
     try:
-        img = Image.open(io.BytesIO(data)).convert("RGB")
+        # cameras store portrait shots rotated with an EXIF flag; analyse
+        # what a viewer sees or the faces come out sideways
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"image decode failed: {e}")
 
