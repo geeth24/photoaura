@@ -17,13 +17,16 @@ struct AlbumView: View {
     @State private var activeViewerPhotoID: String? = nil
     @State private var openPhoto: PhotoTarget?
     @State private var actionsPresented = false
-    // pairs the tapped tile with the viewer so it expands from the thumbnail
-    @Namespace private var photoTransition
+    @State private var tileFrames = TileFrames()
 
     var body: some View {
         Group {
             if let store {
-                AlbumContent(store: store, transition: photoTransition) { openPhoto = $0 }
+                AlbumContent(store: store, frames: tileFrames, focusID: activeViewerPhotoID) { target in
+                    activeViewerPhotoID = target.sourceID
+                    // the viewer animates itself out of the tile; the cover must not slide up
+                    withTransaction(.instant) { openPhoto = target }
+                }
             } else {
                 Color.clear
             }
@@ -62,17 +65,19 @@ struct AlbumView: View {
                 )
             }
         }
-        .navigationDestination(item: $openPhoto) { target in
+        .fullScreenCover(item: $openPhoto) { target in
             if let store {
                 PhotoViewer(
                     photos: store.state.photos,
                     startIndex: target.index,
                     currentPhotoID: $activeViewerPhotoID,
-                    albumSlug: store.state.slug
+                    albumSlug: store.state.slug,
+                    sourceFrame: { tileFrames.rects[$0] },
+                    onClose: {
+                        withTransaction(.instant) { openPhoto = nil }
+                    }
                 )
-                .navigationTransition(.zoom(sourceID: target.sourceID, in: photoTransition))
-                .toolbar(.hidden, for: .navigationBar)
-                .toolbar(.hidden, for: .tabBar)
+                .presentationBackground(.clear)
             }
         }
     }
@@ -87,30 +92,38 @@ struct PhotoTarget: Hashable, Identifiable {
 
 private struct AlbumContent: View {
     let store: AlbumStore
-    let transition: Namespace.ID
+    let frames: TileFrames
+    // the photo the viewer is on; the grid keeps it on screen for the zoom back
+    let focusID: String?
     let onOpen: (PhotoTarget) -> Void
 
     var body: some View {
         ZStack {
             EditorialColors.background.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: EditorialSpacing.large) {
-                    EditorialSectionHeader(
-                        eyebrow: "Gallery",
-                        subtitle: subtitleText
-                    )
-                    .padding(.horizontal, EditorialSpacing.screenGutter)
-                    .padding(.top, EditorialSpacing.medium)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: EditorialSpacing.large) {
+                        EditorialSectionHeader(
+                            eyebrow: "Gallery",
+                            subtitle: subtitleText
+                        )
+                        .padding(.horizontal, EditorialSpacing.screenGutter)
+                        .padding(.top, EditorialSpacing.medium)
 
-                    if !store.state.faces.isEmpty {
-                        facesStrip
+                        if !store.state.faces.isEmpty {
+                            facesStrip
+                        }
+
+                        content
                     }
-
-                    content
+                    .padding(.bottom, EditorialSpacing.xxxLarge)
                 }
-                .padding(.bottom, EditorialSpacing.xxxLarge)
+                .refreshable { store.send(.refresh) }
+                // scrolled while the viewer covers it, so closing zooms into a visible tile
+                .onChange(of: focusID) { _, id in
+                    if let id { proxy.scrollTo(id) }
+                }
             }
-            .refreshable { store.send(.refresh) }
         }
     }
 
@@ -173,7 +186,7 @@ private struct AlbumContent: View {
             )
             .padding(.horizontal, EditorialSpacing.screenGutter)
         } else {
-            PhotoGrid(photos: store.state.photos, transition: transition, onOpen: onOpen)
+            PhotoGrid(photos: store.state.photos, frames: frames, onOpen: onOpen)
         }
     }
 }

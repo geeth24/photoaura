@@ -70,7 +70,11 @@ struct ZoomableImageView<Content: View>: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(host: UIHostingController(rootView: content()), photoID: photoID)
+        let host = UIHostingController(rootView: content())
+        // centre on the whole screen like the viewer's flight does; with safe areas
+        // the photo sat lower than where the flight landed and hopped at the swap
+        host.safeAreaRegions = []
+        return Coordinator(host: host, photoID: photoID)
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {

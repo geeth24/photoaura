@@ -10,16 +10,20 @@ import Photos
 import AVKit
 import EditorialStyle
 
+/// Full-screen photo viewer, shown as a clear cover over the grid. One image
+/// flies between the tapped tile and the screen (the web gallery's zoom), and
+/// pulling down shrinks the photo under your finger before it flies back.
 struct PhotoViewer: View {
     let photos: [Photo]
     let startIndex: Int
     // set when opened from an album, so photos can be starred as picks
     var albumSlug: String? = nil
-    // bound back to the album view so the reverse hero zoom targets the
-    // photo we're currently looking at, not the one we entered on
+    // the photo on screen; the grid keeps its tile visible for the flight back
     @Binding var currentPhotoID: String?
+    // where a photo's tile sits on screen right now, if it's visible
+    var sourceFrame: (String) -> CGRect? = { _ in nil }
+    var onClose: () -> Void = {}
 
-    @Environment(\.dismiss) private var dismiss
     @State private var index: Int
     // chrome visible by default so X button + scrubber + actions are
     // discoverable on entry. Tap photo once to hide for immersive viewing.
@@ -27,28 +31,27 @@ struct PhotoViewer: View {
     @State private var saveState: SaveState = .idle
     @State private var infoPresented = false
 
-    // drag-to-dismiss state — photo follows finger, bg fades; release past
-    // threshold pops the nav stack, otherwise springs back
-    @State private var dragOffset: CGSize = .zero
-    @State private var dragScale: CGFloat = 1.0
-    private let dismissThreshold: CGFloat = 140
-
     init(
         photos: [Photo],
         startIndex: Int,
         currentPhotoID: Binding<String?>,
-        albumSlug: String? = nil
+        albumSlug: String? = nil,
+        sourceFrame: @escaping (String) -> CGRect? = { _ in nil },
+        onClose: @escaping () -> Void = {}
     ) {
         self.photos = photos
         self.startIndex = startIndex
         self.albumSlug = albumSlug
         self._currentPhotoID = currentPhotoID
+        self.sourceFrame = sourceFrame
+        self.onClose = onClose
         _index = State(initialValue: startIndex)
         _strip = State(initialValue: ScrollPosition(id: startIndex, anchor: .center))
+        _page = State(initialValue: startIndex)
+        // start on the tile from the very first frame; setting it in onAppear
+        // drew the full-size photo for one frame first
+        _heroRect = State(initialValue: sourceFrame(photos[startIndex].id))
     }
-
-    // close button via system back chevron — since the viewer is now pushed,
-    // we don't need our own X. dismiss() pops the nav stack.
 
     enum SaveState: Equatable {
         case idle
@@ -65,57 +68,71 @@ struct PhotoViewer: View {
     @State private var shareState: ShareState = .idle
     @Environment(APIClient.self) private var api
     @State private var favorites: Set<String> = []
-    // true once the scroll view owns the gestures, so paging + dismiss stand down
-    @State private var isZoomed = false
     @State private var shareItems: [Any] = []
     @State private var shareSheetPresented = false
     @State private var strip = ScrollPosition(idType: Int.self)
     @State private var scrubbing = false
+    @State private var page: Int?
+    // zoomed into a photo, the pager stands down so the photo can pan
+    @State private var isZoomed = false
+
+    // the flight between tile and screen: one image, framed by heroRect
+    @State private var heroRect: CGRect?
+    @State private var heroOpacity: Double = 1
+    @State private var backdrop: Double = 0
+    @State private var closing = false
+    // chrome waits for the flight in to land
+    @State private var chromeReady = false
+    // pull-down: the photo follows the finger and shrinks, the grid shows through
+    @State private var drag: CGSize = .zero
+    @State private var screen: CGSize = .zero
+
+    private static let flight = Animation.smooth(duration: 0.38)
+    private static let dismissDistance: CGFloat = 110
 
     var body: some View {
         ZStack {
-            // bg fades with drag — when you pull down, the grid behind becomes
-            // visible instead of dragging a black slab along with the photo
             Color.black
-                .opacity(bgOpacity)
+                .opacity(backdrop * (1 - dragProgress * 0.9))
                 .ignoresSafeArea()
 
-            TabView(selection: $index) {
-                ForEach(Array(photos.enumerated()), id: \.element.id) { idx, photo in
-                    Group {
-                        if photo.isVideo {
-                            VideoPlayerCell(url: URL(string: photo.image), isCurrent: idx == index)
-                        } else {
-                            ZoomableImageView(
-                                photoID: photo.id,
-                                onZoomedChange: { zoomed in
-                                    if idx == index { isZoomed = zoomed }
-                                }
-                            ) {
-                                PhotoPage(
-                                    thumbnailURL: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750),
-                                    fullURL: photo.isVideo
-                                        ? URL(string: photo.image)
-                                        : ImageURLHelper.autoOriented(from: photo.image, width: 2048)
-                                )
-                            }
-                            .onTapGesture {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    chromeVisible.toggle()
-                                }
-                            }
-                        }
+            // a plain paging scroll view, not TabView: TabView paging fought the
+            // vertical pull-to-close drag
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(photos.indices, id: \.self) { idx in
+                        pageView(idx)
+                            .containerRelativeFrame([.horizontal, .vertical])
+                            .id(idx)
                     }
-                    .tag(idx)
                 }
+                .scrollTargetLayout()
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $page)
+            .scrollIndicators(.hidden)
+            // zoomed in, the photo pans instead of paging
+            .scrollDisabled(isZoomed || drag != .zero)
             .ignoresSafeArea()
             .scaleEffect(dragScale)
-            .offset(dragOffset)
-            .simultaneousGesture(dismissDrag)
+            .offset(drag)
+            .simultaneousGesture(pullToClose)
+            .opacity(heroRect == nil ? 1 : 0)
+            .onChange(of: page) { _, p in
+                if let p, p != index { index = p }
+            }
 
-            if chromeVisible {
+            if let heroRect {
+                CachedImage(url: thumbURL(photos[index]), contentMode: .fill)
+                    .frame(width: heroRect.width, height: heroRect.height)
+                    .clipped()
+                    .position(x: heroRect.midX, y: heroRect.midY)
+                    .opacity(heroOpacity)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+
+            if chromeVisible && chromeReady && heroRect == nil && drag == .zero {
                 VStack {
                     topBar
                         .padding(.bottom, 28)
@@ -137,20 +154,28 @@ struct PhotoViewer: View {
                 .transition(.opacity)
             }
         }
+        // full-screen size, insets added back: the pager and the flight both ignore
+        // safe areas, and a safe-area-sized screen landed the flight 47pt high
+        .onGeometryChange(for: CGSize.self) { g in
+            CGSize(
+                width: g.size.width + g.safeAreaInsets.leading + g.safeAreaInsets.trailing,
+                height: g.size.height + g.safeAreaInsets.top + g.safeAreaInsets.bottom
+            )
+        } action: { screen = $0 }
         // scoped to this view, not the window: preferredColorScheme flips the
-        // whole scene, so pushing from a light-mode album flashed everything dark
+        // whole scene, so opening from a light-mode album flashed everything dark
         .environment(\.colorScheme, .dark)
         .statusBarHidden(!chromeVisible)
         .animation(.easeInOut(duration: 0.25), value: chromeVisible)
-        // viewer is now a fullScreenCover (not nav push) — no navigation chrome
-        // to worry about. parent's tab + nav bars stay visible underneath.
         .onAppear {
             currentPhotoID = photos[index].id
             loadFavorites()
+            open()
         }
         .onChange(of: index) { _, newIndex in
             currentPhotoID = photos[newIndex].id
             isZoomed = false
+            if page != newIndex { page = newIndex }
         }
         .sheet(isPresented: $infoPresented) {
             PhotoInfoSheet(photo: photos[index])
@@ -160,39 +185,125 @@ struct PhotoViewer: View {
         }
     }
 
-    // bg opacity tracks drag progress — fully black at rest, transparent at threshold
-    private var bgOpacity: Double {
-        let progress = min(1, abs(dragOffset.height) / dismissThreshold)
-        return 1 - Double(progress) * 0.95
+    // MARK: - flight
+
+    private func thumbURL(_ photo: Photo) -> URL? {
+        ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750)
     }
 
-    // vertical drag-to-dismiss — only kicks in for predominantly-vertical drags so
-    // TabView's horizontal paging still works for photo navigation
-    private var dismissDrag: some Gesture {
-        DragGesture(minimumDistance: 12)
+    // where the pager draws a photo: aspect-fit, centred on the whole screen
+    private func fitRect(_ photo: Photo) -> CGRect {
+        let size = screen == .zero ? UIScreen.main.bounds.size : screen
+        let m = photo.fileMetadata
+        guard m.width > 0, m.height > 0 else { return CGRect(origin: .zero, size: size) }
+        let s = min(size.width / CGFloat(m.width), size.height / CGFloat(m.height))
+        let w = CGFloat(m.width) * s, h = CGFloat(m.height) * s
+        return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
+    }
+
+    private var dragProgress: CGFloat { min(1, max(0, drag.height) / (Self.dismissDistance * 2.4)) }
+    private var dragScale: CGFloat { 1 - dragProgress * 0.35 }
+
+    private func open() {
+        let fit = fitRect(photos[index])
+        guard heroRect != nil else {
+            withAnimation(Self.flight) {
+                backdrop = 1
+                chromeReady = true
+            }
+            return
+        }
+        // next runloop so the starting frame is on screen before the flight
+        DispatchQueue.main.async {
+            withAnimation(Self.flight) {
+                heroRect = fit
+                backdrop = 1
+            } completion: {
+                // the pager draws the same image in the same rect, so swapping in one
+                // frame is invisible; fading the swap left a black gap between them
+                heroRect = nil
+                withAnimation(.easeOut(duration: 0.2)) { chromeReady = true }
+            }
+        }
+    }
+
+    /// Flies the photo from where it is now back into its tile, or fades it if
+    /// the tile is off screen, then removes the viewer.
+    private func close() {
+        guard !closing else { return }
+        closing = true
+        let photo = photos[index]
+        // the photo as drawn right now, drag and shrink included
+        let fit = fitRect(photo)
+        let s = dragScale
+        let c = CGPoint(x: (screen.width) / 2, y: (screen.height) / 2)
+        let now = CGRect(
+            x: c.x + (fit.minX - c.x) * s + drag.width,
+            y: c.y + (fit.minY - c.y) * s + drag.height,
+            width: fit.width * s,
+            height: fit.height * s
+        )
+        heroRect = now
+        // carry the dimmed backdrop over as-is; zeroing the drag alone flashed it back to black
+        backdrop *= 1 - dragProgress * 0.9
+        drag = .zero
+        let target = sourceFrame(photo.id)
+        withAnimation(Self.flight) {
+            if let target {
+                heroRect = target
+            } else {
+                heroRect = now.insetBy(dx: now.width * 0.2, dy: now.height * 0.2)
+                heroOpacity = 0
+            }
+            backdrop = 0
+        } completion: {
+            onClose()
+        }
+    }
+
+    private var pullToClose: some Gesture {
+        DragGesture(minimumDistance: 14)
             .onChanged { v in
-                guard !isZoomed else { return }
-                let dy = v.translation.height
-                let dx = v.translation.width
-                guard abs(dy) > abs(dx) else { return }
-                dragOffset = CGSize(width: dx * 0.25, height: dy)
-                let progress = min(1, abs(dy) / dismissThreshold)
-                dragScale = 1 - progress * 0.25
-                if chromeVisible {
-                    withAnimation(.easeOut(duration: 0.15)) { chromeVisible = false }
-                }
+                guard !isZoomed, !closing, heroRect == nil else { return }
+                // only mostly-vertical pulls; sideways swipes page
+                guard drag != .zero || abs(v.translation.height) > abs(v.translation.width) * 1.2 else { return }
+                drag = CGSize(width: v.translation.width * 0.6, height: max(v.translation.height, -40))
             }
             .onEnded { v in
-                guard !isZoomed else { return }
-                if abs(v.translation.height) > dismissThreshold {
-                    dismiss()
+                guard drag != .zero else { return }
+                let flung = v.predictedEndTranslation.height > Self.dismissDistance * 2
+                if v.translation.height > Self.dismissDistance || flung {
+                    close()
                 } else {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        dragOffset = .zero
-                        dragScale = 1
+                    withAnimation(.smooth(duration: 0.3)) { drag = .zero }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func pageView(_ idx: Int) -> some View {
+        let photo = photos[idx]
+        Group {
+            if photo.isVideo {
+                VideoPlayerCell(url: URL(string: photo.image), isCurrent: idx == index)
+            } else {
+                ZoomableImageView(photoID: photo.id, onZoomedChange: { zoomed in
+                    if idx == index { isZoomed = zoomed }
+                }) {
+                    PhotoPage(
+                        thumbnailURL: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750),
+                        fullURL: photo.isVideo
+                            ? URL(string: photo.image)
+                            : ImageURLHelper.autoOriented(from: photo.image, width: 2048)
+                    )
+                }
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        chromeVisible.toggle()
                     }
                 }
             }
+        }
     }
 
     // the web gallery's scrubber: the current photo at its real shape, the rest
@@ -295,7 +406,7 @@ struct PhotoViewer: View {
     private var topBar: some View {
         ZStack {
             HStack {
-                Button { dismiss() } label: {
+                Button { close() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold))
                         .frame(width: 38, height: 38)

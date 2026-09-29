@@ -8,12 +8,18 @@
 import SwiftUI
 import EditorialStyle
 
+/// Where each visible tile sits on screen, for the viewer's flight in and out.
+/// A plain class on purpose: tiles write to it while scrolling, and that must
+/// not re-render the grid.
+final class TileFrames {
+    var rects: [String: CGRect] = [:]
+}
+
 /// Square, edge-to-edge photo grid, same as the web gallery. Pinch to step
-/// between 5, 3 and 2 columns; the choice sticks across albums. Tapping a tile
-/// hands back a target the viewer zooms out of.
+/// between 5, 3 and 2 columns; the choice sticks across albums.
 struct PhotoGrid: View {
     let photos: [Photo]
-    let transition: Namespace.ID
+    let frames: TileFrames
     let onOpen: (PhotoTarget) -> Void
 
     // densest first; the middle step is the default
@@ -27,7 +33,7 @@ struct PhotoGrid: View {
         LazyVGrid(columns: Self.columns(for: step), spacing: 2) {
             ForEach(Array(photos.enumerated()), id: \.element.id) { idx, photo in
                 PhotoTile(photo: photo)
-                    .matchedTransitionSource(id: photo.id, in: transition)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.rects[photo.id] = $0 }
                     .onTapGesture {
                         guard !pinching, Date.now.timeIntervalSince(pinchEnded) > 0.3 else { return }
                         onOpen(PhotoTarget(index: idx, sourceID: photo.id))
@@ -81,5 +87,14 @@ struct PhotoTile: View {
             .overlay { if photo.isVideo { VideoPlayBadge() } }
             .clipped()
             .contentShape(Rectangle())
+    }
+}
+
+extension Transaction {
+    /// No animation at all, including the cover's slide-up; the viewer runs its own flight.
+    static var instant: Transaction {
+        var t = Transaction(animation: nil)
+        t.disablesAnimations = true
+        return t
     }
 }
