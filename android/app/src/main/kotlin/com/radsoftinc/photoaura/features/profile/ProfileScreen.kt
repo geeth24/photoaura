@@ -3,35 +3,29 @@ package com.radsoftinc.photoaura.features.profile
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,19 +36,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.radsoftinc.editorialstyle.EditorialAvatar
+import com.radsoftinc.editorialstyle.EditorialBadge
+import com.radsoftinc.editorialstyle.EditorialBadgeTone
+import com.radsoftinc.editorialstyle.EditorialButton
+import com.radsoftinc.editorialstyle.EditorialButtonStyle
+import com.radsoftinc.editorialstyle.EditorialConfirmSheet
+import com.radsoftinc.editorialstyle.EditorialLargeTitle
+import com.radsoftinc.editorialstyle.EditorialListRow
+import com.radsoftinc.editorialstyle.EditorialSectionHeader
+import com.radsoftinc.editorialstyle.EditorialSectionHeaderStyle
+import com.radsoftinc.editorialstyle.EditorialSheet
+import com.radsoftinc.editorialstyle.EditorialSpacing
+import com.radsoftinc.editorialstyle.EditorialTextField
+import com.radsoftinc.editorialstyle.EditorialTheme
+import com.radsoftinc.editorialstyle.EditorialTypography
 import com.radsoftinc.photoaura.BuildConfig
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.friendly
-import com.radsoftinc.photoaura.ui.AuraField
-import com.radsoftinc.photoaura.ui.BrandButton
-import com.radsoftinc.photoaura.ui.Eyebrow
-import com.radsoftinc.photoaura.ui.Hairline
-import com.radsoftinc.photoaura.ui.Type
-import com.radsoftinc.photoaura.ui.aura
 import kotlinx.coroutines.launch
 
 @Composable
@@ -62,8 +66,11 @@ fun ProfileScreen(bottomPadding: Dp) {
     val user = Session.user ?: return
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val c = EditorialTheme.colors
+    val type = EditorialTheme.typography
     var confirmSignOut by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -72,143 +79,151 @@ fun ProfileScreen(bottomPadding: Dp) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(aura.background)
+            .background(c.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
-            .padding(top = top + 24.dp, bottom = bottomPadding + 40.dp),
+            .padding(horizontal = EditorialSpacing.screenGutter)
+            .padding(top = top + EditorialSpacing.xLarge, bottom = bottomPadding + EditorialSpacing.xxxLarge),
+        verticalArrangement = Arrangement.spacedBy(EditorialSpacing.xLarge),
     ) {
-        Text("Account", style = Type.serif(40), color = aura.textPrimary)
-        Spacer(Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(64.dp).background(aura.surfaceCard), contentAlignment = Alignment.Center) {
-                val initials = user.fullName.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }
-                Text(initials.ifEmpty { "?" }, style = Type.sans(20, FontWeight.Medium), color = aura.brand)
-            }
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(user.fullName.ifBlank { user.userName ?: "" }, style = Type.serif(24), color = aura.textPrimary)
-                Text(user.userEmail, style = Type.sans(14), color = aura.textMuted)
-                Spacer(Modifier.height(6.dp))
+        EditorialLargeTitle("Account")
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EditorialSpacing.medium)) {
+            EditorialAvatar(user.fullName, size = 64.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(EditorialSpacing.xxSmall)) {
+                Text(user.fullName.ifBlank { user.userName ?: "" }, style = type.serif(22.sp), color = c.textPrimary, maxLines = 1)
                 Text(
-                    (user.role ?: "client").uppercase(),
-                    style = Type.eyebrow(10), color = aura.textSecondary,
-                    modifier = Modifier.border(1.dp, aura.borderDefault).padding(horizontal = 10.dp, vertical = 4.dp),
+                    user.userEmail,
+                    style = type.sans(EditorialTypography.Size.caption),
+                    color = c.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+                val role = user.role ?: "client"
+                EditorialBadge(
+                    role,
+                    Modifier.padding(top = EditorialSpacing.xxSmall),
+                    tone = if (role.equals("admin", ignoreCase = true)) EditorialBadgeTone.Brand else EditorialBadgeTone.Neutral,
                 )
             }
         }
 
-        Spacer(Modifier.height(32.dp))
-        Eyebrow("App")
-        Spacer(Modifier.height(8.dp))
-        Text("About", style = Type.serif(28), color = aura.textPrimary)
-        Spacer(Modifier.height(8.dp))
-        Row(Icons.Outlined.Badge, "Edit profile", "@${user.userName ?: ""}", chevron = true) { editing = true }
-        Hairline()
-        Row(Icons.Outlined.ManageAccounts, "Manage account", "Add emails, change settings", external = true) { open("${Api.WEB}/profile") }
-        Hairline()
-        Row(Icons.Outlined.Email, "Need help?", "hello@reactiveshots.com", external = true) { open("mailto:hello@reactiveshots.com") }
-        Hairline()
-        Row(Icons.Outlined.PhoneAndroid, "Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-        Hairline()
+        Column(verticalArrangement = Arrangement.spacedBy(EditorialSpacing.small)) {
+            EditorialSectionHeader(
+                Modifier.padding(bottom = EditorialSpacing.xSmall),
+                title = "About", eyebrow = "App", style = EditorialSectionHeaderStyle.Section,
+            )
+            Column {
+                SettingsRow(Icons.Outlined.Badge, "Edit profile", "@${user.userName ?: ""}", Icons.AutoMirrored.Outlined.KeyboardArrowRight) { editing = true }
+                SettingsRow(Icons.Outlined.ManageAccounts, "Manage account", "Add emails, change settings", Icons.AutoMirrored.Outlined.OpenInNew) {
+                    open("${Api.WEB}/profile")
+                }
+                SettingsRow(Icons.Outlined.Email, "Need help?", "hello@reactiveshots.com", Icons.AutoMirrored.Outlined.OpenInNew) {
+                    open("mailto:hello@reactiveshots.com")
+                }
+                EditorialListRow(
+                    "Version",
+                    leading = { RowIcon(Icons.Outlined.PhoneAndroid) },
+                    trailing = {
+                        Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", style = type.sans(EditorialTypography.Size.caption), color = c.textMuted)
+                    },
+                )
+            }
+        }
 
-        Spacer(Modifier.height(28.dp))
-        Box(
-            Modifier.fillMaxWidth().background(aura.surfaceElevated).border(1.dp, aura.borderDefault)
-                .clickable { confirmSignOut = true }.padding(vertical = 18.dp),
-            contentAlignment = Alignment.Center,
-        ) { Text("SIGN OUT", style = Type.eyebrow(12), color = aura.textPrimary) }
+        EditorialButton("Sign out", { confirmSignOut = true }, Modifier.padding(top = EditorialSpacing.medium), style = EditorialButtonStyle.Secondary)
 
-        Spacer(Modifier.height(40.dp))
-        Eyebrow("Account")
-        Spacer(Modifier.height(8.dp))
-        Text("Danger zone", style = Type.serif(28), color = aura.textPrimary)
-        Spacer(Modifier.height(14.dp))
-        Box(
-            Modifier.fillMaxWidth().border(1.dp, aura.error.copy(alpha = 0.6f)).clickable { confirmDelete = true }.padding(vertical = 18.dp),
-            contentAlignment = Alignment.Center,
-        ) { Text("DELETE MY ACCOUNT", style = Type.eyebrow(12), color = aura.error) }
-        Spacer(Modifier.height(10.dp))
-        Text("Permanently removes your account, gallery access, and linked emails. This can't be undone.", style = Type.sans(13), color = aura.textMuted)
+        Column(Modifier.padding(top = EditorialSpacing.xLarge), verticalArrangement = Arrangement.spacedBy(EditorialSpacing.small)) {
+            EditorialSectionHeader(
+                Modifier.padding(bottom = EditorialSpacing.xSmall),
+                title = "Danger zone", eyebrow = "Account", style = EditorialSectionHeaderStyle.Section,
+            )
+            EditorialButton(
+                if (deleting) "Deleting…" else "Delete my account",
+                { confirmDelete = true },
+                style = EditorialButtonStyle.Destructive,
+                isLoading = deleting,
+            )
+            Text(
+                "Permanently removes your account, gallery access, and linked emails. This can't be undone.",
+                Modifier.padding(top = EditorialSpacing.xSmall),
+                style = type.hint, color = c.textMuted,
+            )
+        }
     }
 
     if (confirmSignOut) {
-        AlertDialog(
+        EditorialConfirmSheet(
+            title = "Sign out?",
+            message = "You'll need a new sign-in link to get back in.",
+            icon = Icons.AutoMirrored.Outlined.Logout,
+            primaryLabel = "Sign out",
+            isDestructive = true,
+            onConfirm = { Session.signOut() },
             onDismissRequest = { confirmSignOut = false },
-            title = { Text("Sign out?") },
-            text = { Text("You'll need a new sign-in link to get back in.") },
-            confirmButton = { TextButton({ confirmSignOut = false; Session.signOut() }) { Text("Sign out") } },
-            dismissButton = { TextButton({ confirmSignOut = false }) { Text("Cancel") } },
         )
     }
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete your account?") },
-            text = { Text("This permanently removes your account and access to your galleries.") },
-            confirmButton = {
-                TextButton({
-                    confirmDelete = false
-                    scope.launch {
-                        runCatching { Api.deleteAccount() }
-                            .onSuccess { Session.signOut() }
-                            .onFailure { android.widget.Toast.makeText(ctx, it.friendly(), android.widget.Toast.LENGTH_LONG).show() }
-                    }
-                }) { Text("Delete", color = aura.error) }
+        EditorialConfirmSheet(
+            title = "Delete your account?",
+            message = "This permanently removes your account and access to your galleries.",
+            icon = Icons.Outlined.WarningAmber,
+            primaryLabel = "Delete my account",
+            isDestructive = true,
+            onConfirm = {
+                deleting = true
+                scope.launch {
+                    runCatching { Api.deleteAccount() }
+                        .onSuccess { Session.signOut() }
+                        .onFailure { android.widget.Toast.makeText(ctx, it.friendly(), android.widget.Toast.LENGTH_LONG).show() }
+                    deleting = false
+                }
             },
-            dismissButton = { TextButton({ confirmDelete = false }) { Text("Cancel") } },
+            onDismissRequest = { confirmDelete = false },
         )
     }
-    if (editing) EditProfileDialog { editing = false }
+    if (editing) EditProfileSheet { editing = false }
 }
 
 @Composable
-private fun Row(icon: ImageVector, title: String, subtitle: String, chevron: Boolean = false, external: Boolean = false, onClick: (() -> Unit)? = null) {
-    androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, Modifier.size(22.dp), tint = aura.textSecondary)
-        Spacer(Modifier.width(18.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = Type.sans(17, FontWeight.Medium), color = aura.textPrimary)
-            Text(subtitle, style = Type.sans(14), color = aura.textMuted)
-        }
-        when {
-            chevron -> Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = aura.textMuted)
-            external -> Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(18.dp), tint = aura.textMuted)
-        }
+private fun RowIcon(icon: ImageVector) {
+    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+        Icon(icon, null, Modifier.size(20.dp), tint = EditorialTheme.colors.textMuted)
     }
 }
 
 @Composable
-private fun EditProfileDialog(onDone: () -> Unit) {
+private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, trailing: ImageVector, onClick: () -> Unit) {
+    EditorialListRow(
+        title,
+        subtitle = subtitle,
+        onClick = onClick,
+        leading = { RowIcon(icon) },
+        trailing = { Icon(trailing, null, Modifier.size(16.dp), tint = EditorialTheme.colors.textMuted) },
+    )
+}
+
+@Composable
+private fun EditProfileSheet(onDone: () -> Unit) {
     val user = Session.user ?: return
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(user.fullName) }
     var handle by remember { mutableStateOf(user.userName ?: "") }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = onDone,
-        containerColor = aura.background,
-        title = { Text("Edit profile", style = Type.serif(26), color = aura.textPrimary) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                AuraField(name, { name = it; error = null }, "Full name", "Your name")
-                AuraField(handle, { handle = it; error = null }, "Username", "username", error = error)
+    EditorialSheet(onDone, title = "Edit profile") {
+        Column(verticalArrangement = Arrangement.spacedBy(EditorialSpacing.medium)) {
+            EditorialTextField(name, { name = it; error = null }, "Your name", label = "Full name")
+            EditorialTextField(handle, { handle = it; error = null }, "username", label = "Username", footnote = error, isError = error != null)
+        }
+        EditorialButton("Save", {
+            saving = true
+            scope.launch {
+                runCatching { Api.updateMe(handle.trim(), name.trim()) }
+                    .onSuccess { Session.update(it); onDone() }
+                    .onFailure { error = it.friendly() }
+                saving = false
             }
-        },
-        confirmButton = {
-            BrandButton("Save", Modifier.width(140.dp), loading = saving, enabled = name.isNotBlank() && handle.isNotBlank()) {
-                saving = true
-                scope.launch {
-                    runCatching { Api.updateMe(handle.trim(), name.trim()) }
-                        .onSuccess { Session.update(it); onDone() }
-                        .onFailure { error = it.friendly() }
-                    saving = false
-                }
-            }
-        },
-        dismissButton = { TextButton(onDone) { Text("Cancel", color = aura.textMuted) } },
-    )
+        }, isLoading = saving, isDisabled = name.isBlank() || handle.isBlank())
+        EditorialButton("Cancel", onDone, style = EditorialButtonStyle.Ghost)
+    }
 }

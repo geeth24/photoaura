@@ -34,12 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.friendly
@@ -51,8 +52,6 @@ import com.radsoftinc.photoaura.features.home.HomeScreen
 import com.radsoftinc.photoaura.features.library.AllPhotosScreen
 import com.radsoftinc.photoaura.features.library.GalleriesScreen
 import com.radsoftinc.photoaura.features.profile.ProfileScreen
-import com.radsoftinc.photoaura.ui.Type
-import com.radsoftinc.photoaura.ui.aura
 
 /** Sign-in link waiting to be verified, from a tapped email or the aura:// scheme. */
 object PendingLink {
@@ -80,7 +79,7 @@ fun RootView() {
             .onFailure { linkError = it.friendly() }
     }
 
-    Box(Modifier.fillMaxSize().background(aura.background)) {
+    Box(Modifier.fillMaxSize().background(EditorialTheme.colors.background)) {
         val state = when {
             !Session.ready -> 0
             Session.user == null -> 1
@@ -107,9 +106,9 @@ fun RootView() {
 @Composable
 private fun Splash() {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-        CircularProgressIndicator(Modifier.size(24.dp), color = aura.brand, strokeWidth = 2.dp)
+        CircularProgressIndicator(Modifier.size(24.dp), color = EditorialTheme.colors.brand, strokeWidth = 2.dp)
         Spacer(Modifier.height(16.dp))
-        Text("PHOTOAURA", style = Type.eyebrow(12, 0.35.em), color = aura.textSecondary)
+        Text("PHOTOAURA", style = EditorialTheme.typography.brandMark, color = EditorialTheme.colors.textSecondary)
     }
 }
 
@@ -141,7 +140,7 @@ private fun MainTabs(viewer: ViewerHost) {
                     Tab.Profile -> ProfileScreen(bottomBar)
                 }
                 NavigationBar(
-                    containerColor = aura.surfaceElevated.copy(alpha = 0.96f),
+                    containerColor = EditorialTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                     modifier = Modifier.align(Alignment.BottomCenter),
                 ) {
                     Tab.entries.forEach { t ->
@@ -151,13 +150,13 @@ private fun MainTabs(viewer: ViewerHost) {
                             selected = tab == t,
                             onClick = { tab = t },
                             icon = { Icon(icon, label) },
-                            label = { Text(label, style = Type.sans(12)) },
+                            label = { Text(label, style = EditorialTheme.typography.sans(12.sp)) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = aura.brand,
-                                selectedTextColor = aura.brand,
-                                indicatorColor = aura.brand.copy(alpha = 0.14f),
-                                unselectedIconColor = aura.textMuted,
-                                unselectedTextColor = aura.textMuted,
+                                selectedIconColor = EditorialTheme.colors.brand,
+                                selectedTextColor = EditorialTheme.colors.brand,
+                                indicatorColor = EditorialTheme.colors.brand.copy(alpha = 0.14f),
+                                unselectedIconColor = EditorialTheme.colors.textMuted,
+                                unselectedTextColor = EditorialTheme.colors.textMuted,
                             ),
                         )
                     }

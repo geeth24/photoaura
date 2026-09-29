@@ -40,11 +40,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.radsoftinc.editorialstyle.EditorialSkeleton
+import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.ImageUrls
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.ui.RemoteImage
-import com.radsoftinc.photoaura.ui.Skeleton
-import com.radsoftinc.photoaura.ui.aura
 
 /** Where each visible tile sits in the window, for the viewer's flight in and out. Plain map: writes mustn't recompose. */
 class TileFrames {
@@ -128,7 +128,7 @@ fun PhotoGrid(
     ) {
         header()
         if (photos == null) {
-            items(15) { Skeleton(Modifier.fillMaxWidth().aspectRatio(1f)) }
+            items(15) { EditorialSkeleton(Modifier.fillMaxWidth().aspectRatio(1f)) }
         } else {
             itemsIndexed(photos, key = { _, p -> p.id }) { idx, p ->
                 Tile(p, Modifier.onGloballyPositioned { frames.rects[p.id] = it.boundsInWindow() }) { onOpen(idx) }
@@ -149,7 +149,7 @@ private fun Tile(p: Photo, modifier: Modifier, onClick: () -> Unit) {
         modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .background(aura.surfaceElevated)
+            .background(EditorialTheme.colors.surfaceElevated)
             .clickable(onClick = onClick),
     ) {
         RemoteImage(ImageUrls.tile(p), Modifier.fillMaxSize())

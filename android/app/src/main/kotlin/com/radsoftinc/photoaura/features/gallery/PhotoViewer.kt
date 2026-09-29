@@ -93,6 +93,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -100,13 +101,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.radsoftinc.editorialstyle.EditorialColors
+import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.ImageUrls
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.core.PhotoSaver
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.RemoteImage
-import com.radsoftinc.photoaura.ui.Type
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -335,7 +337,7 @@ fun PhotoViewer(req: ViewerRequest, onClosed: () -> Unit) {
     }
 
     if (info) {
-        ModalBottomSheet(onDismissRequest = { info = false }, containerColor = Color(0xFF071E2E)) {
+        ModalBottomSheet(onDismissRequest = { info = false }, containerColor = EditorialColors.Dark.surfaceElevated) {
             InfoSheet(photos[index])
         }
     }
@@ -456,9 +458,9 @@ private fun TopBar(
     ) {
         GlassCircle(Icons.Outlined.Close, "Close", Modifier.align(Alignment.CenterStart), onClose)
         Column(Modifier.align(Alignment.Center).width(170.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(taken?.format(dayFmt) ?: count, style = Type.sans(15, androidx.compose.ui.text.font.FontWeight.SemiBold), color = Color.White, maxLines = 1)
+            Text(taken?.format(dayFmt) ?: count, style = EditorialTheme.typography.sans(15.sp, androidx.compose.ui.text.font.FontWeight.SemiBold), color = Color.White, maxLines = 1)
             if (taken != null) {
-                Text("${taken.format(timeFmt)} · $count", style = Type.sans(11), color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+                Text("${taken.format(timeFmt)} · $count", style = EditorialTheme.typography.sans(11.sp), color = Color.White.copy(alpha = 0.6f), maxLines = 1)
             }
         }
         Row(
@@ -683,11 +685,11 @@ private fun InfoSheet(p: Photo) {
         m.takenAt?.let { add("Taken" to it.format(DateTimeFormatter.ofPattern("MMM d, yyyy 'at' h:mm a"))) }
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Photo info", style = Type.serif(26), color = Color.White)
+        Text("Photo info", style = EditorialTheme.typography.serif(26.sp), color = Color.White)
         rows.forEach { (k, v) ->
             Row(Modifier.fillMaxWidth()) {
-                Text(k.uppercase(), style = Type.eyebrow(10), color = Color.White.copy(alpha = 0.6f), modifier = Modifier.width(110.dp).padding(top = 3.dp))
-                Text(v, style = Type.sans(15), color = Color.White, overflow = TextOverflow.Ellipsis)
+                Text(k.uppercase(), style = EditorialTheme.typography.label(10.sp, 3.sp), color = Color.White.copy(alpha = 0.6f), modifier = Modifier.width(110.dp).padding(top = 3.dp))
+                Text(v, style = EditorialTheme.typography.sans(15.sp), color = Color.White, overflow = TextOverflow.Ellipsis)
             }
         }
         Spacer(Modifier.height(8.dp))

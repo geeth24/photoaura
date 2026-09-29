@@ -40,6 +40,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.12.0-rc01")
     implementation("androidx.compose.ui:ui-graphics:1.12.0-rc01")
 
+    implementation(project(":editorialstyle"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.compose.runtime)

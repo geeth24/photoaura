@@ -1,35 +1,34 @@
 package com.radsoftinc.photoaura.features.library
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Warning
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.radsoftinc.editorialstyle.EditorialEmptyState
+import com.radsoftinc.editorialstyle.EditorialLargeTitle
+import com.radsoftinc.editorialstyle.EditorialSectionHeader
+import com.radsoftinc.editorialstyle.EditorialSegmentedControl
+import com.radsoftinc.editorialstyle.EditorialSpacing
+import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.core.Session
@@ -40,10 +39,6 @@ import com.radsoftinc.photoaura.features.gallery.TileFrames
 import com.radsoftinc.photoaura.features.gallery.ViewerHost
 import com.radsoftinc.photoaura.features.gallery.ViewerRequest
 import com.radsoftinc.photoaura.features.gallery.fullWidth
-import com.radsoftinc.photoaura.ui.EmptyState
-import com.radsoftinc.photoaura.ui.Eyebrow
-import com.radsoftinc.photoaura.ui.Type
-import com.radsoftinc.photoaura.ui.aura
 import kotlinx.coroutines.launch
 
 enum class Orientation(val label: String, val api: String?) { All("All", null), Portrait("Portrait", "portrait"), Landscape("Landscape", "landscape") }
@@ -95,12 +90,12 @@ fun AllPhotosScreen(viewer: ViewerHost, bottomPadding: Dp, store: AllPhotosStore
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val headerCount = 1
 
-    Box(Modifier.fillMaxSize().background(aura.background)) {
+    Box(Modifier.fillMaxSize().background(EditorialTheme.colors.background)) {
         PhotoGrid(
             photos = s.photos,
             frames = frames,
             state = grid,
-            contentPadding = PaddingValues(top = top + 24.dp, bottom = bottomPadding + 40.dp),
+            contentPadding = PaddingValues(top = top + EditorialSpacing.xLarge, bottom = bottomPadding + EditorialSpacing.xxxLarge),
             onOpen = { i ->
                 val photos = s.photos ?: return@PhotoGrid
                 viewer.open(ViewerRequest(photos, i, frames, null) { idx ->
@@ -112,38 +107,37 @@ fun AllPhotosScreen(viewer: ViewerHost, bottomPadding: Dp, store: AllPhotosStore
             },
             header = {
                 fullWidth("head") {
-                    Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 20.dp)) {
-                        Text("Your photos", style = Type.serif(40), color = aura.textPrimary)
-                        Spacer(Modifier.height(14.dp))
-                        Eyebrow("Library")
-                        Spacer(Modifier.height(8.dp))
+                    Column(
+                        Modifier.padding(horizontal = EditorialSpacing.screenGutter).padding(bottom = EditorialSpacing.large),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        EditorialLargeTitle("Your photos")
                         val n = s.photos?.size
-                        Text(if (n == null) "Loading…" else "$n ${if (n == 1) "photo" else "photos"}", style = Type.sans(15), color = aura.textSecondary)
-                        Spacer(Modifier.height(18.dp))
-                        Row(Modifier.fillMaxWidth().border(1.dp, aura.borderDefault)) {
-                            Orientation.entries.forEach { o ->
-                                val on = o == s.orientation
-                                Box(
-                                    Modifier
-                                        .weight(1f)
-                                        .background(if (on) aura.brand.copy(alpha = 0.14f) else aura.background)
-                                        .clickable { store.send(AllPhotosIntent.Orient(o)) }
-                                        .padding(vertical = 14.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) { Text(o.label.uppercase(), style = Type.eyebrow(11), color = if (on) aura.brand else aura.textMuted) }
-                            }
-                        }
+                        EditorialSectionHeader(
+                            eyebrow = "Library",
+                            subtitle = if (n == null) "Loading…" else "$n ${if (n == 1) "photo" else "photos"}",
+                        )
+                        EditorialSegmentedControl(
+                            Orientation.entries.map { it.label to it },
+                            selection = s.orientation,
+                            onSelect = { store.send(AllPhotosIntent.Orient(it)) },
+                            modifier = Modifier.padding(top = EditorialSpacing.xxSmall),
+                        )
                     }
                 }
                 if (s.error != null && s.photos.isNullOrEmpty()) {
                     fullWidth("error") {
-                        Box(Modifier.padding(24.dp)) { EmptyState(Icons.Outlined.Warning, "Couldn't load", s.error!!, "Try again") { store.send(AllPhotosIntent.Load) } }
+                        EditorialEmptyState(
+                            Icons.Outlined.Warning, "Couldn't load", Modifier.padding(EditorialSpacing.screenGutter),
+                            subtitle = s.error, actionTitle = "Try again", onAction = { store.send(AllPhotosIntent.Load) },
+                        )
                     }
                 } else if (s.photos?.isEmpty() == true) {
                     fullWidth("empty") {
-                        Box(Modifier.padding(24.dp)) {
-                            EmptyState(Icons.Outlined.PhotoLibrary, "No photos", "Try a different orientation, or wait for your photographer to share a gallery.")
-                        }
+                        EditorialEmptyState(
+                            Icons.Outlined.PhotoLibrary, "No photos", Modifier.padding(EditorialSpacing.screenGutter),
+                            subtitle = "Try a different orientation, or wait for your photographer to share a gallery.",
+                        )
                     }
                 }
             },

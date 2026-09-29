@@ -1,8 +1,6 @@
 package com.radsoftinc.photoaura.features.gallery
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,12 +8,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
@@ -31,22 +25,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.radsoftinc.editorialstyle.EditorialEmptyState
+import com.radsoftinc.editorialstyle.EditorialFaceChip
+import com.radsoftinc.editorialstyle.EditorialSectionHeader
+import com.radsoftinc.editorialstyle.EditorialSpacing
+import com.radsoftinc.editorialstyle.EditorialTheme
+import com.radsoftinc.editorialstyle.EditorialTopBar
+import com.radsoftinc.editorialstyle.EditorialTopBarHeight
 import com.radsoftinc.photoaura.core.AlbumDetail
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.FaceSummary
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.friendly
-import com.radsoftinc.photoaura.ui.EmptyState
-import com.radsoftinc.photoaura.ui.Eyebrow
 import com.radsoftinc.photoaura.ui.RemoteImage
-import com.radsoftinc.photoaura.ui.Type
-import com.radsoftinc.photoaura.ui.aura
 import kotlinx.coroutines.launch
 
 data class AlbumState(
@@ -120,12 +117,12 @@ fun AlbumScreen(
     // header rows before the first tile: title, and faces when there are any
     val headerCount = if (s.faces.isNotEmpty()) 2 else 1
 
-    Box(Modifier.fillMaxSize().background(aura.background)) {
+    Box(Modifier.fillMaxSize().background(EditorialTheme.colors.background)) {
     PhotoGrid(
         photos = if (s.error != null && s.detail == null) emptyList() else s.photos,
         frames = frames,
         state = grid,
-        contentPadding = PaddingValues(top = TopBarHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(), bottom = 120.dp),
+        contentPadding = PaddingValues(top = EditorialTopBarHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(), bottom = 120.dp),
         onOpen = { i ->
             val photos = s.photos ?: return@PhotoGrid
             viewer.open(ViewerRequest(photos, i, frames, s.slug) { idx ->
@@ -139,56 +136,60 @@ fun AlbumScreen(
         },
         header = {
             fullWidth("title") {
-                Column(Modifier.padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 20.dp)) {
-                    Text(s.title, style = Type.serif(36), color = aura.textPrimary)
-                    Spacer(Modifier.height(14.dp))
-                    Eyebrow("Gallery")
-                    Spacer(Modifier.height(8.dp))
+                Column(
+                    Modifier.padding(horizontal = EditorialSpacing.screenGutter).padding(top = EditorialSpacing.xSmall, bottom = EditorialSpacing.large),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Text(s.title, style = EditorialTheme.typography.serif(36.sp), color = EditorialTheme.colors.textPrimary)
                     val n = s.photos?.size
                     val face = s.faces.firstOrNull { it.faceId == s.selectedFace }
-                    Text(
-                        when {
+                    EditorialSectionHeader(
+                        eyebrow = "Gallery",
+                        subtitle = when {
                             n == null -> "Loading…"
                             face != null -> "Just ${face.name ?: "this person"} — $n ${if (n == 1) "photo" else "photos"}"
                             else -> "${s.detail?.imageCount ?: n} ${if (n == 1) "photo" else "photos"}"
                         },
-                        style = Type.sans(15), color = aura.textSecondary,
                     )
                 }
             }
             if (s.faces.isNotEmpty()) {
                 fullWidth("faces") {
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = 24.dp),
+                        contentPadding = PaddingValues(horizontal = EditorialSpacing.screenGutter),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.padding(bottom = 20.dp),
+                        modifier = Modifier.padding(bottom = EditorialSpacing.large),
                     ) {
                         items(s.faces, key = { it.faceId }) { f ->
-                            FaceChip(f, active = s.selectedFace == f.faceId) { store.send(AlbumIntent.SelectFace(f.faceId)) }
+                            EditorialFaceChip(
+                                onClick = { store.send(AlbumIntent.SelectFace(f.faceId)) },
+                                name = f.name,
+                                count = f.count,
+                                isActive = s.selectedFace == f.faceId,
+                            ) { RemoteImage(f.imageUrl, Modifier.fillMaxSize()) }
                         }
                     }
                 }
             }
             if (s.error != null && s.detail == null) {
                 fullWidth("error") {
-                    Box(Modifier.padding(24.dp)) {
-                        EmptyState(Icons.Outlined.Warning, "Couldn't load", s.error!!, "Try again") { store.send(AlbumIntent.Refresh) }
-                    }
+                    EditorialEmptyState(
+                        Icons.Outlined.Warning, "Couldn't load", Modifier.padding(EditorialSpacing.screenGutter),
+                        subtitle = s.error, actionTitle = "Try again", onAction = { store.send(AlbumIntent.Refresh) },
+                    )
                 }
             } else if (s.photos?.isEmpty() == true) {
                 fullWidth("empty") {
-                    Box(Modifier.padding(24.dp)) {
-                        EmptyState(
-                            Icons.Outlined.PhotoLibrary, "No photos",
-                            if (s.selectedFace == null) "This gallery is empty." else "No photos of this person in the gallery.",
-                        )
-                    }
+                    EditorialEmptyState(
+                        Icons.Outlined.PhotoLibrary, "No photos", Modifier.padding(EditorialSpacing.screenGutter),
+                        subtitle = if (s.selectedFace == null) "This gallery is empty." else "No photos of this person in the gallery.",
+                    )
                 }
             }
         },
     )
 
-    ScreenTopBar(
+    EditorialTopBar(
         onBack = onBack,
         action = if (s.detail?.albumPhotos?.isNotEmpty() == true) {
             { actions = true }
@@ -201,20 +202,5 @@ fun AlbumScreen(
     if (actions) {
         val d = s.detail
         if (d != null) GalleryActionsSheet(d.albumName, d.slug, d.secret, d.albumPhotos) { actions = false }
-    }
-}
-
-@Composable
-private fun FaceChip(f: FaceSummary, active: Boolean, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp).clickable(onClick = onClick)) {
-        RemoteImage(
-            f.imageUrl,
-            Modifier
-                .size(72.dp)
-                .background(aura.surfaceElevated)
-                .border(if (active) 2.dp else 1.dp, if (active) aura.brand else aura.borderSubtle),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(f.name ?: "${f.count}", style = Type.eyebrow(10), color = if (active) aura.brand else aura.textMuted, maxLines = 1)
     }
 }

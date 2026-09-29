@@ -10,7 +10,7 @@ import com.radsoftinc.photoaura.app.RootView
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.Studios
 import com.radsoftinc.photoaura.features.gallery.GridDensity
-import com.radsoftinc.photoaura.ui.AuraTheme
+import com.radsoftinc.editorialstyle.EditorialTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
         GridDensity.init(applicationContext)
         PendingLink.from(intent?.data) // cold start from a tapped sign-in email
         setContent {
-            AuraTheme { RootView() }
+            EditorialTheme { RootView() }
         }
     }
 

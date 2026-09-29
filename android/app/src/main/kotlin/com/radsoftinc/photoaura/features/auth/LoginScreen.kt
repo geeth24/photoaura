@@ -1,19 +1,13 @@
 package com.radsoftinc.photoaura.features.auth
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -25,26 +19,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.radsoftinc.photoaura.R
+import com.radsoftinc.editorialstyle.EditorialBrandHeader
+import com.radsoftinc.editorialstyle.EditorialButton
+import com.radsoftinc.editorialstyle.EditorialButtonStyle
+import com.radsoftinc.editorialstyle.EditorialCard
+import com.radsoftinc.editorialstyle.EditorialFieldKind
+import com.radsoftinc.editorialstyle.EditorialSectionHeader
+import com.radsoftinc.editorialstyle.EditorialSpacing
+import com.radsoftinc.editorialstyle.EditorialTextField
+import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.AuthResponse
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.Studios
 import com.radsoftinc.photoaura.core.friendly
-import com.radsoftinc.photoaura.ui.AuraField
-import com.radsoftinc.photoaura.ui.BrandButton
-import com.radsoftinc.photoaura.ui.Eyebrow
-import com.radsoftinc.photoaura.ui.SecondaryButton
-import com.radsoftinc.photoaura.ui.Type
-import com.radsoftinc.photoaura.ui.aura
 
 enum class LoginMode { Magic, Password }
 
@@ -110,6 +103,7 @@ class LoginStore : Store<LoginState, LoginIntent>(LoginState()) {
 fun LoginScreen(store: LoginStore = viewModel()) {
     val s by store.state.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf(false) }
+    val c = EditorialTheme.colors
     // an error from the previous studio doesn't apply to the new one
     LaunchedEffect(Studios.selectedId) { store.send(LoginIntent.ModeChanged(s.mode)) }
     if (picking) StudioPickerSheet { picking = false }
@@ -117,93 +111,89 @@ fun LoginScreen(store: LoginStore = viewModel()) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(aura.background)
+            .background(c.background)
             .safeDrawingPadding()
             .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
+            .verticalScroll(rememberScrollState()),
     ) {
-        // same brand header as iOS: the light/dark logo, not the launcher icon
+        EditorialBrandHeader(Modifier.padding(top = EditorialSpacing.xLarge), logoSize = 56.dp)
+
         Column(
-            Modifier.fillMaxWidth().padding(top = 48.dp, bottom = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier
+                .padding(horizontal = EditorialSpacing.screenGutter)
+                .padding(top = EditorialSpacing.xxLarge, bottom = EditorialSpacing.xxxLarge),
+            verticalArrangement = Arrangement.spacedBy(EditorialSpacing.xLarge),
         ) {
-            Image(painterResource(R.drawable.logo), "PhotoAura", Modifier.size(56.dp))
-            Text("PHOTOAURA", style = Type.eyebrow(11, 0.27.em).copy(fontWeight = FontWeight.SemiBold), color = aura.brand)
-        }
-        Spacer(Modifier.height(32.dp))
-
-        Eyebrow("PhotoAura")
-        Spacer(Modifier.height(14.dp))
-        val heading = when {
-            s.sentTo != null -> "Check your inbox"
-            s.mode == LoginMode.Magic -> "Sign in"
-            else -> "Sign in with password"
-        }
-        Text(heading, style = Type.serif(40), color = aura.textPrimary)
-
-        if (s.sentTo != null) {
-            Spacer(Modifier.height(24.dp))
-            Column(
-                Modifier.fillMaxWidth().background(aura.surfaceElevated).border(1.dp, aura.borderSubtle).padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Link sent", style = Type.serif(26), color = aura.textPrimary)
-                Text(
-                    "If we recognize ${s.sentTo}, a sign-in link is on its way. It expires in 30 minutes.",
-                    style = Type.sans(15), color = aura.textSecondary,
-                )
-                SecondaryButton("Use a different email") { store.send(LoginIntent.StartOver) }
-            }
-            return@Column
-        }
-
-        Spacer(Modifier.height(10.dp))
-        Text(
-            if (s.mode == LoginMode.Magic)
-                "Enter the email your photographer sent your gallery to. We'll send a one-tap sign-in link."
-            else "Enter your username and password.",
-            style = Type.sans(15), color = aura.textSecondary,
-        )
-        Spacer(Modifier.height(28.dp))
-        StudioField { picking = true }
-        Spacer(Modifier.height(20.dp))
-
-        if (s.mode == LoginMode.Magic) {
-            AuraField(
-                s.email, { store.send(LoginIntent.EmailChanged(it)) }, "Email", "you@example.com",
-                keyboard = KeyboardType.Email, error = s.error,
+            EditorialSectionHeader(
+                title = when {
+                    s.sentTo != null -> "Check your inbox"
+                    s.mode == LoginMode.Magic -> "Sign in"
+                    else -> "Sign in with password"
+                },
+                eyebrow = "PhotoAura",
+                subtitle = when {
+                    s.sentTo != null -> null
+                    s.mode == LoginMode.Magic -> "Enter the email your photographer sent your gallery to. We'll send a one-tap sign-in link."
+                    else -> "Enter your username and password."
+                },
             )
-            Spacer(Modifier.height(16.dp))
-            BrandButton("Email me a sign-in link", loading = s.sending, enabled = s.email.isNotBlank()) {
-                store.send(LoginIntent.Submit)
-            }
-        } else {
-            AuraField(s.username, { store.send(LoginIntent.UsernameChanged(it)) }, "Username", "username")
-            Spacer(Modifier.height(16.dp))
-            AuraField(
-                s.password, { store.send(LoginIntent.PasswordChanged(it)) }, "Password", "•••••••",
-                keyboard = KeyboardType.Password, password = true, error = s.error,
-            )
-            Spacer(Modifier.height(16.dp))
-            BrandButton("Sign in", loading = s.sending, enabled = s.username.isNotBlank() && s.password.isNotEmpty()) {
-                store.send(LoginIntent.Submit)
-            }
-        }
 
-        Spacer(Modifier.height(28.dp))
-        Text(
-            (if (s.mode == LoginMode.Magic) "Sign in with password" else "Use a magic link instead").uppercase(),
-            style = Type.eyebrow(11, 0.16.em),
-            color = aura.textMuted,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clickable {
-                    store.send(LoginIntent.ModeChanged(if (s.mode == LoginMode.Magic) LoginMode.Password else LoginMode.Magic))
+            if (s.sentTo != null) {
+                EditorialCard {
+                    Text("Link sent", style = EditorialTheme.typography.heading, color = c.textPrimary)
+                    Text(
+                        "If we recognize ${s.sentTo}, a sign-in link is on its way. It expires in 30 minutes.",
+                        style = EditorialTheme.typography.subtitle, color = c.textSecondary,
+                    )
+                    EditorialButton(
+                        "Use a different email",
+                        { store.send(LoginIntent.StartOver) },
+                        Modifier.padding(top = EditorialSpacing.small),
+                        style = EditorialButtonStyle.Secondary,
+                    )
                 }
-                .padding(8.dp),
-        )
-        Spacer(Modifier.height(40.dp))
+                return@Column
+            }
+
+            StudioField { picking = true }
+
+            Column(verticalArrangement = Arrangement.spacedBy(EditorialSpacing.medium)) {
+                if (s.mode == LoginMode.Magic) {
+                    EditorialTextField(
+                        s.email, { store.send(LoginIntent.EmailChanged(it)) }, "you@example.com",
+                        label = "Email", kind = EditorialFieldKind.Email,
+                        footnote = s.error, isError = s.error != null,
+                    )
+                    EditorialButton(
+                        "Email me a sign-in link", { store.send(LoginIntent.Submit) },
+                        isLoading = s.sending, isDisabled = s.email.isBlank(),
+                    )
+                } else {
+                    EditorialTextField(s.username, { store.send(LoginIntent.UsernameChanged(it)) }, "username", label = "Username")
+                    EditorialTextField(
+                        s.password, { store.send(LoginIntent.PasswordChanged(it)) }, "•••••••",
+                        label = "Password", kind = EditorialFieldKind.Password,
+                        footnote = s.error, isError = s.error != null,
+                    )
+                    EditorialButton(
+                        "Sign in", { store.send(LoginIntent.Submit) },
+                        isLoading = s.sending, isDisabled = s.username.isBlank() || s.password.isEmpty(),
+                    )
+                }
+            }
+
+            Text(
+                (if (s.mode == LoginMode.Magic) "Sign in with password" else "Use a magic link instead").uppercase(),
+                style = EditorialTheme.typography.label(11.sp, 1.6.sp),
+                color = c.textMuted,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = EditorialSpacing.small)
+                    .clickable {
+                        store.send(LoginIntent.ModeChanged(if (s.mode == LoginMode.Magic) LoginMode.Password else LoginMode.Magic))
+                    }
+                    .padding(8.dp),
+            )
+        }
     }
 }
