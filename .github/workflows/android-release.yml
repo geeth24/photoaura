@@ -1,0 +1,64 @@
+name: Android Release
+
+# Bundles the Android app and uploads it to the Play internal track on every
+# push to main that touches android/, or by hand.
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android-release.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Bundle & upload to Play
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    env:
+      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      # flip the repo variable PLAY_UPLOADS to "on" once the first bundle is in Play Console
+      PLAY_READY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' && vars.PLAY_UPLOADS == 'on' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the version code is the commit count
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Decode keystore
+        run: |
+          test -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" || { echo "ANDROID_KEYSTORE_BASE64 is required"; exit 1; }
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > app/release-key.jks
+
+      - name: Bundle release
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew :app:bundleRelease --no-daemon
+          echo "Built $(grep '^versionName=' version.properties | cut -d= -f2) ($(git rev-list --count HEAD))" >> "$GITHUB_STEP_SUMMARY"
+
+      # the first bundle has to go up by hand in Play Console; every build is kept as an artifact too
+      - uses: actions/upload-artifact@v4
+        with:
+          name: photoaura-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload to Play (internal track)
+        if: env.PLAY_READY == 'true'
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.radsoftinc.photoaura
+          releaseFiles: android/app/build/outputs/bundle/release/*.aab
+          tracks: internal
+          status: completed
