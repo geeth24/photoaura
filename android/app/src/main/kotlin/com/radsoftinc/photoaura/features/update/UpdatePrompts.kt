@@ -1,6 +1,7 @@
 package com.radsoftinc.photoaura.features.update
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,16 @@ import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import com.radsoftinc.editorialstyle.EditorialButton
 import com.radsoftinc.editorialstyle.EditorialConfirmSheet
 import com.radsoftinc.editorialstyle.EditorialSectionHeader
@@ -68,6 +73,17 @@ private fun UpdateRequired(p: AppPolicy) {
             decorFitsSystemWindows = false,
         ),
     ) {
+        // the dialog has its own window, so its bar icons don't follow the activity's
+        val view = LocalView.current
+        val light = !isSystemInDarkTheme()
+        SideEffect {
+            (view.parent as? DialogWindowProvider)?.window?.let {
+                WindowCompat.getInsetsController(it, view).apply {
+                    isAppearanceLightStatusBars = light
+                    isAppearanceLightNavigationBars = light
+                }
+            }
+        }
         Box(Modifier.fillMaxSize().background(c.background).systemBarsPadding(), contentAlignment = Alignment.Center) {
             Column(
                 Modifier.fillMaxWidth().widthIn(max = 480.dp).padding(horizontal = EditorialSpacing.xLarge),
