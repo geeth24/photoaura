@@ -7,14 +7,15 @@
 
 import SwiftUI
 
-// Bottom sheet for destructive confirmations — sign out, delete account,
-// etc. Same editorial look across every "are you sure?" moment instead of
-// the system popover/alert SwiftUI picks based on device class.
+// Bottom sheet for confirmations and gentle prompts — sign out, delete
+// account, a new version to install. Same editorial look across every one
+// instead of the system popover/alert SwiftUI picks based on device class.
 public struct EditorialConfirmSheet: View {
     public let title: String
     public let message: String?
     public let systemImage: String?
     public let primaryLabel: String
+    public let cancelLabel: String
     public let isDestructive: Bool
     public let onConfirm: () -> Void
 
@@ -25,6 +26,7 @@ public struct EditorialConfirmSheet: View {
         message: String? = nil,
         systemImage: String? = nil,
         primaryLabel: String,
+        cancelLabel: String = "Cancel",
         isDestructive: Bool = false,
         onConfirm: @escaping () -> Void
     ) {
@@ -32,6 +34,7 @@ public struct EditorialConfirmSheet: View {
         self.message = message
         self.systemImage = systemImage
         self.primaryLabel = primaryLabel
+        self.cancelLabel = cancelLabel
         self.isDestructive = isDestructive
         self.onConfirm = onConfirm
     }
@@ -59,7 +62,7 @@ public struct EditorialConfirmSheet: View {
 
                 VStack(spacing: EditorialSpacing.small) {
                     primaryButton
-                    EditorialButton("Cancel", style: .ghost) {
+                    EditorialButton(cancelLabel, style: .ghost) {
                         dismiss()
                     }
                 }
