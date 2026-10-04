@@ -5,6 +5,7 @@ import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AppUpdateSettings } from "@/components/app-update-settings"
 import { RefreshCw, HardDrive, Database, Activity } from "lucide-react"
 
 type Ops = {
@@ -78,7 +79,7 @@ export default function OpsPage() {
             Ops
           </h1>
           <p className="mt-3 text-sm font-light text-text-secondary">
-            Storage, content, and live service health.
+            Storage, content, live service health, and app updates.
           </p>
         </div>
         <button
@@ -165,6 +166,8 @@ export default function OpsPage() {
           </section>
         </>
       )}
+
+      <AppUpdateSettings />
     </div>
   )
 }
