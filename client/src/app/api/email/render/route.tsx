@@ -5,6 +5,7 @@ import ClientInviteEmail, { clientInviteSubject } from "@/emails/client-invite"
 import VerifyEmail, { verifyEmailSubject } from "@/emails/verify-email"
 import NewDownloadEmail, { newDownloadSubject } from "@/emails/new-download"
 import NewVideoEmail, { newVideoSubject } from "@/emails/new-video"
+import AlbumRevisionEmail, { albumRevisionSubject } from "@/emails/album-revision"
 
 // templates registered for the backend to render. add new ones here.
 const templates = {
@@ -27,6 +28,11 @@ const templates = {
   "new-video": {
     component: NewVideoEmail,
     subject: (p: { albumName: string }) => newVideoSubject(p.albumName),
+  },
+  "album-revision": {
+    component: AlbumRevisionEmail,
+    subject: (p: { albumName: string; revisionNumber: number }) =>
+      albumRevisionSubject(p.albumName, p.revisionNumber),
   },
 } as const
 
