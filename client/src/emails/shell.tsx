@@ -29,7 +29,7 @@ export function EmailShell({
           {/* logo + brand */}
           <Section style={header}>
             <Img
-              src="https://reactiveshots.com/RS-Logo.png"
+              src="https://aura.reactiveshots.com/email/rs-logo.png"
               width="44"
               height="44"
               alt="Reactive Shots"
