@@ -4,11 +4,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom"
 import PhotoSwipe, { type SlideData } from "photoswipe"
 import "photoswipe/style.css"
-import { Heart, Info, X } from "lucide-react"
+import { Columns2, Heart, Info, X } from "lucide-react"
 import { DownloadMenu } from "@/components/download-menu"
 import { PhotoInfoPanel } from "@/components/photo-info-panel"
-import { findTile, fullSrc, tileSrc } from "@/components/photo-grid"
-import type { Photo } from "@/lib/types"
+import { PhotoCompare } from "@/components/photo-compare"
+import { findTile, fullSrc, photoKey, tileSrc } from "@/components/photo-grid"
+import { getPhotoVersions } from "@/lib/api"
+import type { Photo, PhotoVersion } from "@/lib/types"
 
 const OPEN_MS = 440
 const CLOSE_MS = 400
@@ -143,11 +145,17 @@ export function PhotoViewer({
   const [info, setInfo] = useState(false)
   const [dragging, setDragging] = useState(false)
   const infoRef = useRef(false)
+  // earlier versions of revised photos, fetched the first time one is viewed
+  const [versions, setVersions] = useState<Record<number, PhotoVersion[]>>({})
+  // key of the photo open in the before/after view
+  const [compare, setCompare] = useState<string | null>(null)
+  const compareRef = useRef(false)
 
   // latest props for PhotoSwipe's long-lived handlers
   const live = useRef({ photos, onClose, urlFor, closeUrl })
   useLayoutEffect(() => {
     infoRef.current = info
+    compareRef.current = compare != null
     live.current = { photos, onClose, urlFor, closeUrl }
   })
 
@@ -257,6 +265,12 @@ export function PhotoViewer({
     pswp.on("pointerUp", () => setDragging(false))
 
     pswp.on("keydown", (e) => {
+      // the compare slider owns the arrows; Escape backs out to the photo
+      if (compareRef.current) {
+        e.preventDefault()
+        if (e.originalEvent.key === "Escape") setCompare(null)
+        return
+      }
       // an open menu owns the keyboard (arrows, Escape)
       if (document.querySelector('[role="menu"]')) {
         e.preventDefault()
@@ -304,6 +318,7 @@ export function PhotoViewer({
       setLayer(null)
       setChrome(true)
       setDragging(false)
+      setCompare(null)
       live.current.onClose()
     })
 
@@ -330,19 +345,37 @@ export function PhotoViewer({
     }
   }, [])
 
+  const current = layer ? photos[index] : undefined
+  const currentId = current?.file_metadata.id
+  const revised = (current?.file_metadata.version ?? 1) > 1
+  useEffect(() => {
+    if (!revised || currentId == null || versions[currentId]) return
+    getPhotoVersions(currentId)
+      .then((v) => setVersions((all) => ({ ...all, [currentId]: v })))
+      .catch(() => {})
+  }, [revised, currentId, versions])
+
   const goTo = useCallback((i: number) => pswpRef.current?.goTo(i), [])
   const close = useCallback(() => pswpRef.current?.close(), [])
 
-  if (!layer) return null
-  const current = photos[index]
-  if (!current) return null
+  if (!layer || !current) return null
 
   const when = takenAt(current)
   const fav = favorites?.has(current.file_metadata.filename) ?? false
   const shown = chrome && !dragging
+  const history = currentId != null ? (versions[currentId] ?? []) : []
+  const canCompare = revised && history.length > 1
+  const comparing = canCompare && compare === photoKey(current)
 
   return createPortal(
     <>
+      {comparing && (
+        <PhotoCompare
+          versions={history}
+          pad={padFor(window.innerWidth)}
+          onClose={() => setCompare(null)}
+        />
+      )}
       <div
         className={`pointer-events-none absolute inset-0 z-10 flex flex-col justify-between transition-opacity duration-200 ${
           shown ? "opacity-100" : "opacity-0"
@@ -373,11 +406,13 @@ export function PhotoViewer({
                   {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                   {"  ·  "}
                   {index + 1} of {photos.length}
+                  {revised && `  ·  v${current.file_metadata.version}`}
                 </p>
               </>
             ) : (
               <p className="pt-1.5 text-[14px] font-medium tabular-nums">
                 {index + 1} <span className="text-white/55">of {photos.length}</span>
+                {revised && <span className="text-white/55"> · v{current.file_metadata.version}</span>}
               </p>
             )}
           </div>
@@ -397,6 +432,19 @@ export function PhotoViewer({
                   className={`size-5 transition-transform ${fav ? "scale-110 text-[#ff4d6d]" : ""}`}
                   fill={fav ? "currentColor" : "none"}
                 />
+              </button>
+            )}
+            {canCompare && (
+              <button
+                onClick={() => {
+                  setInfo(false)
+                  setCompare(photoKey(current))
+                }}
+                aria-label={`Compare with v${history[history.length - 2].version}`}
+                className="flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold uppercase tracking-[0.15em] transition-colors hover:bg-white/15"
+              >
+                <Columns2 className="size-4" />
+                <span className="max-sm:hidden">Compare</span>
               </button>
             )}
             <button
