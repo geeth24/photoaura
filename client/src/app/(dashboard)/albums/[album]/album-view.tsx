@@ -14,6 +14,10 @@ import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { InviteClientDialog } from "@/components/invite-client-dialog"
 import { AlbumAccessDialog } from "@/components/album-access-dialog"
 import { ManageDownloadsDialog } from "@/components/manage-downloads-dialog"
+import { UploadRevisionDialog } from "@/components/upload-revision-dialog"
+import { AlbumRevisions } from "@/components/album-revisions"
+import { RevisionBanner } from "@/components/revision-banner"
+import { markRevisionSeen } from "@/lib/revision-seen"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,6 +71,15 @@ export function AlbumView({
   const [selectedFace, setSelectedFace] = useState<string | null>(search.get("face"))
   const [viewer, setViewer] = useState<{ index: number; deep: boolean } | null>(null)
   const [video, setVideo] = useState<Photo | null>(null)
+  // ?revision=N (from the revision email) opens on just that revision's photos
+  const [revisionFilter, setRevisionFilter] = useState<{
+    number: number
+    // exact set from the history list; otherwise match revision_number
+    filenames?: Set<string>
+  } | null>(() => {
+    const n = Number(search.get("revision"))
+    return n > 0 ? { number: n } : null
+  })
 
   const onPageDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -166,6 +179,11 @@ export function AlbumView({
   }, [albumSlug, isAdmin, refresh])
 
   const processing = !!job?.active
+
+  const latestRevision = album?.revision?.number ?? 0
+  useEffect(() => {
+    if (latestRevision) markRevisionSeen(albumSlug, latestRevision)
+  }, [albumSlug, latestRevision])
 
   const handleDeletePhoto = useCallback(
     async (filename: string) => {
@@ -288,9 +306,16 @@ export function AlbumView({
       selectedFace != null
         ? new Set(faces.find((f) => f.face_id === selectedFace)?.filenames ?? [])
         : null
-    const faceScoped = selectedFilenames
-      ? album.album_photos.filter((p) => selectedFilenames.has(p.file_metadata.filename))
+    const revisionScoped = revisionFilter
+      ? album.album_photos.filter((p) =>
+          revisionFilter.filenames
+            ? revisionFilter.filenames.has(p.file_metadata.filename)
+            : p.file_metadata.revision_number === revisionFilter.number,
+        )
       : album.album_photos
+    const faceScoped = selectedFilenames
+      ? revisionScoped.filter((p) => selectedFilenames.has(p.file_metadata.filename))
+      : revisionScoped
     // photos / videos tabs — only when the album actually has video
     const hasVideos = album.album_photos.some((p) => isVideo(p))
     const videoCount = faceScoped.filter((p) => isVideo(p)).length
@@ -304,7 +329,7 @@ export function AlbumView({
     // the viewer swipes stills only; videos open their own player
     const stills = visiblePhotos.filter((p) => !isVideo(p))
     return { hasVideos, videoCount, photoCount, visiblePhotos, stills }
-  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites])
+  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter])
 
   const stillsRef = useRef<Photo[]>([])
   stillsRef.current = view?.stills ?? []
@@ -332,11 +357,17 @@ export function AlbumView({
     if (v && isVideo(v)) setVideo(v)
   }, [initialPhoto, view, album])
 
-  const faceQuery = selectedFace ? `?face=${selectedFace}` : ""
+  const query = useMemo(() => {
+    const q = new URLSearchParams()
+    if (selectedFace) q.set("face", selectedFace)
+    if (revisionFilter) q.set("revision", String(revisionFilter.number))
+    const s = q.toString()
+    return s ? `?${s}` : ""
+  }, [selectedFace, revisionFilter])
   const photoUrl = useCallback(
     (p: Photo) =>
-      `/albums/${albumSlug}/${encodeURIComponent(p.file_metadata.filename)}${faceQuery}`,
-    [albumSlug, faceQuery],
+      `/albums/${albumSlug}/${encodeURIComponent(p.file_metadata.filename)}${query}`,
+    [albumSlug, query],
   )
 
   if (loading) {
@@ -520,6 +551,11 @@ export function AlbumView({
             )}
             {processing ? "Re-detecting…" : resyncing ? "Starting…" : "Resync faces"}
           </button>
+          <UploadRevisionDialog
+            albumSlug={albumSlug}
+            albumName={album.album_name}
+            onUploaded={refresh}
+          />
           {user && (
             <UploadAlbumDialog
               mode="existing"
@@ -574,6 +610,23 @@ export function AlbumView({
         )}
       </div>
 
+      {album.revision && (
+        <RevisionBanner
+          revision={album.revision}
+          showing={revisionFilter?.number ?? null}
+          onShow={(n) => setRevisionFilter(n ? { number: n } : null)}
+        />
+      )}
+      {isAdmin && latestRevision > 0 && (
+        <AlbumRevisions
+          albumSlug={albumSlug}
+          latest={latestRevision}
+          onShow={(number, filenames) =>
+            setRevisionFilter({ number, filenames: new Set(filenames) })
+          }
+        />
+      )}
+
       {/* people */}
       {processing && (
         <Link
@@ -622,7 +675,7 @@ export function AlbumView({
         deepLink={viewer?.deep}
         onClose={() => setViewer(null)}
         urlFor={photoUrl}
-        closeUrl={`/albums/${albumSlug}${faceQuery}`}
+        closeUrl={`/albums/${albumSlug}${query}`}
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
         slug={albumSlug}

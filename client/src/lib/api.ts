@@ -1,3 +1,13 @@
+import type {
+  AppConfig,
+  AppPlatform,
+  AppVersionPolicy,
+  PhotoVersion,
+  Revision,
+  RevisionPreview,
+  RevisionWithFiles,
+} from "@/lib/types"
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
 
 function getToken(): string | null {
@@ -129,8 +139,7 @@ export function uploadAlbum(
   onStage?: (s: UploadStage) => void
 ): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
-    const token = getToken()
-    const wsUrl = API_URL.replace(/^http/, "ws") + "/ws/"
+    const wsUrl =API_URL.replace(/^http/, "ws") + "/ws/"
     const ws = new WebSocket(wsUrl)
     let settled = false
     let started = false
@@ -165,41 +174,20 @@ export function uploadAlbum(
         face_detection: String(!!opts.faceDetection),
       })
 
-      const xhr = new XMLHttpRequest()
-      xhr.open("POST", `${API_URL}/upload-files/?${params.toString()}`)
-      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
-
-      xhr.upload.onprogress = (ev) => {
-        if (ev.lengthComputable) {
-          onStage?.({
-            stage: "uploading",
-            pct: Math.round((ev.loaded / ev.total) * 100),
-          })
-        }
-      }
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          // server returns once files are saved; faces/warming run in the
-          // background and are tracked on the processing page.
-          let result: UploadResult = { albumSlug: "", processing: false }
-          try {
-            const body = JSON.parse(xhr.responseText)
-            result = {
-              albumSlug: body.album_slug ?? "",
-              processing: !!body.processing,
-            }
-          } catch {}
-          finish(undefined, result)
-        } else {
-          let msg = "Upload failed"
-          try {
-            msg = JSON.parse(xhr.responseText).detail || msg
-          } catch {}
-          finish(new Error(msg))
-        }
-      }
-      xhr.onerror = () => finish(new Error("Upload failed"))
-      xhr.send(form)
+      // server returns once files are saved; faces/warming run in the
+      // background and are tracked on the processing page.
+      postWithProgress<{ album_slug?: string; processing?: boolean }>(
+        `/upload-files/?${params.toString()}`,
+        form,
+        (pct) => onStage?.({ stage: "uploading", pct }),
+      )
+        .then((body) =>
+          finish(undefined, {
+            albumSlug: body.album_slug ?? "",
+            processing: !!body.processing,
+          }),
+        )
+        .catch((e: Error) => finish(e))
     }
 
     // start once the ws is open so we don't miss stage events; if the ws can't
@@ -208,7 +196,98 @@ export function uploadAlbum(
     ws.onerror = () => doUpload()
   })
 }
+
+// fetch can't report upload progress, so multipart posts go through xhr
+function postWithProgress<T>(
+  path: string,
+  form: FormData,
+  onProgress?: (pct: number) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const token = getToken()
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", `${API_URL}${path}`)
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) onProgress?.(Math.round((ev.loaded / ev.total) * 100))
+    }
+    xhr.onload = () => {
+      let body: unknown = null
+      try {
+        body = JSON.parse(xhr.responseText)
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve((body ?? {}) as T)
+      } else {
+        const detail = (body as { detail?: unknown } | null)?.detail
+        reject(new Error(typeof detail === "string" ? detail : "Upload failed"))
+      }
+    }
+    xhr.onerror = () => reject(new Error("Upload failed"))
+    xhr.send(form)
+  })
+}
+
 export function deletePhoto(slug: string, photoName: string): Promise<unknown> {
   const params = new URLSearchParams({ slug, photo_name: photoName })
   return apiFetch(`/photo/delete/?${params.toString()}`, { method: "DELETE" })
+}
+
+export function previewRevision(slug: string, filenames: string[]) {
+  return apiFetch<RevisionPreview>(`/album/${slug}/revisions/preview`, {
+    method: "POST",
+    body: JSON.stringify({ filenames }),
+  })
+}
+
+export type RevisionUploadResult = {
+  revision: Revision
+  updated: { uploaded: string; filename: string; version: number }[]
+  added: string[]
+  unmatched: string[]
+  duplicates: string[]
+  processing: boolean
+}
+
+/** Push re-edited photos as the album's next revision. */
+export function uploadRevision(
+  slug: string,
+  opts: { files: File[]; note?: string; notify: boolean; addUnmatched: boolean },
+  onProgress?: (pct: number) => void,
+) {
+  const form = new FormData()
+  opts.files.forEach((f) => form.append("files", f))
+  if (opts.note?.trim()) form.append("note", opts.note.trim())
+  form.append("notify", String(opts.notify))
+  form.append("add_unmatched", String(opts.addUnmatched))
+  return postWithProgress<RevisionUploadResult>(`/album/${slug}/revisions`, form, onProgress)
+}
+
+export function listRevisions(slug: string) {
+  return apiFetch<RevisionWithFiles[]>(`/album/${slug}/revisions`)
+}
+
+export function resendRevisionEmail(slug: string, number: number) {
+  return apiFetch<{ message: string; to: string[] }>(
+    `/album/${slug}/revisions/${number}/notify`,
+    { method: "POST" },
+  )
+}
+
+export function getPhotoVersions(photoId: number) {
+  return apiFetch<PhotoVersion[]>(`/photo/${photoId}/versions`)
+}
+
+export function getAppConfig() {
+  return apiFetch<AppConfig>("/app-config")
+}
+
+export function saveAppConfig(
+  platform: AppPlatform,
+  body: Pick<AppVersionPolicy, "min_version" | "latest_version" | "store_url" | "message">,
+) {
+  return apiFetch<Partial<AppConfig>>(`/admin/app-config/${platform}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  })
 }

@@ -275,6 +275,12 @@ const Tile = memo(function Tile({
         )}
       </button>
 
+      {(m.version ?? 1) > 1 && (
+        <span className="pointer-events-none absolute bottom-1.5 right-1.5 bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.1em] text-white backdrop-blur">
+          v{m.version}
+        </span>
+      )}
+
       {onToggleFavorite && !video && (
         <button
           onClick={() => onToggleFavorite(m.filename)}

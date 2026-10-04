@@ -7,6 +7,8 @@ import { motion } from "motion/react"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
 import { downloadAlbumZip } from "@/lib/download"
+import { seenRevision } from "@/lib/revision-seen"
+import type { Revision } from "@/lib/types"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AppStoreBadge, StoreBadges } from "@/components/store-badges"
@@ -31,6 +33,7 @@ type HomeAlbum = {
   photo_count: number
   video_count: number
   cover: string | null
+  revision: Revision | null
 }
 
 type HomeFile = {
@@ -74,6 +77,26 @@ function fmtDate(d: string | null) {
 
 function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`
+}
+
+// a revision this browser hasn't opened yet; its link opens on just those photos
+function unseenRevision(a: HomeAlbum) {
+  return a.revision && seenRevision(a.slug) < a.revision.number ? a.revision.number : null
+}
+
+function albumHref(a: HomeAlbum) {
+  const n = unseenRevision(a)
+  return n ? `/albums/${a.slug}?revision=${n}` : `/albums/${a.slug}`
+}
+
+function RevisionMarker({ album }: { album: HomeAlbum }) {
+  const n = unseenRevision(album)
+  if (!n) return null
+  return (
+    <span className="absolute left-3 top-3 z-[1] bg-brand px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-surface sm:left-4 sm:top-4">
+      Revision {n} ready
+    </span>
+  )
 }
 
 // a phone that can drop files into the camera roll, i.e. iOS/iPadOS Safari
@@ -181,7 +204,7 @@ export function ClientHome() {
         className="space-y-5"
       >
         <Link
-          href={`/albums/${newest.slug}`}
+          href={albumHref(newest)}
           className="group relative block aspect-[4/3] overflow-hidden bg-surface-elevated sm:aspect-[16/9]"
         >
           {newest.cover ? (
@@ -198,6 +221,7 @@ export function ClientHome() {
               <ImageIcon className="size-8 text-text-faint" />
             </div>
           )}
+          <RevisionMarker album={newest} />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-6 pt-24 sm:p-8">
             <div className="flex items-end justify-between gap-6">
               <div className="min-w-0">
@@ -312,7 +336,7 @@ export function ClientHome() {
             {rest.map((a) => (
               <Link
                 key={a.id}
-                href={`/albums/${a.slug}`}
+                href={albumHref(a)}
                 className="group block border border-border-subtle bg-surface-elevated transition-colors hover:border-border-strong"
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-surface">
@@ -329,6 +353,7 @@ export function ClientHome() {
                       <ImageIcon className="size-5 text-text-faint" />
                     </div>
                   )}
+                  <RevisionMarker album={a} />
                 </div>
                 <div className="p-4">
                   <p className="truncate text-sm font-medium text-text-primary">{a.name}</p>

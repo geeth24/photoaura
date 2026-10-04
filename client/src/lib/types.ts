@@ -42,7 +42,55 @@ export type Album = {
   face_detection?: boolean
   album_permissions?: AlbumPermission[]
   album_photos: Photo[]
+  // latest re-edit pushed after delivery; the delivery itself is version 1
+  revision?: Revision | null
 }
+
+export type Revision = {
+  number: number
+  note: string | null
+  photo_count: number
+  created_at: string
+  notified_at: string | null
+}
+
+export type RevisionWithFiles = Revision & { filenames: string[] }
+
+export type PhotoVersion = {
+  version: number
+  filename: string
+  revision_number: number | null
+  uploaded_at: string | null
+  width: number
+  height: number
+  image: string
+  compressed_image: string
+}
+
+export type RevisionPreview = {
+  next_number: number
+  matched: {
+    filename: string
+    photo_id: number
+    current_filename: string
+    current_version: number
+    next_version: number
+  }[]
+  unmatched: string[]
+  duplicates: string[]
+}
+
+export type AppPlatform = "ios" | "android"
+
+export type AppVersionPolicy = {
+  min_version: string | null
+  latest_version: string | null
+  store_url: string | null
+  message: string | null
+  updated_at: string | null
+}
+
+export type AppConfig = Record<AppPlatform, AppVersionPolicy | null>
 
 export type AlbumPermission = {
   user_id: number
@@ -74,6 +122,8 @@ export type FileMetadata = {
   orientation: "portrait" | "landscape" | "square" | null
   description: string | null
   tags: string[] | null
+  version?: number
+  revision_number?: number | null
 }
 
 export type DashboardStats = {

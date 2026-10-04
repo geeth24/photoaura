@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { uploadAlbum, type UploadStage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Progress } from "@/components/ui/progress"
+import { UploadDropzone, UploadProgress } from "@/components/upload-dropzone"
 import {
   Dialog,
   DialogClose,
@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { UploadCloud, ImageIcon, ScanFace } from "lucide-react"
+import { ImageIcon, ScanFace } from "lucide-react"
 import { toast } from "sonner"
 
 type Props = {
@@ -76,10 +76,8 @@ export function UploadAlbumDialog({
   const [name, setName] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [faceDetection, setFaceDetection] = useState(false)
-  const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [stage, setStage] = useState<UploadStage | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
     setName("")
@@ -103,14 +101,6 @@ export function UploadAlbumDialog({
     setSeededFor(initialFiles)
     setFiles(initialFiles)
   }
-
-  const addFiles = useCallback((incoming: FileList | null) => {
-    if (!incoming) return
-    const media = Array.from(incoming).filter(
-      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
-    )
-    setFiles((prev) => [...prev, ...media])
-  }, [])
 
   const resolvedName = mode === "new" ? name.trim() : albumName ?? ""
   const faces = lockFaceDetection || faceDetection
@@ -176,38 +166,10 @@ export function UploadAlbumDialog({
             </div>
           )}
 
-          {/* dropzone */}
-          <div
-            onClick={() => !uploading && inputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault()
-              if (!uploading) setDragging(true)
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragging(false)
-              if (!uploading) addFiles(e.dataTransfer.files)
-            }}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center transition-colors ${
-              dragging ? "border-primary bg-primary/5" : "border-input hover:bg-muted/50"
-            } ${uploading ? "pointer-events-none opacity-60" : ""}`}
-          >
-            <UploadCloud className="size-7 text-muted-foreground" />
-            <div className="text-sm">
-              <span className="font-medium text-foreground">Click to choose</span>
-              <span className="text-muted-foreground"> or drag files here</span>
-            </div>
-            <p className="text-xs text-muted-foreground">PNG, JPG, HEIC, MP4, MOV</p>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*,video/*"
-              multiple
-              className="hidden"
-              onChange={(e) => addFiles(e.target.files)}
-            />
-          </div>
+          <UploadDropzone
+            disabled={uploading}
+            onFiles={(media) => setFiles((prev) => [...prev, ...media])}
+          />
 
           {files.length > 0 && (
             <div className="flex items-center justify-between rounded-lg border border-input px-3 py-2.5 text-sm">
@@ -250,13 +212,11 @@ export function UploadAlbumDialog({
           )}
 
           {uploading && stage && (
-            <div className="space-y-1.5">
-              <Progress value={stagePct(stage)} />
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{STAGE_LABEL[stage.stage]}…</span>
-                <span>{stageDetail(stage)}</span>
-              </div>
-            </div>
+            <UploadProgress
+              value={stagePct(stage)}
+              label={STAGE_LABEL[stage.stage]}
+              detail={stageDetail(stage)}
+            />
           )}
         </div>
 
