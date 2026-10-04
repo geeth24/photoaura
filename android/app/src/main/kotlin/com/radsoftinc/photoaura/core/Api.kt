@@ -132,6 +132,9 @@ object Api {
     suspend fun albumFaces(slug: String): List<FaceSummary> =
         client.get("$BASE/album/$slug/faces") { auth() }.decode()
 
+    suspend fun photoVersions(photoId: Int): List<PhotoVersion> =
+        client.get("$BASE/photo/$photoId/versions") { auth() }.decode()
+
     suspend fun allPhotos(userId: Int, orientation: String?): List<Photo> =
         client.get("$BASE/photos/") {
             auth(); parameter("user_id", userId); orientation?.let { parameter("orientation", it) }

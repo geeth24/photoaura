@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.radsoftinc.photoaura.app.PendingLink
 import com.radsoftinc.photoaura.app.RootView
+import com.radsoftinc.photoaura.core.SeenRevisions
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.Studios
 import com.radsoftinc.photoaura.features.gallery.GridDensity
@@ -19,6 +20,7 @@ class MainActivity : ComponentActivity() {
         Studios.init(applicationContext) // before Session, which verifies against the studio's api
         Session.init(applicationContext)
         GridDensity.init(applicationContext)
+        SeenRevisions.init(applicationContext)
         PendingLink.from(intent?.data) // cold start from a tapped sign-in email
         setContent {
             EditorialTheme { RootView() }

@@ -42,7 +42,34 @@ data class AlbumDetail(
     val albumPhotos: List<Photo> = emptyList(),
     // builds the shareable gallery link
     val secret: String? = null,
+    val revision: AlbumRevision? = null,
 )
+
+/** A batch of re-edits pushed after delivery. The delivery itself is version 1, so the first is number 2. */
+@Serializable
+data class AlbumRevision(
+    val number: Int = 0,
+    val note: String? = null,
+    val photoCount: Int = 0,
+    val createdAt: String? = null,
+    val notifiedAt: String? = null,
+)
+
+/** One stored edit of a photo, oldest first from /photo/{id}/versions. */
+@Serializable
+data class PhotoVersion(
+    val version: Int = 1,
+    val filename: String = "",
+    val revisionNumber: Int? = null,
+    val uploadedAt: String? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val image: String = "",
+    val compressedImage: String = "",
+) {
+    // lets the viewer's zoomable page show it like any other photo
+    val photo: Photo get() = Photo(image, compressedImage, PhotoMetadata(filename, width ?: 0, height ?: 0, version = version))
+}
 
 @Serializable
 data class Photo(
@@ -65,6 +92,10 @@ data class PhotoMetadata(
     val uploadDate: String? = null,
     // raw EXIF as a JSON string
     val exifData: String? = null,
+    val id: Int? = null,
+    val version: Int = 1,
+    // the revision that last replaced this photo
+    val revisionNumber: Int? = null,
 ) {
     /** EXIF as an object. Some uploads store it JSON-encoded twice, so a string gets one more pass. */
     val exif: JsonObject?
@@ -125,6 +156,7 @@ data class HomeAlbum(
     val photoCount: Int = 0,
     val videoCount: Int = 0,
     val cover: String? = null,
+    val revision: AlbumRevision? = null,
 ) {
     // the album screen takes a summary; counts are all it needs from us
     val summary: AlbumSummary get() = AlbumSummary(id, name, slug, photoCount + videoCount)

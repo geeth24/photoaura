@@ -4,12 +4,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
@@ -31,16 +37,20 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.radsoftinc.editorialstyle.EditorialEmptyState
+import com.radsoftinc.editorialstyle.EditorialEyebrow
 import com.radsoftinc.editorialstyle.EditorialFaceChip
 import com.radsoftinc.editorialstyle.EditorialSectionHeader
+import com.radsoftinc.editorialstyle.EditorialSegmentedControl
 import com.radsoftinc.editorialstyle.EditorialSpacing
 import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.editorialstyle.EditorialTopBar
 import com.radsoftinc.editorialstyle.EditorialTopBarHeight
 import com.radsoftinc.photoaura.core.AlbumDetail
+import com.radsoftinc.photoaura.core.AlbumRevision
 import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.FaceSummary
 import com.radsoftinc.photoaura.core.Photo
+import com.radsoftinc.photoaura.core.SeenRevisions
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.RemoteImage
@@ -52,12 +62,17 @@ data class AlbumState(
     val detail: AlbumDetail? = null,
     val faces: List<FaceSummary> = emptyList(),
     val selectedFace: String? = null,
+    val revisionOnly: Boolean = false,
     val loading: Boolean = true,
     val error: String? = null,
 ) {
+    val revision: AlbumRevision? get() = detail?.revision
+
     val photos: List<Photo>?
         get() {
-            val all = detail?.albumPhotos ?: return null
+            var all = detail?.albumPhotos ?: return null
+            val rev = revision
+            if (revisionOnly && rev != null) all = all.filter { it.fileMetadata.revisionNumber == rev.number }
             val face = faces.firstOrNull { it.faceId == selectedFace } ?: return all
             val names = face.filenames.toSet()
             return all.filter { it.fileMetadata.filename in names }
@@ -68,6 +83,7 @@ sealed interface AlbumIntent {
     data class Load(val slug: String, val title: String) : AlbumIntent
     data object Refresh : AlbumIntent
     data class SelectFace(val id: String) : AlbumIntent
+    data class RevisionOnly(val on: Boolean) : AlbumIntent
     data class Loaded(val detail: AlbumDetail) : AlbumIntent
     data class FacesLoaded(val faces: List<FaceSummary>) : AlbumIntent
     data class Failed(val message: String) : AlbumIntent
@@ -90,6 +106,7 @@ class AlbumStore : Store<AlbumState, AlbumIntent>(AlbumState()) {
                 io { runCatching { send(AlbumIntent.FacesLoaded(Api.albumFaces(slug))) } }
             }
             is AlbumIntent.SelectFace -> setState { copy(selectedFace = if (selectedFace == intent.id) null else intent.id) }
+            is AlbumIntent.RevisionOnly -> setState { copy(revisionOnly = intent.on) }
             is AlbumIntent.Loaded -> setState { copy(detail = intent.detail, title = intent.detail.albumName, loading = false) }
             is AlbumIntent.FacesLoaded -> setState { copy(faces = intent.faces) }
             is AlbumIntent.Failed -> setState { copy(loading = false, error = intent.message) }
@@ -113,9 +130,10 @@ fun AlbumScreen(
     val scope = rememberCoroutineScope()
     var actions by remember { mutableStateOf(false) }
     LaunchedEffect(openActions, s.detail != null) { if (openActions && s.detail != null) actions = true }
+    LaunchedEffect(s.revision?.number) { SeenRevisions.markSeen(slug, s.revision) }
 
-    // header rows before the first tile: title, and faces when there are any
-    val headerCount = if (s.faces.isNotEmpty()) 2 else 1
+    // header rows before the first tile: title, the revision banner and faces when there are any
+    val headerCount = 1 + (if (s.revision != null) 1 else 0) + (if (s.faces.isNotEmpty()) 1 else 0)
 
     Box(Modifier.fillMaxSize().background(EditorialTheme.colors.background)) {
     PhotoGrid(
@@ -148,8 +166,19 @@ fun AlbumScreen(
                         subtitle = when {
                             n == null -> "Loading…"
                             face != null -> "Just ${face.name ?: "this person"} — $n ${if (n == 1) "photo" else "photos"}"
+                            s.revisionOnly -> "$n updated ${if (n == 1) "photo" else "photos"}"
                             else -> "${s.detail?.imageCount ?: n} ${if (n == 1) "photo" else "photos"}"
                         },
+                    )
+                }
+            }
+            s.revision?.let { rev ->
+                fullWidth("revision") {
+                    RevisionBanner(
+                        rev,
+                        only = s.revisionOnly,
+                        onOnly = { store.send(AlbumIntent.RevisionOnly(it)) },
+                        modifier = Modifier.padding(horizontal = EditorialSpacing.screenGutter).padding(bottom = EditorialSpacing.large),
                     )
                 }
             }
@@ -182,7 +211,11 @@ fun AlbumScreen(
                 fullWidth("empty") {
                     EditorialEmptyState(
                         Icons.Outlined.PhotoLibrary, "No photos", Modifier.padding(EditorialSpacing.screenGutter),
-                        subtitle = if (s.selectedFace == null) "This gallery is empty." else "No photos of this person in the gallery.",
+                        subtitle = when {
+                            s.selectedFace != null -> "No photos of this person in the gallery."
+                            s.revisionOnly -> "None of the updated photos are in this view."
+                            else -> "This gallery is empty."
+                        },
                     )
                 }
             }
@@ -202,5 +235,27 @@ fun AlbumScreen(
     if (actions) {
         val d = s.detail
         if (d != null) GalleryActionsSheet(d.albumName, d.slug, d.secret, d.albumPhotos) { actions = false }
+    }
+}
+
+/** "Revision 2 · 14 photos updated", the photographer's note, and a switch to just those photos. */
+@Composable
+private fun RevisionBanner(rev: AlbumRevision, only: Boolean, onOnly: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val c = EditorialTheme.colors
+    val count = "${rev.photoCount} ${if (rev.photoCount == 1) "photo" else "photos"} updated"
+    Row(modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(Modifier.width(2.dp).fillMaxHeight().background(c.brand))
+        Column(Modifier.padding(start = EditorialSpacing.medium), verticalArrangement = Arrangement.spacedBy(EditorialSpacing.xSmall)) {
+            EditorialEyebrow("Revision ${rev.number} · $count")
+            rev.note?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = EditorialTheme.typography.body, color = c.textSecondary)
+            }
+            EditorialSegmentedControl(
+                listOf("All photos" to false, "Updated only" to true),
+                selection = only,
+                onSelect = onOnly,
+                modifier = Modifier.padding(top = EditorialSpacing.xSmall),
+            )
+        }
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.radsoftinc.editorialstyle.EditorialPhotoBadge
 import com.radsoftinc.editorialstyle.EditorialSkeleton
 import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.ImageUrls
@@ -154,6 +155,9 @@ private fun Tile(p: Photo, modifier: Modifier, onClick: () -> Unit) {
     ) {
         RemoteImage(ImageUrls.tile(p), Modifier.fillMaxSize())
         if (p.isVideo) PlayBadge(Modifier.align(Alignment.Center))
+        if (p.fileMetadata.version > 1) {
+            EditorialPhotoBadge("v${p.fileMetadata.version}", Modifier.align(Alignment.TopEnd).padding(4.dp))
+        }
     }
 }
 

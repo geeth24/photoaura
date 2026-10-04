@@ -57,6 +57,7 @@ import com.radsoftinc.editorialstyle.EditorialCard
 import com.radsoftinc.editorialstyle.EditorialEmptyState
 import com.radsoftinc.editorialstyle.EditorialEyebrow
 import com.radsoftinc.editorialstyle.EditorialLargeTitle
+import com.radsoftinc.editorialstyle.EditorialPhotoBadge
 import com.radsoftinc.editorialstyle.EditorialPhotoCard
 import com.radsoftinc.editorialstyle.EditorialSkeleton
 import com.radsoftinc.editorialstyle.EditorialSpacing
@@ -68,6 +69,7 @@ import com.radsoftinc.photoaura.core.ClientFile
 import com.radsoftinc.photoaura.core.HomeAlbum
 import com.radsoftinc.photoaura.core.HomeSummary
 import com.radsoftinc.photoaura.core.ImageUrls
+import com.radsoftinc.photoaura.core.SeenRevisions
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.ActionCard
@@ -164,6 +166,7 @@ fun HomeScreen(
                         items(rest, key = { it.id }) { a ->
                             EditorialPhotoCard(a.name, caption = counts(a), aspect = 4f / 5f, onClick = { onOpenAlbum(a.slug, a.name, false) }) {
                                 a.cover?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
+                                RevisionReady(a, Modifier.padding(EditorialSpacing.small))
                             }
                         }
                     }
@@ -219,6 +222,7 @@ private fun Hero(a: HomeAlbum, multiple: Boolean, onClick: () -> Unit) {
             .editorialPress(onClick = onClick),
     ) {
         a.cover?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
+        RevisionReady(a, Modifier.padding(EditorialSpacing.large))
         Box(
             Modifier.fillMaxWidth().fillMaxHeight(0.6f).align(Alignment.BottomCenter)
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f), Color.Black.copy(alpha = 0.85f)))),
@@ -235,6 +239,15 @@ private fun Hero(a: HomeAlbum, multiple: Boolean, onClick: () -> Unit) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Open", Modifier.size(18.dp), tint = Color.White)
             }
         }
+    }
+}
+
+/** Flags an album until the client opens it after its latest revision. */
+@Composable
+private fun RevisionReady(a: HomeAlbum, modifier: Modifier) {
+    val rev = a.revision ?: return
+    if (SeenRevisions.isNew(a.slug, rev)) {
+        EditorialPhotoBadge("Revision ${rev.number} ready".uppercase(), modifier, prominent = true)
     }
 }
 
