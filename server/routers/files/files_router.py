@@ -18,7 +18,7 @@ from db.base import get_session, session_scope
 from db.models import Album, FileMetadata, User, PhotoFaceLink, FaceEmbedding
 from services.aws_service import s3_client, invalidate_cdn
 from utils.face_recog import detect_and_store_faces, recluster_faces
-from utils.utils import get_file_metadata, add_album_to_user, slugify
+from utils.utils import get_file_metadata, add_album_to_user, slugify, base_name_of
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
 from services.video_transcode import transcode_to_web
@@ -101,7 +101,7 @@ async def _store_video_file(file, filename: str, content_type: str, album, sessi
         session.query(PhotoFaceLink).filter_by(photo_id=meta.id).delete()
         session.query(FaceEmbedding).filter_by(photo_id=meta.id).delete()
     else:
-        meta = FileMetadata(album_id=album.id, filename=filename, **fields)
+        meta = FileMetadata(album_id=album.id, filename=filename, base_name=base_name_of(filename), **fields)
         session.add(meta)
     session.commit()
     return s3_key, meta.id
@@ -175,7 +175,7 @@ def _store_one_file(
             session.query(PhotoFaceLink).filter_by(photo_id=meta.id).delete()
             session.query(FaceEmbedding).filter_by(photo_id=meta.id).delete()
         else:
-            meta = FileMetadata(album_id=album.id, filename=filename, **fields)
+            meta = FileMetadata(album_id=album.id, filename=filename, base_name=base_name_of(filename), **fields)
             session.add(meta)
         session.commit()
         session.refresh(meta)

@@ -28,6 +28,8 @@ from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, slugify
 from dependencies import is_admin_caller, require_admin, get_current_user
 
+from routers.revisions.revisions_router import latest_revision
+
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
@@ -83,6 +85,7 @@ async def get_album(
         "face_detection": album.face_detection,
         "album_permissions": permissions_list,
         "album_photos": album_photos,
+        "revision": latest_revision(session, album.id),
     }
 
 

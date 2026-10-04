@@ -182,6 +182,7 @@ def my_home(
     from sqlalchemy import func
     from db.models import Album, FileMetadata, UserAlbumPermission
     from utils.utils import build_photo_json
+    from routers.revisions.revisions_router import latest_revision
 
     me = _me(session, current_user)
     owner = me.parent_user_id or me.id
@@ -214,6 +215,7 @@ def my_home(
                 "photo_count": total - videos,
                 "video_count": videos,
                 "cover": build_photo_json(cover, a.slug)["compressed_image"] if cover else None,
+                "revision": latest_revision(session, a.id),
             }
         )
 

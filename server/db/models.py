@@ -112,8 +112,64 @@ class FileMetadata(Base):
     orientation: Mapped[Optional[str]] = mapped_column(String(10))
     description: Mapped[Optional[str]] = mapped_column(Text)
     tags: Mapped[Optional[list[str]]] = mapped_column(ARRAY(Text))
+    # 1 for the original delivery; each revision that touches the photo bumps it
+    # and stores the file under a new name (IMG_1234_v2.jpg), so every client
+    # and cache picks up the new pixels without any URL tricks
+    version: Mapped[int] = mapped_column(Integer, server_default="1", default=1)
+    # filename stem without any _vN suffix, lowercased — what revisions match on
+    base_name: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    revision_number: Mapped[Optional[int]] = mapped_column(Integer)
 
     album: Mapped[Optional["Album"]] = relationship(back_populates="photos")
+
+
+class AlbumRevision(Base):
+    """A batch of re-edited photos pushed to an album after delivery."""
+
+    __tablename__ = "album_revisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    album_id: Mapped[int] = mapped_column(ForeignKey("album.id", ondelete="CASCADE"), index=True)
+    number: Mapped[int] = mapped_column(Integer)  # 2 = first revision; 1 is the original delivery
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    photo_count: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+    notified_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+
+
+class PhotoVersion(Base):
+    """Every file a photo has been, so an earlier edit is never lost."""
+
+    __tablename__ = "photo_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    photo_id: Mapped[int] = mapped_column(
+        ForeignKey("file_metadata.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    filename: Mapped[str] = mapped_column(String(255))
+    size: Mapped[Optional[int]] = mapped_column(BigInteger)
+    width: Mapped[Optional[int]] = mapped_column(Integer)
+    height: Mapped[Optional[int]] = mapped_column(Integer)
+    revision_number: Mapped[Optional[int]] = mapped_column(Integer)
+    uploaded_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+
+
+class AppVersion(Base):
+    """Per-platform update policy the mobile apps check on launch."""
+
+    __tablename__ = "app_versions"
+
+    platform: Mapped[str] = mapped_column(String(20), primary_key=True)  # ios | android
+    min_version: Mapped[Optional[str]] = mapped_column(String(20))  # below this = must update
+    latest_version: Mapped[Optional[str]] = mapped_column(String(20))  # below this = nudge
+    store_url: Mapped[Optional[str]] = mapped_column(String(512))
+    message: Mapped[Optional[str]] = mapped_column(Text)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class UserAlbumPermission(Base):

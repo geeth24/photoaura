@@ -127,3 +127,23 @@ def send_new_video(to_email: str, full_name: str, link: str, album_name: str) ->
     if not payload:
         return False
     return _send(to_email, payload["subject"], payload["html"])
+
+
+def send_album_revision(
+    to_email: str, full_name: str, link: str, album_name: str,
+    number: int, photo_count: int, note=None,
+) -> bool:
+    payload = _render(
+        "album-revision",
+        {
+            "fullName": full_name,
+            "link": link,
+            "albumName": album_name,
+            "revisionNumber": number,
+            "photoCount": photo_count,
+            "note": note,
+        },
+    )
+    if not payload:
+        return False
+    return _send(to_email, payload["subject"], payload["html"])

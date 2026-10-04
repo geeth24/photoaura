@@ -144,6 +144,8 @@ def build_photo_json(meta, album_slug):
             "orientation": meta.orientation,
             "description": meta.description,
             "tags": meta.tags,
+            "version": getattr(meta, "version", None) or 1,
+            "revision_number": getattr(meta, "revision_number", None),
         },
     }
 
@@ -185,3 +187,12 @@ def add_album_to_user(user_id, album_id):
         if existing:
             return
         session.add(UserAlbumPermission(user_id=user_id, album_id=album_id))
+
+
+_VERSION_SUFFIX = re.compile(r"[ _-]v\d+$", re.IGNORECASE)
+
+
+def base_name_of(filename: str) -> str:
+    """IMG_1234.jpg, IMG_1234_v2.JPG and img_1234 v3.png all -> "img_1234"."""
+    stem = os.path.splitext(filename or "")[0]
+    return _VERSION_SUFFIX.sub("", stem).lower()
