@@ -52,6 +52,7 @@ import com.radsoftinc.photoaura.features.home.HomeScreen
 import com.radsoftinc.photoaura.features.library.AllPhotosScreen
 import com.radsoftinc.photoaura.features.library.GalleriesScreen
 import com.radsoftinc.photoaura.features.profile.ProfileScreen
+import com.radsoftinc.photoaura.features.update.UpdatePrompts
 
 /** Sign-in link waiting to be verified, from a tapped email or the aura:// scheme. */
 object PendingLink {
@@ -100,6 +101,7 @@ fun RootView() {
                 kotlinx.coroutines.delay(4000); linkError = null
             }
         }
+        UpdatePrompts()
     }
 }
 

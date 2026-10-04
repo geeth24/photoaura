@@ -158,6 +158,13 @@ object Api {
     fun zipUrl(slug: String, ticket: String) =
         "$BASE/album/$slug/download-all?ticket=${java.net.URLEncoder.encode(ticket, "UTF-8")}"
 
+    // public and unauthenticated, so a failure here never signs anyone out
+    suspend fun appConfig(): AppConfig {
+        val r = client.get("$BASE/app-config")
+        if (!r.status.isSuccess()) throw ApiException(r.status.value, "app-config ${r.status.value}")
+        return r.body()
+    }
+
     fun shareUrl(slug: String, secret: String?) =
         "$WEB/share/$slug" + if (!secret.isNullOrEmpty()) "?s=$secret" else ""
 }

@@ -69,6 +69,7 @@ fun EditorialConfirmSheet(
     message: String? = null,
     icon: ImageVector? = null,
     isDestructive: Boolean = false,
+    dismissLabel: String = "Cancel",
 ) {
     val c = EditorialTheme.colors
     val type = EditorialTheme.typography
@@ -103,7 +104,7 @@ fun EditorialConfirmSheet(
                     { close(onConfirm) },
                     style = if (isDestructive) EditorialButtonStyle.Destructive else EditorialButtonStyle.Primary,
                 )
-                EditorialButton("Cancel", { close() }, style = EditorialButtonStyle.Ghost)
+                EditorialButton(dismissLabel, { close() }, style = EditorialButtonStyle.Ghost)
             }
         }
     }
