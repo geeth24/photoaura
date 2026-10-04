@@ -85,6 +85,13 @@ struct PhotoTile: View {
                 CachedImage(url: ImageURLHelper.autoOriented(from: photo.compressedImage, width: 750), contentMode: .fill)
             }
             .overlay { if photo.isVideo { VideoPlayBadge() } }
+            .overlay(alignment: .topTrailing) {
+                if photo.fileMetadata.isRevised {
+                    EditorialPhotoTag("v\(photo.fileMetadata.currentVersion)", compact: true)
+                        .padding(4)
+                        .accessibilityLabel("Version \(photo.fileMetadata.currentVersion)")
+                }
+            }
             .clipped()
             .contentShape(Rectangle())
     }

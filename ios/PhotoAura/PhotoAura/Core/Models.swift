@@ -45,6 +45,61 @@ struct AlbumDetail: Decodable, Hashable {
     // used to build a shareable gallery link
     let secret: String?
     let `public`: Bool?
+    // latest re-edit pushed after delivery; nil until there is one
+    let revision: AlbumRevision?
+}
+
+// one numbered re-edit of a delivered album; the delivery itself is version 1
+struct AlbumRevision: Decodable, Hashable {
+    let number: Int
+    let note: String?
+    let photoCount: Int?
+    let createdAt: String?
+    let notifiedAt: String?
+
+    enum CodingKeys: String, CodingKey { case number, note, photoCount, createdAt, notifiedAt }
+
+    // a half-formed revision shouldn't take the whole album down with it
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        number = (try? c.decode(Int.self, forKey: .number)) ?? 0
+        note = (try? c.decodeIfPresent(String.self, forKey: .note)).flatMap { $0.isEmpty ? nil : $0 }
+        photoCount = try? c.decodeIfPresent(Int.self, forKey: .photoCount)
+        createdAt = try? c.decodeIfPresent(String.self, forKey: .createdAt)
+        notifiedAt = try? c.decodeIfPresent(String.self, forKey: .notifiedAt)
+    }
+
+    var title: String { "Revision \(number)" }
+}
+
+// GET /api/photo/{id}/versions — every edit of one photo, oldest first
+struct PhotoVersion: Decodable, Hashable, Identifiable {
+    let version: Int
+    let filename: String?
+    let revisionNumber: Int?
+    let uploadedAt: String?
+    let width: Int?
+    let height: Int?
+    let image: String?
+    let compressedImage: String?
+
+    var id: Int { version }
+
+    enum CodingKeys: String, CodingKey {
+        case version, filename, revisionNumber, uploadedAt, width, height, image, compressedImage
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = (try? c.decode(Int.self, forKey: .version)) ?? 1
+        filename = try? c.decodeIfPresent(String.self, forKey: .filename)
+        revisionNumber = try? c.decodeIfPresent(Int.self, forKey: .revisionNumber)
+        uploadedAt = try? c.decodeIfPresent(String.self, forKey: .uploadedAt)
+        width = try? c.decodeIfPresent(Int.self, forKey: .width)
+        height = try? c.decodeIfPresent(Int.self, forKey: .height)
+        image = try? c.decodeIfPresent(String.self, forKey: .image)
+        compressedImage = try? c.decodeIfPresent(String.self, forKey: .compressedImage)
+    }
 }
 
 struct Photo: Codable, Hashable, Identifiable {
@@ -65,8 +120,15 @@ struct PhotoMetadata: Codable, Hashable {
     let contentType: String?
     let uploadDate: String?
     let exifData: String?  // raw EXIF as a JSON string
+    let id: Int?
+    let version: Int?
+    // the revision that last replaced this photo
+    let revisionNumber: Int?
 
     enum CodingKeys: String, CodingKey {
+        case id
+        case version
+        case revisionNumber
         case filename
         case width
         case height
@@ -113,11 +175,25 @@ struct HomeAlbum: Decodable, Hashable, Identifiable {
     let photoCount: Int
     let videoCount: Int
     let cover: String?
+    let revision: AlbumRevision?
 
     // the album screen takes a summary; counts are all it needs from us
     var summary: AlbumSummary {
         AlbumSummary(albumId: id, albumName: name, slug: slug, imageCount: photoCount + videoCount, albumPhotos: nil)
     }
+}
+
+// GET /api/app-config — the store update policy, per platform
+struct AppConfig: Decodable {
+    let ios: UpdatePolicy?
+}
+
+struct UpdatePolicy: Decodable, Equatable {
+    let minVersion: String?
+    let latestVersion: String?
+    let storeUrl: String?
+    let message: String?
+    let updatedAt: String?
 }
 
 struct ClientFile: Codable, Hashable, Identifiable {
@@ -131,6 +207,9 @@ struct ClientFile: Codable, Hashable, Identifiable {
 }
 
 extension PhotoMetadata {
+    var currentVersion: Int { max(version ?? 1, 1) }
+    var isRevised: Bool { currentVersion > 1 }
+
     /// EXIF as a dictionary. Some uploads store it JSON-encoded twice, so a
     /// string that parses to another string gets one more pass.
     var exif: [String: Any]? {

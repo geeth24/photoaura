@@ -9,10 +9,13 @@ import SwiftUI
 import EditorialStyle
 
 // Filename + dimensions/size + parsed EXIF (camera, lens, ISO, aperture,
-// shutter, focal length, taken) for the photo currently in the viewer.
+// shutter, focal length, taken) for the photo currently in the viewer, and
+// its edit history when the photographer has re-edited it.
 struct PhotoInfoSheet: View {
     let photo: Photo
     @Environment(\.dismiss) private var dismiss
+    @Environment(APIClient.self) private var api
+    @State private var versions: PhotoVersionsStore?
 
     private var meta: PhotoMetadata { photo.fileMetadata }
 
@@ -26,6 +29,9 @@ struct PhotoInfoSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     section("Details", rows: detailRows)
+                    if let versions {
+                        PhotoVersionsSection(photo: photo, store: versions)
+                    }
                     if !cameraRows.isEmpty {
                         section("Camera", rows: cameraRows)
                     }
@@ -44,6 +50,11 @@ struct PhotoInfoSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .onAppear {
+            // only re-edited photos have a history, and it's fetched by photo id
+            guard versions == nil, meta.isRevised, let id = meta.id else { return }
+            versions = PhotoVersionsStore(api: api, photoId: id, currentVersion: meta.currentVersion)
+        }
     }
 
     private func section(_ title: String, rows: [(String, String)]) -> some View {
@@ -79,6 +90,10 @@ struct PhotoInfoSheet: View {
         if meta.width > 0, meta.height > 0 { r.append(("Dimensions", "\(meta.width) × \(meta.height)")) }
         if let s = meta.size, let f = Self.formatBytes(s) { r.append(("Size", f)) }
         if let t = meta.contentType, !t.isEmpty { r.append(("Type", t)) }
+        if meta.isRevised {
+            let from = meta.revisionNumber.map { " · Revision \($0)" } ?? ""
+            r.append(("Version", "v\(meta.currentVersion)\(from)"))
+        }
         if let d = meta.uploadDate, let f = Self.formatDate(d) { r.append(("Uploaded", f)) }
         return r
     }
@@ -143,17 +158,7 @@ struct PhotoInfoSheet: View {
         exifFmt.dateFormat = "yyyy:MM:dd HH:mm:ss"
         if let d = exifFmt.date(from: s) { return out.string(from: d) }
 
-        // ISO upload_date
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = iso.date(from: s) { return out.string(from: d) }
-        iso.formatOptions = [.withInternetDateTime]
-        if let d = iso.date(from: s) { return out.string(from: d) }
-
-        // plain "yyyy-MM-dd'T'HH:mm:ss" (no tz)
-        let plain = DateFormatter()
-        plain.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        if let d = plain.date(from: s) { return out.string(from: d) }
+        if let d = ServerDate.parse(s) { return out.string(from: d) }
         return nil
     }
 }

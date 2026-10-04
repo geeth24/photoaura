@@ -14,6 +14,8 @@ struct PhotoAuraApp: App {
     @State private var auth: AuthStore
     @State private var studios = StudioRegistry()
     @State private var network = NetworkMonitor()
+    @State private var updates: UpdateStore
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         EditorialNavigationStyle.apply()
@@ -23,6 +25,7 @@ struct PhotoAuraApp: App {
         _api = State(initialValue: client)
         _auth = State(initialValue: AuthStore(api: client))
         _studios = State(initialValue: registry)
+        _updates = State(initialValue: UpdateStore(api: client))
     }
 
     var body: some Scene {
@@ -34,6 +37,11 @@ struct PhotoAuraApp: App {
                 .environment(network)
                 .tint(EditorialColors.brand)
                 .task { await auth.bootstrap() }
+                .updatePrompts(updates)
+                // launch counts as becoming active, so this covers both
+                .onChange(of: scenePhase, initial: true) { _, phase in
+                    if phase == .active { updates.send(.appBecameActive) }
+                }
                 .onOpenURL { url in
                     DeepLink.handle(url, auth: auth, api: api)
                 }

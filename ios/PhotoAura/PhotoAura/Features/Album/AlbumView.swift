@@ -110,6 +110,17 @@ private struct AlbumContent: View {
                         .padding(.horizontal, EditorialSpacing.screenGutter)
                         .padding(.top, EditorialSpacing.medium)
 
+                        if let revision = store.state.revision {
+                            RevisionBanner(
+                                revision: revision,
+                                count: store.state.revisedCount,
+                                onlyRevised: store.state.onlyRevised
+                            ) {
+                                store.send(.toggleOnlyRevised)
+                            }
+                            .padding(.horizontal, EditorialSpacing.screenGutter)
+                        }
+
                         if !store.state.faces.isEmpty {
                             facesStrip
                         }
@@ -130,8 +141,13 @@ private struct AlbumContent: View {
     private var subtitleText: String {
         if store.state.isLoading && store.state.detail == nil { return "Loading…" }
         let n = store.state.photos.count
+        let photos = n == 1 ? "photo" : "photos"
         if let face = activeFace {
-            return "Just \(face.name ?? "this face") — \(n) \(n == 1 ? "photo" : "photos")"
+            let updated = store.state.onlyRevised ? " updated" : ""
+            return "Just \(face.name ?? "this face") — \(n)\(updated) \(photos)"
+        }
+        if store.state.onlyRevised, let revision = store.state.revision {
+            return "\(revision.title) — \(n) updated \(photos)"
         }
         let total = store.state.detail?.imageCount ?? n
         return "\(total) \(total == 1 ? "photo" : "photos")"
@@ -164,6 +180,15 @@ private struct AlbumContent: View {
         }
     }
 
+    private var emptySubtitle: String {
+        switch (store.state.selectedFaceId != nil, store.state.onlyRevised) {
+        case (true, true): return "None of the updated photos have this person in them."
+        case (true, false): return "No photos of this person in the gallery."
+        case (false, true): return "No updated photos to show yet."
+        case (false, false): return "This gallery is empty."
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         if store.state.isLoading && !store.state.hasLoadedOnce {
@@ -180,9 +205,7 @@ private struct AlbumContent: View {
             EditorialEmptyState(
                 systemImage: "photo.on.rectangle",
                 title: "No photos",
-                subtitle: store.state.selectedFaceId == nil
-                    ? "This gallery is empty."
-                    : "No photos of this person in the gallery."
+                subtitle: emptySubtitle
             )
             .padding(.horizontal, EditorialSpacing.screenGutter)
         } else {

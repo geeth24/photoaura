@@ -128,6 +128,16 @@ extension APIClient {
         return r.ticket
     }
 
+    // GET /api/photo/{id}/versions — every edit of one photo, oldest first
+    func photoVersions(photoId: Int) async throws -> [PhotoVersion] {
+        try await get("/photo/\(photoId)/versions")
+    }
+
+    // GET /api/app-config — public update policy for the mobile apps
+    func appConfig() async throws -> AppConfig {
+        try await get("/app-config", requiresAuth: false)
+    }
+
     // GET /api/me/files — deliverable files (zips of originals etc.) with presigned URLs
     func myFiles() async throws -> [ClientFile] {
         try await get("/me/files")

@@ -151,6 +151,9 @@ private struct HomeContent: View {
                         }
                     }
                     .clipped()
+                    .overlay(alignment: .topLeading) {
+                        RevisionReadyTag(album: album).padding(EditorialSpacing.medium)
+                    }
 
                 LinearGradient(
                     colors: [.black.opacity(0.85), .black.opacity(0.35), .clear],
@@ -301,6 +304,9 @@ private struct HomeContent: View {
                                 EditorialColors.surfaceElevated
                             }
                         }
+                        .overlay(alignment: .topLeading) {
+                            RevisionReadyTag(album: album, compact: true).padding(10)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -344,5 +350,24 @@ private struct HomeContent: View {
             bits.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
         }
         return bits.joined(separator: " · ")
+    }
+}
+
+/// "Revision 2 ready" on a gallery cover until the client opens that album.
+private struct RevisionReadyTag: View {
+    let revision: AlbumRevision?
+    let compact: Bool
+    @AppStorage private var seen: Int
+
+    init(album: HomeAlbum, compact: Bool = false) {
+        revision = album.revision
+        self.compact = compact
+        _seen = AppStorage(wrappedValue: 0, SeenRevisions.key(album.slug))
+    }
+
+    var body: some View {
+        if let revision, revision.number > 1, revision.number > seen {
+            EditorialPhotoTag("\(revision.title) ready", tone: .accent, icon: "sparkles", compact: compact)
+        }
     }
 }

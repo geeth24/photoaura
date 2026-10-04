@@ -40,11 +40,17 @@ final class AlbumStore {
         case .selectFace(let id):
             state.selectedFaceId = (state.selectedFaceId == id) ? nil : id
 
+        case .toggleOnlyRevised:
+            state.onlyRevised.toggle()
+
         case .loadSucceeded(let detail, let faces):
             state.detail = detail
             state.faces = faces
             state.isLoading = false
             state.hasLoadedOnce = true
+            if state.revision == nil { state.onlyRevised = false }
+            // opening the album is what clears "Revision N ready" on the home
+            if let r = state.revision { SeenRevisions.markSeen(r.number, slug: state.slug) }
 
         case .loadFailed(let msg):
             state.error = msg

@@ -30,6 +30,7 @@ struct PhotoViewer: View {
     @State private var chromeVisible = true
     @State private var saveState: SaveState = .idle
     @State private var infoPresented = false
+    @State private var comparePresented = false
 
     init(
         photos: [Photo],
@@ -143,13 +144,16 @@ struct PhotoViewer: View {
                                 .ignoresSafeArea(edges: .top)
                         )
                     Spacer()
-                    scrubber
-                        .padding(.top, 28)
-                        .padding(.bottom, EditorialSpacing.small)
-                        .background(
-                            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
-                                .ignoresSafeArea(edges: .bottom)
-                        )
+                    VStack(spacing: EditorialSpacing.small) {
+                        if canCompare { compareButton }
+                        scrubber
+                    }
+                    .padding(.top, 28)
+                    .padding(.bottom, EditorialSpacing.small)
+                    .background(
+                        LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+                            .ignoresSafeArea(edges: .bottom)
+                    )
                 }
                 .transition(.opacity)
             }
@@ -182,6 +186,10 @@ struct PhotoViewer: View {
         }
         .sheet(isPresented: $shareSheetPresented) {
             ActivityShareSheet(items: shareItems)
+        }
+        // its own cover, so the compare view never touches the flight state above
+        .fullScreenCover(isPresented: $comparePresented) {
+            PhotoCompareView(photo: photos[index])
         }
     }
 
@@ -396,10 +404,12 @@ struct PhotoViewer: View {
         return f
     }()
 
-    // "September 6, 2026" over "6:05 PM · 3 of 15", or just the count
+    // "September 6, 2026" over "6:05 PM · 3 of 15 · v2", or just the count
     private var titleLines: (String, String?) {
-        let count = "\(index + 1) of \(photos.count)"
-        guard let taken = photos[index].fileMetadata.takenAt else { return (count, nil) }
+        var count = "\(index + 1) of \(photos.count)"
+        let meta = photos[index].fileMetadata
+        if meta.isRevised { count += " · v\(meta.currentVersion)" }
+        guard let taken = meta.takenAt else { return (count, nil) }
         return (Self.dayFormat.string(from: taken), "\(Self.timeFormat.string(from: taken)) · \(count)")
     }
 
@@ -436,6 +446,26 @@ struct PhotoViewer: View {
         .padding(.horizontal, EditorialSpacing.screenGutter)
         .padding(.top, EditorialSpacing.xSmall)
         .foregroundStyle(.white)
+    }
+
+    private var compareButton: some View {
+        Button { comparePresented = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.split.2x1")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Compare")
+                    .font(EditorialTypography.sans(size: 11, weight: .semibold))
+                    .tracking(1.6)
+                    .textCase(.uppercase)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .frame(height: 34)
+        }
+        .editorialGlass(in: Capsule(), interactive: true)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, EditorialSpacing.screenGutter)
+        .accessibilityLabel("Compare with the earlier version")
     }
 
     private var actionsPill: some View {
@@ -518,6 +548,11 @@ struct PhotoViewer: View {
     }
 
     private var isVideoPhoto: Bool { photos[index].isVideo }
+
+    private var canCompare: Bool {
+        let meta = photos[index].fileMetadata
+        return meta.isRevised && meta.id != nil && !isVideoPhoto
+    }
 
     // MARK: - picks
 
@@ -623,7 +658,7 @@ struct VideoPlayBadge: View {
 // Renders the already-cached 720px thumbnail instantly, then crossfades to the
 // 1920px display copy when it loads. Removes the "tap photo → blank + spinner"
 // flash that was happening before.
-private struct PhotoPage: View {
+struct PhotoPage: View {
     let thumbnailURL: URL?
     let fullURL: URL?
     @State private var fullLoaded = false
