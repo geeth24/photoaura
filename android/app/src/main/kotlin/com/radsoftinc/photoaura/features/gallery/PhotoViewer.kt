@@ -107,7 +107,6 @@ import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.ImageUrls
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.core.PhotoSaver
-import com.radsoftinc.photoaura.core.PhotoVersion
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.RemoteImage
 import kotlinx.coroutines.Dispatchers
@@ -164,7 +163,7 @@ fun PhotoViewer(req: ViewerRequest, onClosed: () -> Unit) {
     var chrome by remember { mutableStateOf(true) }
     var zoomed by remember { mutableStateOf(false) }
     var info by remember { mutableStateOf(false) }
-    var versionsOf by remember { mutableStateOf<Photo?>(null) }
+    var compareOf by remember { mutableStateOf<Photo?>(null) }
 
     // flight state: the hero image is framed by `hero` while it flies; null once the pager takes over
     val progress = remember { Animatable(0f) }
@@ -314,7 +313,7 @@ fun PhotoViewer(req: ViewerRequest, onClosed: () -> Unit) {
                     canFavorite = req.albumSlug != null && !photos[index].isVideo,
                     onClose = { close() },
                     onInfo = { info = true },
-                    onVersions = { versionsOf = photos[index] },
+                    onCompare = { compareOf = photos[index] },
                     onFavorite = {
                         val slug = req.albumSlug ?: return@TopBar
                         val name = photos[index].fileMetadata.filename
@@ -339,7 +338,8 @@ fun PhotoViewer(req: ViewerRequest, onClosed: () -> Unit) {
         }
     }
 
-    versionsOf?.let { p -> VersionsOverlay(p) { versionsOf = null } }
+    // drawn over the pager rather than inside it, so paging and the flight back are untouched
+    compareOf?.let { p -> CompareVersions(p) { compareOf = null } }
 
     if (info) {
         ModalBottomSheet(onDismissRequest = { info = false }, containerColor = EditorialColors.Dark.surfaceElevated) {
@@ -448,7 +448,7 @@ private fun TopBar(
     canFavorite: Boolean,
     onClose: () -> Unit,
     onInfo: () -> Unit,
-    onVersions: () -> Unit,
+    onCompare: () -> Unit,
     onFavorite: () -> Unit,
     modifier: Modifier,
 ) {
@@ -471,9 +471,9 @@ private fun TopBar(
             val v = photo.fileMetadata.version
             if (v > 1 && photo.fileMetadata.id != null) {
                 Text(
-                    "v$v · Earlier versions",
+                    "v$v · Compare",
                     Modifier.padding(top = 6.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.16f))
-                        .clickable(onClick = onVersions).padding(horizontal = 10.dp, vertical = 3.dp),
+                        .clickable(onClick = onCompare).padding(horizontal = 10.dp, vertical = 3.dp),
                     style = EditorialTheme.typography.sans(11.sp, androidx.compose.ui.text.font.FontWeight.Medium),
                     color = Color.White,
                     maxLines = 1,
@@ -576,7 +576,7 @@ private fun DownloadMenu(photo: Photo) {
 }
 
 @Composable
-private fun GlassCircle(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
+internal fun GlassCircle(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -711,105 +711,5 @@ private fun InfoSheet(p: Photo) {
             }
         }
         Spacer(Modifier.height(8.dp))
-    }
-}
-
-// MARK: - versions
-
-private val versionDay = DateTimeFormatter.ofPattern("MMM d, yyyy")
-
-/**
- * Every stored edit of one photo, over the viewer. Opens on the version before the
- * current one so a tap on the strip flips between old and new.
- */
-@Composable
-private fun VersionsOverlay(photo: Photo, onClose: () -> Unit) {
-    var versions by remember { mutableStateOf<List<PhotoVersion>?>(null) }
-    var failed by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<PhotoVersion?>(null) }
-    val current = photo.fileMetadata.version
-
-    LaunchedEffect(photo.id) {
-        val id = photo.fileMetadata.id ?: return@LaunchedEffect
-        runCatching { Api.photoVersions(id) }
-            .onSuccess { list ->
-                versions = list
-                selected = list.lastOrNull { it.version < current } ?: list.lastOrNull()
-            }
-            .onFailure { failed = true }
-    }
-    BackHandler(onBack = onClose)
-
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        val v = selected
-        if (v != null) {
-            androidx.compose.runtime.key(v.version) { ZoomablePhoto(v.photo, onZoomed = {}, onTap = {}) }
-        } else if (failed) {
-            Text(
-                "Couldn't load earlier versions.",
-                Modifier.align(Alignment.Center),
-                style = EditorialTheme.typography.sans(15.sp),
-                color = Color.White.copy(alpha = 0.7f),
-            )
-        } else {
-            androidx.compose.material3.CircularProgressIndicator(
-                Modifier.align(Alignment.Center).size(24.dp), color = Color.White, strokeWidth = 2.dp,
-            )
-        }
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)))
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .padding(bottom = 20.dp),
-        ) {
-            GlassCircle(Icons.Outlined.Close, "Close", Modifier.align(Alignment.CenterStart), onClose)
-            if (v != null) {
-                Column(Modifier.align(Alignment.Center).width(200.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    val title = when {
-                        v.version == current -> "Current version"
-                        v.version == 1 -> "Original"
-                        else -> "Version ${v.version}"
-                    }
-                    Text(title, style = EditorialTheme.typography.sans(15.sp, androidx.compose.ui.text.font.FontWeight.SemiBold), color = Color.White, maxLines = 1)
-                    val sub = listOfNotNull(
-                        v.revisionNumber?.let { "Revision $it" } ?: "First delivery".takeIf { v.version == 1 },
-                        v.uploadedAt?.let { runCatching { java.time.LocalDateTime.parse(it).format(versionDay) }.getOrNull() },
-                    ).joinToString(" · ")
-                    if (sub.isNotEmpty()) {
-                        Text(sub, style = EditorialTheme.typography.sans(11.sp), color = Color.White.copy(alpha = 0.6f), maxLines = 1)
-                    }
-                }
-            }
-        }
-
-        val list = versions
-        if (list != null && list.size > 1) {
-            Row(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
-                    .navigationBarsPadding()
-                    .padding(top = 28.dp, bottom = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            ) {
-                list.forEach { pv ->
-                    val on = pv.version == v?.version
-                    Text(
-                        if (pv.version == current) "v${pv.version} · now" else "v${pv.version}",
-                        Modifier.clip(RoundedCornerShape(50))
-                            .background(if (on) Color.White else Color.White.copy(alpha = 0.16f))
-                            .clickable { selected = pv }
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
-                        style = EditorialTheme.typography.sans(13.sp, androidx.compose.ui.text.font.FontWeight.Medium),
-                        color = if (on) Color.Black else Color.White,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
     }
 }

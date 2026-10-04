@@ -66,10 +66,7 @@ data class PhotoVersion(
     val height: Int? = null,
     val image: String = "",
     val compressedImage: String = "",
-) {
-    // lets the viewer's zoomable page show it like any other photo
-    val photo: Photo get() = Photo(image, compressedImage, PhotoMetadata(filename, width ?: 0, height ?: 0, version = version))
-}
+)
 
 @Serializable
 data class Photo(
