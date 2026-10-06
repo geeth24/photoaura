@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import {
   Body,
+  Column,
   Container,
   Head,
   Hr,
@@ -8,6 +9,7 @@ import {
   Img,
   Link,
   Preview,
+  Row,
   Section,
   Text,
 } from "@react-email/components"
@@ -88,6 +90,24 @@ export function Button({ href, children }: { href: string; children: string }) {
 
 export function Divider() {
   return <Hr style={divider} />
+}
+
+// label/value rows in a quiet bordered box — booking facts, receipts, payment details
+export function DetailRows({
+  rows,
+}: {
+  rows: [label: string, value: string, strong?: boolean][]
+}) {
+  return (
+    <Section style={detailBox}>
+      {rows.map(([label, value, strong], i) => (
+        <Row key={label} style={i ? detailRowBorder : undefined}>
+          <Column style={detailLabel}>{label}</Column>
+          <Column style={strong ? detailValueStrong : detailValue}>{value}</Column>
+        </Row>
+      ))}
+    </Section>
+  )
 }
 
 // reusable surface styles for individual templates
@@ -184,6 +204,41 @@ const button: React.CSSProperties = {
   textDecoration: "none",
   padding: "14px 28px",
   marginTop: "8px",
+}
+
+const detailBox: React.CSSProperties = {
+  border: "1px solid rgba(237, 246, 252, 0.08)",
+  padding: "4px 16px",
+  margin: "0 0 24px",
+}
+
+const detailRowBorder: React.CSSProperties = {
+  borderTop: "1px solid rgba(237, 246, 252, 0.06)",
+}
+
+const detailLabel: React.CSSProperties = {
+  color: "rgba(237, 246, 252, 0.4)",
+  fontSize: "10px",
+  letterSpacing: "0.25em",
+  textTransform: "uppercase",
+  padding: "12px 12px 12px 0",
+  width: "38%",
+  verticalAlign: "top",
+}
+
+const detailValue: React.CSSProperties = {
+  color: "#edf6fc",
+  fontSize: "14px",
+  lineHeight: 1.5,
+  padding: "10px 0",
+  verticalAlign: "top",
+}
+
+const detailValueStrong: React.CSSProperties = {
+  ...detailValue,
+  color: "#00a6fb",
+  fontSize: "16px",
+  fontWeight: 600,
 }
 
 const footer: React.CSSProperties = {

@@ -6,6 +6,11 @@ import VerifyEmail, { verifyEmailSubject } from "@/emails/verify-email"
 import NewDownloadEmail, { newDownloadSubject } from "@/emails/new-download"
 import NewVideoEmail, { newVideoSubject } from "@/emails/new-video"
 import AlbumRevisionEmail, { albumRevisionSubject } from "@/emails/album-revision"
+import BookingInviteEmail, { bookingInviteSubject } from "@/emails/booking-invite"
+import BookingSignedEmail, { bookingSignedSubject } from "@/emails/booking-signed"
+import PaymentReceivedEmail, { paymentReceivedSubject } from "@/emails/payment-received"
+import GalleryDeliveredEmail, { galleryDeliveredSubject } from "@/emails/gallery-delivered"
+import GalleryUnlockedEmail, { galleryUnlockedSubject } from "@/emails/gallery-unlocked"
 
 // templates registered for the backend to render. add new ones here.
 const templates = {
@@ -33,6 +38,27 @@ const templates = {
     component: AlbumRevisionEmail,
     subject: (p: { albumName: string; revisionNumber: number }) =>
       albumRevisionSubject(p.albumName, p.revisionNumber),
+  },
+  "booking-invite": {
+    component: BookingInviteEmail,
+    subject: () => bookingInviteSubject(),
+  },
+  "booking-signed": {
+    component: BookingSignedEmail,
+    subject: (p: { bookingNumber: string }) => bookingSignedSubject(p.bookingNumber),
+  },
+  "payment-received": {
+    component: PaymentReceivedEmail,
+    subject: (p: { amount: string; bookingNumber: string }) =>
+      paymentReceivedSubject(p.amount, p.bookingNumber),
+  },
+  "gallery-delivered": {
+    component: GalleryDeliveredEmail,
+    subject: (p: { albumName: string }) => galleryDeliveredSubject(p.albumName),
+  },
+  "gallery-unlocked": {
+    component: GalleryUnlockedEmail,
+    subject: (p: { albumName: string }) => galleryUnlockedSubject(p.albumName),
   },
 } as const
 
