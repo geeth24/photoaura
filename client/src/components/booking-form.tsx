@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select"
 import { DatePicker } from "@/components/date-picker"
 import { TimePicker } from "@/components/time-picker"
+import { LocationStops } from "@/components/location-stops"
 import { ContractView } from "@/components/contract-view"
 import { cn } from "@/lib/utils"
 
@@ -159,7 +160,7 @@ export function BookingForm({ initial }: { initial?: Booking }) {
       event_type: eventType.trim(),
       start_time: start,
       end_time: end,
-      location: location.trim(),
+      location: location.split("\n").map((l) => l.trim()).filter(Boolean).join("\n"),
       package_key: packageKey,
       details_for_client: details.trim(),
       notes_internal: notes.trim(),
@@ -489,13 +490,12 @@ export function BookingForm({ initial }: { initial?: Booking }) {
                 />
               </Field>
             </div>
-            <Field label="Location" error={show("location")} note="Add more than one stop if the day moves around.">
-              <Input
+            <Field label="Location" error={show("location")} note="Start typing a venue or address. Add a stop if the day moves around.">
+              <LocationStops
                 value={location}
                 disabled={locked}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Venue name and address"
-                aria-invalid={!!show("location")}
+                onChange={setLocation}
+                invalid={!!show("location")}
                 className={field}
               />
             </Field>

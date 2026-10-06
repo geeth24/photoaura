@@ -180,7 +180,8 @@ def contract_fields(b, client_name: str, client_email: str, number: str, agreeme
         "client_phone": b.client_phone or "",
         "event_type": b.event_type or "",
         "event_date": long_date(b.event_date),
-        "event_location": b.location or "",
+        # several stops are stored one per line; the contract lists them on one line
+        "event_location": "; ".join(l.strip() for l in (b.location or "").splitlines() if l.strip()),
         "start_time": clock(b.start_time),
         "end_time": clock(b.end_time),
         "package": package_label(b.package_key, b.package_name, b.hours, pkg_rate or 0),
