@@ -12,6 +12,7 @@ import os
 from typing import List
 import json
 from uuid import uuid4
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
@@ -23,7 +24,7 @@ from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
 from services.video_transcode import transcode_to_web
 from routers.websocket.websocket_router import manager
-from services import upload_jobs
+from services import proof_service, upload_jobs
 from dependencies import oauth2_scheme, get_current_user, require_admin
 from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
@@ -121,6 +122,20 @@ def _store_one_file(
     upload and the zip upload so both run the identical pipeline.
     Appends to face_targets / keys for the downstream faces + warm passes."""
     is_video = (content_type or "").startswith("video/")
+    # proof-locked albums keep the original under the hold path and show a proof
+    held = bool(album.proof_locked) and not is_video
+
+    # re-uploading the same filename UPDATES the existing row (don't add a
+    # duplicate); the bumped upload_date also versions the image URL so the
+    # browser fetches the new file instead of its year-old cached copy
+    existing = (
+        session.query(FileMetadata)
+        .filter(
+            FileMetadata.album_id == album.id,
+            or_(FileMetadata.filename == filename, FileMetadata.original_filename == filename),
+        )
+        .first()
+    )
 
     album_dir = os.path.join(settings.DATA_DIR, album.slug)
     os.makedirs(album_dir, exist_ok=True)
@@ -129,23 +144,26 @@ def _store_one_file(
         f.write(content)
 
     s3_filename = f"{album.slug}/{filename}"
-    s3_client.put_object(
-        Bucket=AWS_BUCKET,
-        Key=s3_filename,
-        Body=content,
-        ContentType=content_type,
-    )
-
-    try:
-        # re-uploading the same filename UPDATES the existing row (don't add a
-        # duplicate); the bumped upload_date also versions the image URL so the
-        # browser fetches the new file instead of its year-old cached copy
-        existing = (
-            session.query(FileMetadata)
-            .filter_by(album_id=album.id, filename=filename)
-            .first()
+    face_key = s3_filename
+    stale_clean = None
+    if held:
+        if existing and existing.held:
+            stored_name = existing.filename
+        else:
+            stored_name = proof_service.proof_name(filename, proof_service.taken_names(session, album.id))
+            if existing:
+                stale_clean = s3_filename
+        s3_filename, face_key = proof_service.store_held(album, filename, content, content_type, stored_name)
+    else:
+        stored_name = filename
+        s3_client.put_object(
+            Bucket=AWS_BUCKET,
+            Key=s3_filename,
+            Body=content,
+            ContentType=content_type,
         )
 
+    try:
         if is_video:
             fields = dict(
                 content_type=content_type,
@@ -166,6 +184,11 @@ def _store_one_file(
                 exif_data=fm["exif_data"],
                 orientation=fm["orientation"],
             )
+        fields.update(
+            filename=stored_name,
+            original_filename=filename if held else None,
+            held=held,
+        )
 
         if existing:
             for k, v in fields.items():
@@ -175,7 +198,7 @@ def _store_one_file(
             session.query(PhotoFaceLink).filter_by(photo_id=meta.id).delete()
             session.query(FaceEmbedding).filter_by(photo_id=meta.id).delete()
         else:
-            meta = FileMetadata(album_id=album.id, filename=filename, base_name=base_name_of(filename), **fields)
+            meta = FileMetadata(album_id=album.id, base_name=base_name_of(filename), **fields)
             session.add(meta)
         session.commit()
         session.refresh(meta)
@@ -185,7 +208,9 @@ def _store_one_file(
             session.commit()
 
             if face_detection:
-                face_targets.append((s3_filename, meta.id))
+                face_targets.append((face_key, meta.id))
+        if stale_clean:
+            s3_client.delete_object(Bucket=AWS_BUCKET, Key=stale_clean)
     finally:
         if os.path.exists(local_path):
             os.remove(local_path)

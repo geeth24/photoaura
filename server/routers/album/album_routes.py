@@ -22,17 +22,35 @@ from db.models import (
     FaceData,
     FaceEmbedding,
     User,
+    Booking,
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, slugify
 from dependencies import is_admin_caller, require_admin, get_current_user
+from services.proof_service import LOCKED_DETAIL
 
 from routers.revisions.revisions_router import latest_revision
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
+
+
+def _refuse_if_locked(album):
+    if album.proof_locked:
+        raise HTTPException(status_code=403, detail=LOCKED_DETAIL)
+
+
+def album_booking_number(session, album_id):
+    """The booking a proof gallery belongs to, so clients can link to it."""
+    row = (
+        session.query(Booking.number)
+        .filter(Booking.album_id == album_id, Booking.cancelled_at.is_(None))
+        .order_by(Booking.id.desc())
+        .first()
+    )
+    return row[0] if row else None
 
 
 @router.get("/api/album/{album_slug}/")
@@ -55,7 +73,7 @@ async def get_album(
     if not file_metadata:
         raise HTTPException(status_code=404, detail="No images found in the album")
 
-    album_photos = create_album_photos_json(album_slug, file_metadata)
+    album_photos = create_album_photos_json(album_slug, file_metadata, album.proof_locked)
 
     permissions = (
         session.query(UserAlbumPermission).filter_by(album_id=album.id).all()
@@ -86,6 +104,8 @@ async def get_album(
         "album_permissions": permissions_list,
         "album_photos": album_photos,
         "revision": latest_revision(session, album.id),
+        "locked": bool(album.proof_locked),
+        "booking_number": album_booking_number(session, album.id) if album.proof_locked else None,
     }
 
 
@@ -116,7 +136,7 @@ async def get_all_albums(
         file_metadata = (
             session.query(FileMetadata).filter_by(album_id=album.id).limit(4).all()
         )
-        album_photos = create_album_photos_json(album.slug, file_metadata)
+        album_photos = create_album_photos_json(album.slug, file_metadata, album.proof_locked)
 
         all_albums.append(
             {
@@ -127,6 +147,7 @@ async def get_all_albums(
                 "shared": album.shared,
                 "upload": album.upload,
                 "album_photos": album_photos,
+                "locked": bool(album.proof_locked),
             }
         )
 
@@ -157,7 +178,7 @@ async def get_all_photos(
         photos_query = session.query(FileMetadata).filter_by(album_id=album.id)
         if orientation:
             photos_query = photos_query.filter_by(orientation=orientation)
-        album_photos = create_album_photos_json(album.slug, photos_query.all())
+        album_photos = create_album_photos_json(album.slug, photos_query.all(), album.proof_locked)
         all_photos.extend(album_photos)
 
     # chronological across every album, newest first
@@ -191,7 +212,8 @@ async def view_shared_album(
         "slug": album.slug,
         "image_count": album.image_count,
         "public": bool(album.public),
-        "album_photos": create_album_photos_json(album.slug, photos),
+        "album_photos": create_album_photos_json(album.slug, photos, album.proof_locked),
+        "locked": bool(album.proof_locked),
     }
 
 
@@ -240,6 +262,7 @@ async def download_original(
         )
         if not allowed:
             raise HTTPException(status_code=403, detail="Not your album")
+    _refuse_if_locked(album)
 
     url = s3_client.generate_presigned_url(
         "get_object",
@@ -431,6 +454,7 @@ async def create_download_ticket(
         )
         if not allowed:
             raise HTTPException(status_code=403, detail="Not your album")
+    _refuse_if_locked(album)
 
     ticket = jwt.encode(
         {
@@ -475,6 +499,7 @@ def download_album_zip(
         allowed = True
     if not allowed:
         raise HTTPException(status_code=403, detail="Not authorized for this gallery")
+    _refuse_if_locked(album)
 
     photos = session.query(FileMetadata).filter_by(album_id=album.id).all()
     if not photos:
@@ -532,6 +557,7 @@ async def delete_album(
 
         session.query(UserAlbumPermission).filter_by(album_id=album_id).delete()
         session.query(AlbumCategory).filter_by(album_id=album_id).delete()
+        hold_token = album.hold_token
 
         # capture filenames before deleting the rows (objects expire after)
         filenames = [
@@ -550,6 +576,14 @@ async def delete_album(
         # best-effort S3 cleanup, batched (delete_objects takes up to 1000 keys)
         keys = [{"Key": f"{album_slug}/{fn}"} for fn in filenames]
         keys += [{"Key": f"faces/{fid}.jpg"} for fid in orphaned]
+        if hold_token:
+            try:
+                for page in s3_client.get_paginator("list_objects_v2").paginate(
+                    Bucket=AWS_BUCKET, Prefix=f"{album_slug}/_hold/{hold_token}/"
+                ):
+                    keys += [{"Key": o["Key"]} for o in page.get("Contents", [])]
+            except Exception as e:
+                logging.error(f"album delete: listing held originals failed: {e}")
         for i in range(0, len(keys), 1000):
             try:
                 s3_client.delete_objects(
@@ -657,7 +691,7 @@ async def get_shared_albums(session: Session = Depends(get_session)):
         file_metadata = (
             session.query(FileMetadata).filter_by(album_id=album.id).limit(4).all()
         )
-        album_photos = create_album_photos_json(album.slug, file_metadata)
+        album_photos = create_album_photos_json(album.slug, file_metadata, album.proof_locked)
 
         all_albums.append(
             {
@@ -667,6 +701,7 @@ async def get_shared_albums(session: Session = Depends(get_session)):
                 "shared": album.shared,
                 "upload": album.upload,
                 "album_photos": album_photos,
+                "locked": bool(album.proof_locked),
             }
         )
 

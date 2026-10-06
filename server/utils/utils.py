@@ -105,7 +105,7 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
-def build_photo_json(meta, album_slug):
+def build_photo_json(meta, album_slug, locked=None):
     """One photo's JSON, with URLs resolved against the album it actually
     lives in — so curated category lists can mix photos from many albums."""
     if (meta.content_type or "").startswith("video/"):
@@ -127,7 +127,7 @@ def build_photo_json(meta, album_slug):
         # 404); not worth breaking prod for the rare re-upload-overwrite case.
         compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
         image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
-    return {
+    out = {
         "image": image_url,
         "compressed_image": compressed_image_url,
         "file_metadata": {
@@ -148,12 +148,27 @@ def build_photo_json(meta, album_slug):
             "revision_number": getattr(meta, "revision_number", None),
         },
     }
+    if locked is not None:
+        out["locked"] = bool(locked)
+    return out
 
 
-def create_album_photos_json(album_slug, file_metadata):
+def create_album_photos_json(album_slug, file_metadata, locked=None):
     # chronological by capture time so the grid + lightbox read like the event
     file_metadata = sorted(file_metadata, key=capture_time)
-    return [build_photo_json(meta, album_slug) for meta in file_metadata]
+    return [build_photo_json(meta, album_slug, locked) for meta in file_metadata]
+
+
+def hold_key(album_slug: str, hold_token: str, name: str) -> str:
+    return f"{album_slug}/_hold/{hold_token}/{name}"
+
+
+def original_key(album_slug, meta, hold_token=None) -> str:
+    """S3 key of the full-resolution file: the held original while the album
+    is proof-locked, otherwise the gallery file itself."""
+    if getattr(meta, "held", False) and hold_token and getattr(meta, "original_filename", None):
+        return hold_key(album_slug, hold_token, meta.original_filename)
+    return f"{album_slug}/{meta.filename}"
 
 
 # Function to extract EXIF data

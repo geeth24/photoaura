@@ -29,7 +29,7 @@ from routers.files.files_router import (
     _store_one_file,
 )
 from routers.user.user import _primary_email, _verify_link
-from services import email_service, upload_jobs
+from services import email_service, proof_service, upload_jobs
 from services.aws_service import s3_client
 from utils.image_utils import generate_blur_data_url
 from utils.utils import _VERSION_SUFFIX, base_name_of, get_file_metadata
@@ -142,8 +142,9 @@ def preview_revision(
 def _versioned_name(photo: FileMetadata, upload_name: str, version: int, taken: set) -> str:
     """IMG_1234.jpg + version 2 -> IMG_1234_v2.jpg, keeping the original's
     casing and the uploaded file's extension."""
-    base = _VERSION_SUFFIX.sub("", os.path.splitext(photo.filename)[0])
-    ext = os.path.splitext(upload_name)[1] or os.path.splitext(photo.filename)[1]
+    current = _current_name(photo)
+    base = _VERSION_SUFFIX.sub("", os.path.splitext(current)[0])
+    ext = os.path.splitext(upload_name)[1] or os.path.splitext(current)[1]
     n = version
     name = f"{base}_v{n}{ext}"
     while name.lower() in taken:
@@ -152,12 +153,17 @@ def _versioned_name(photo: FileMetadata, upload_name: str, version: int, taken: 
     return name
 
 
+def _current_name(photo: FileMetadata) -> str:
+    """The photo's real file name; a proof-locked photo's filename is its proof."""
+    return photo.original_filename if photo.held and photo.original_filename else photo.filename
+
+
 def _snapshot(session, photo: FileMetadata):
     session.add(
         PhotoVersion(
             photo_id=photo.id,
             version=photo.version or 1,
-            filename=photo.filename,
+            filename=_current_name(photo),
             size=photo.size,
             width=photo.width,
             height=photo.height,
@@ -168,12 +174,19 @@ def _snapshot(session, photo: FileMetadata):
 
 
 def _replace(session, album, photo, upload_name, content, content_type, number, taken):
-    """Store a re-edited file as the photo's next version."""
+    """Store a re-edited file as the photo's next version. Returns
+    (gallery key to warm, key of the full-resolution file for faces)."""
     version = (photo.version or 1) + 1
     filename = _versioned_name(photo, upload_name, version, taken)
     taken.add(filename.lower())
-    key = f"{album.slug}/{filename}"
-    s3_client.put_object(Bucket=AWS_BUCKET, Key=key, Body=content, ContentType=content_type)
+    old_proof = photo.filename if photo.held else None
+    if album.proof_locked:
+        gallery_name = proof_service.proof_name(filename, taken)
+        key, full_key = proof_service.store_held(album, filename, content, content_type, gallery_name)
+    else:
+        gallery_name = filename
+        key = full_key = f"{album.slug}/{filename}"
+        s3_client.put_object(Bucket=AWS_BUCKET, Key=key, Body=content, ContentType=content_type)
 
     # the first revision of a photo also records what it was before
     if not session.query(PhotoVersion).filter_by(photo_id=photo.id).first():
@@ -190,7 +203,9 @@ def _replace(session, album, photo, upload_name, content, content_type, number, 
         if os.path.exists(local_path):
             os.remove(local_path)
 
-    photo.filename = filename
+    photo.filename = gallery_name
+    photo.original_filename = filename if album.proof_locked else None
+    photo.held = bool(album.proof_locked)
     photo.version = version
     photo.revision_number = number
     photo.content_type = content_type
@@ -206,7 +221,13 @@ def _replace(session, album, photo, upload_name, content, content_type, number, 
     session.query(FaceEmbedding).filter_by(photo_id=photo.id).delete()
     session.flush()
     _snapshot(session, photo)
-    return key
+    # the previous version's original stays held; only its proof goes
+    if old_proof:
+        try:
+            s3_client.delete_object(Bucket=AWS_BUCKET, Key=f"{album.slug}/{old_proof}")
+        except Exception as e:
+            print(f"revision: could not delete old proof {old_proof}: {e}")
+    return key, full_key
 
 
 def notify_revision(album_id: int, number: int) -> list:
@@ -281,20 +302,17 @@ async def upload_revision(
     session.flush()
 
     by_name = {f.filename: f for f in files}
-    taken = {
-        (fn or "").lower()
-        for (fn,) in session.query(FileMetadata.filename).filter_by(album_id=album.id).all()
-    }
+    taken = proof_service.taken_names(session, album.id)
     face_targets, keys, updated, added = [], [], [], []
 
     for name, photo in matched:
         upload = by_name[name]
         content = await upload.read()
         ctype = upload.content_type or _guess_content_type(name)
-        key = _replace(session, album, photo, name, content, ctype, number, taken)
+        key, full_key = _replace(session, album, photo, name, content, ctype, number, taken)
         keys.append(key)
         if album.face_detection:
-            face_targets.append((key, photo.id))
+            face_targets.append((full_key, photo.id))
         updated.append({"uploaded": name, "filename": photo.filename, "version": photo.version})
     session.commit()
 
@@ -306,7 +324,14 @@ async def upload_revision(
                 content, name, upload.content_type or _guess_content_type(name),
                 album, session, bool(album.face_detection), face_targets, keys,
             )
-            meta = session.query(FileMetadata).filter_by(album_id=album.id, filename=name).first()
+            meta = (
+                session.query(FileMetadata)
+                .filter(
+                    FileMetadata.album_id == album.id,
+                    (FileMetadata.filename == name) | (FileMetadata.original_filename == name),
+                )
+                .first()
+            )
             if meta:
                 meta.revision_number = number
             added.append(name)
@@ -387,6 +412,9 @@ def photo_versions(
     album = session.get(Album, photo.album_id)
     if not album or not _can_view(session, current_user, album):
         raise HTTPException(status_code=403, detail="Not your album")
+    # earlier versions are clean full-resolution files held until the final payment
+    if album.proof_locked:
+        return []
     from utils.utils import build_photo_json
 
     rows = session.query(PhotoVersion).filter_by(photo_id=photo_id).order_by(PhotoVersion.version).all()

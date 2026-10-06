@@ -33,8 +33,12 @@ def _me(session: Session, current_user) -> UserModel:
     return u
 
 
-def _file_json(cf: ClientFile, session: Session, with_url: bool = False) -> dict:
+def _file_json(
+    cf: ClientFile, session: Session, with_url: bool = False, for_client: bool = False
+) -> dict:
     album = session.get(Album, cf.album_id) if cf.album_id else None
+    # a deliverable tied to a proof gallery waits for the final payment too
+    locked = bool(for_client and album and album.proof_locked)
     client = session.get(UserModel, cf.user_id)
     data = {
         "id": cf.id,
@@ -47,8 +51,11 @@ def _file_json(cf: ClientFile, session: Session, with_url: bool = False) -> dict
         "size": cf.size,
         "content_type": cf.content_type,
         "created_at": cf.created_at.isoformat() if cf.created_at else None,
+        "locked": locked,
     }
-    if with_url:
+    if locked:
+        data["download_url"] = None
+    elif with_url:
         data["download_url"] = s3_client.generate_presigned_url(
             "get_object",
             Params={
@@ -169,7 +176,7 @@ def list_my_files(
         .order_by(ClientFile.created_at.desc())
         .all()
     )
-    return [_file_json(cf, session, with_url=True) for cf in rows]
+    return [_file_json(cf, session, with_url=True, for_client=True) for cf in rows]
 
 
 @router.get("/api/me/home")
@@ -183,6 +190,7 @@ def my_home(
     from db.models import Album, FileMetadata, UserAlbumPermission
     from utils.utils import build_photo_json
     from routers.revisions.revisions_router import latest_revision
+    from routers.album.album_routes import album_booking_number
 
     me = _me(session, current_user)
     owner = me.parent_user_id or me.id
@@ -216,6 +224,8 @@ def my_home(
                 "video_count": videos,
                 "cover": build_photo_json(cover, a.slug)["compressed_image"] if cover else None,
                 "revision": latest_revision(session, a.id),
+                "locked": bool(a.proof_locked),
+                "booking_number": album_booking_number(session, a.id) if a.proof_locked else None,
             }
         )
 
@@ -228,7 +238,7 @@ def my_home(
     return {
         "first_name": (me.full_name or "").split(" ")[0] or None,
         "albums": out_albums,
-        "files": [_file_json(cf, session, with_url=True) for cf in files],
+        "files": [_file_json(cf, session, with_url=True, for_client=True) for cf in files],
         "totals": {
             "photos": sum(a["photo_count"] for a in out_albums),
             "videos": sum(a["video_count"] for a in out_albums),

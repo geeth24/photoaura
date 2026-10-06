@@ -13,6 +13,7 @@ from config import settings
 from services.aws_service import s3_client
 from db.base import session_scope
 from db.models import FaceData, FaceEmbedding, PhotoFaceLink, FileMetadata, Album
+from utils.utils import original_key
 
 AWS_BUCKET = settings.AWS_BUCKET
 
@@ -199,7 +200,9 @@ def set_person_cover(face_id, album_slug, filename):
         if not fe or not (fe.bbox or {}).get("box"):
             return False, "This person doesn't appear in that photo"
 
-        key = f"{album_slug}/{filename}"
+        # face boxes are in the original's pixels, not the smaller proof's
+        album = session.query(Album).filter_by(slug=album_slug).first()
+        key = original_key(album_slug, photo, album.hold_token if album else None)
         img = ImageOps.exif_transpose(
             Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))
         ).convert("RGB")
@@ -595,14 +598,14 @@ def recluster_faces():
                 except Exception:
                     pass
             row = (
-                session.query(Album.slug, FileMetadata.filename)
+                session.query(Album.slug, Album.hold_token, FileMetadata)
                 .join(FileMetadata, FileMetadata.album_id == Album.id)
                 .filter(FileMetadata.id == photo_id)
                 .first()
             )
             if not row:
                 continue
-            key = f"{row.slug}/{row.filename}"
+            key = original_key(row.slug, row.FileMetadata, row.hold_token)
             try:
                 img = ImageOps.exif_transpose(
                     Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))

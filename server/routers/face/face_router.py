@@ -13,7 +13,7 @@ from db.models import (
     User,
     UserAlbumPermission,
 )
-from utils.utils import build_photo_json
+from utils.utils import build_photo_json, original_key
 from utils.face_recog import (
     detect_and_store_faces,
     assign_pending_faces,
@@ -58,11 +58,11 @@ def _resync_album_faces(album_id: int, album_slug: str):
         with session_scope() as session:
             session.query(PhotoFaceLink).filter_by(album_id=album_id).delete()
             session.query(FaceEmbedding).filter_by(album_id=album_id).delete()
-            photos = (
-                session.query(FileMetadata.filename, FileMetadata.id, FileMetadata.content_type)
-                .filter_by(album_id=album_id)
-                .all()
-            )
+            hold_token = session.get(Album, album_id).hold_token
+            photos = [
+                (original_key(album_slug, m, hold_token), m.id, m.content_type)
+                for m in session.query(FileMetadata).filter_by(album_id=album_id).all()
+            ]
 
         images = [p for p in photos if not (p[2] or "").startswith("video/")]
         total = len(images)
@@ -71,8 +71,7 @@ def _resync_album_faces(album_id: int, album_slug: str):
         )
 
         done = 0
-        for filename, meta_id, content_type in images:
-            s3_key = f"{album_slug}/{filename}"
+        for s3_key, meta_id, content_type in images:
             try:
                 detect_and_store_faces(s3_key, meta_id, album_id, AWS_BUCKET)
                 done += 1
@@ -443,7 +442,7 @@ async def get_face(
         if not album:
             continue
 
-        face_photos.append(build_photo_json(photo, album.slug))
+        face_photos.append(build_photo_json(photo, album.slug, album.proof_locked))
 
     return {
         "id": face.id,

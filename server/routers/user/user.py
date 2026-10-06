@@ -516,6 +516,7 @@ def get_albums_for_user(session: Session, user_id):
             "date": album.date,
             "image_count": album.image_count,
             "shared": album.shared,
+            "locked": bool(album.proof_locked),
         }
         for album in albums
     ]
