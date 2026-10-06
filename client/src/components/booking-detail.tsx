@@ -65,6 +65,7 @@ import {
   RemoveChargeButton,
   UndoReceiptButton,
 } from "@/components/booking-payments"
+import { InvoiceButton } from "@/components/invoice-button"
 import { cn } from "@/lib/utils"
 
 const eyebrow = "text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted"
@@ -302,7 +303,19 @@ export function BookingDetail({ number }: { number: string }) {
           <Card
             title="Payments"
             icon={CalendarDays}
-            action={!cancelled && b.status !== "paid" ? <AddChargeDialog number={b.number} onDone={setB} /> : null}
+            action={
+              <div className="flex items-center gap-2">
+                {b.status !== "draft" && (
+                  <InvoiceButton
+                    number={b.number}
+                    mine={false}
+                    label="Invoice"
+                    className="h-9 gap-1.5 px-3 text-[10px] tracking-[0.18em]"
+                  />
+                )}
+                {!cancelled && b.status !== "paid" && <AddChargeDialog number={b.number} onDone={setB} />}
+              </div>
+            }
           >
             <div className="mb-5 grid grid-cols-2 gap-px border border-border-subtle bg-border-subtle sm:grid-cols-4">
               {[

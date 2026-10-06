@@ -1,6 +1,6 @@
 import { Check } from "lucide-react"
 import { CLIENT_STEPS, STATUS_LABEL, STEPS_DONE } from "@/lib/bookings"
-import type { BookingPayment, BookingStatus } from "@/lib/types"
+import type { BookingPayment, BookingStatus, InvoiceStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const chip =
@@ -35,6 +35,18 @@ export function PaymentChip({ state }: { state: BookingPayment["state"] }) {
       {state === "due" ? "Due" : state === "paid" ? "Paid" : "Upcoming"}
     </span>
   )
+}
+
+const INVOICE_TONE: Record<InvoiceStatus, [string, string]> = {
+  due: ["border-brand/60 text-brand", "Payment due"],
+  open: ["border-border-default text-text-primary", "Open"],
+  paid: ["border-brand bg-brand text-surface", "Paid in full"],
+  cancelled: ["border-destructive/40 text-destructive", "Cancelled"],
+}
+
+export function InvoiceChip({ status }: { status: InvoiceStatus }) {
+  const [tone, label] = INVOICE_TONE[status]
+  return <span className={cn(chip, tone)}>{label}</span>
 }
 
 export function BookingSteps({ status }: { status: BookingStatus }) {

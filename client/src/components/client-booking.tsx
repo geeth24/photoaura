@@ -30,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ContractView } from "@/components/contract-view"
 import { BookingSteps, StatusChip } from "@/components/booking-status"
 import { PaymentsTable } from "@/components/booking-payments"
+import { InvoiceButton } from "@/components/invoice-button"
 import { cn } from "@/lib/utils"
 
 const CONSENT_TEXT = "I agree to sign this agreement electronically, and that typing my name below is my signature."
@@ -441,6 +442,15 @@ function Signed({ b }: { b: Booking }) {
               {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
               Download signed agreement
             </button>
+          </motion.section>
+
+          <motion.section {...fade(0.2)} className="border border-border-subtle bg-surface-elevated p-5 sm:p-6">
+            <p className={micro}>Invoice</p>
+            <p className="mt-2 text-[15px] tabular-nums text-text-primary">INV-{b.number}</p>
+            <p className="mt-0.5 text-[13px] text-text-muted">
+              {b.money.balance > 0 ? `${money(b.money.balance)} balance` : "Paid in full"} · updated with every payment
+            </p>
+            <InvoiceButton number={b.number} mine className="mt-5 h-11 w-full" />
           </motion.section>
         </div>
       </div>

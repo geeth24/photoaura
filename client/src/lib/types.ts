@@ -220,6 +220,22 @@ export type MyBookingSummary = Omit<BookingSummary, "client" | "created_at"> & {
   balance_cents: number
 }
 
+// open = something is still owed but nothing is due yet
+export type InvoiceStatus = "due" | "open" | "paid" | "cancelled"
+
+export type MyInvoice = {
+  booking_number: string
+  invoice_number: string
+  event_type: string
+  event_date: string
+  issued_at: string
+  total_cents: number
+  paid_cents: number
+  balance_cents: number
+  status: InvoiceStatus
+  next_payment: NextPayment
+}
+
 export type PaymentMethod = "zelle" | "cash" | "check" | "other"
 
 export type BookingPayment = {

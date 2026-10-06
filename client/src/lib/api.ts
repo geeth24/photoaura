@@ -8,6 +8,7 @@ import type {
   BookingPreview,
   BookingSummary,
   MyBookingSummary,
+  MyInvoice,
   PaymentMethod,
   PhotoVersion,
   Revision,
@@ -355,8 +356,12 @@ export const bookingsApi = {
   cancel: (number: string, reason: string) => post<Booking>(`/bookings/${number}/cancel`, { reason }),
   contractPdf: (number: string, preview = false) =>
     apiBlob(`/bookings/${number}/contract.pdf${preview ? "?preview=1" : ""}`),
+  // the studio's copy and the client's copy are the same PDF behind different auth
+  invoicePdf: (number: string, mine: boolean) =>
+    apiBlob(mine ? `/me/bookings/${number}/invoice.pdf` : `/bookings/${number}/invoice.pdf`),
   mine: () => apiFetch<MyBookingSummary[]>("/me/bookings"),
   mineOne: (number: string) => apiFetch<Booking>(`/me/bookings/${number}`),
+  myInvoices: () => apiFetch<MyInvoice[]>("/me/invoices"),
   sign: (number: string, body: { full_name: string; consent: true; contract_hash: string }) =>
     post<Booking>(`/me/bookings/${number}/sign`, body),
 }

@@ -111,3 +111,8 @@ export async function downloadContract(number: string, preview = false) {
   const blob = await bookingsApi.contractPdf(number, preview)
   saveFile(blob, `${number}-agreement${preview ? "-draft" : ""}.pdf`)
 }
+
+export async function downloadInvoice(number: string, mine: boolean) {
+  const blob = await bookingsApi.invoicePdf(number, mine)
+  saveFile(blob, `Reactive Shots Studios Invoice INV-${number}.pdf`)
+}
