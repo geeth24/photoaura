@@ -2,6 +2,13 @@ import type {
   AppConfig,
   AppPlatform,
   AppVersionPolicy,
+  Booking,
+  BookingInput,
+  BookingPackage,
+  BookingPreview,
+  BookingSummary,
+  MyBookingSummary,
+  PaymentMethod,
   PhotoVersion,
   Revision,
   RevisionPreview,
@@ -51,10 +58,32 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(error.detail || "Request failed")
+    throw new ApiError(typeof error.detail === "string" ? error.detail : "Request failed", res.status)
   }
 
   return res.json()
+}
+
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+// authed file download (e.g. a contract PDF) — a plain link can't carry the bearer token
+export async function apiBlob(path: string): Promise<Blob> {
+  const token = getToken()
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new ApiError(typeof error.detail === "string" ? error.detail : "Download failed", res.status)
+  }
+  return res.blob()
 }
 
 export async function apiStream(
@@ -112,13 +141,13 @@ export type UploadStatus = {
   album_slug: string
   active: boolean
   finished: boolean
-  phase: "saving" | "faces" | "clustering" | "warming" | "transcoding" | "done"
+  phase: "saving" | "faces" | "clustering" | "warming" | "transcoding" | "proofing" | "unlocking" | "done"
   current: number
   total: number
   error: string | null
   face_detection: boolean
   image_count?: number
-  kind?: "upload" | "resync"
+  kind?: "upload" | "resync" | "lock" | "unlock"
 }
 
 /** Poll background album processing (faces, clustering, cdn warming). */
@@ -290,4 +319,44 @@ export function saveAppConfig(
     method: "PUT",
     body: JSON.stringify(body),
   })
+}
+
+const post = <T>(path: string, body?: unknown) =>
+  apiFetch<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) })
+
+export const bookingsApi = {
+  packages: () => apiFetch<BookingPackage[]>("/booking-packages"),
+  list: (status?: string) =>
+    apiFetch<BookingSummary[]>(`/bookings${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  get: (number: string) => apiFetch<Booking>(`/bookings/${number}`),
+  // `number` renders an existing booking with these edits on top
+  preview: (body: Partial<BookingInput> & { number?: string }) => post<BookingPreview>("/bookings/preview", body),
+  create: (body: BookingInput) => post<Booking>("/bookings", body),
+  update: (number: string, body: Partial<BookingInput>) =>
+    apiFetch<Booking>(`/bookings/${number}`, { method: "PATCH", body: JSON.stringify(body) }),
+  send: (number: string) => post<Booking & { email_sent: boolean }>(`/bookings/${number}/send`),
+  receive: (
+    number: string,
+    paymentId: number,
+    body: { amount_cents: number; method: PaymentMethod; received_at?: string; note?: string },
+  ) => post<Booking>(`/bookings/${number}/payments/${paymentId}/receive`, body),
+  undo: (number: string, paymentId: number) =>
+    post<Booking>(`/bookings/${number}/payments/${paymentId}/undo`),
+  addCharge: (number: string, body: { label: string; amount_cents: number }) =>
+    post<Booking>(`/bookings/${number}/payments`, body),
+  removeCharge: (number: string, paymentId: number) =>
+    apiFetch<Booking>(`/bookings/${number}/payments/${paymentId}`, { method: "DELETE" }),
+  // processing = proofs (or full-res files) are being made in the background
+  linkAlbum: (number: string, body: { album_id: number } | { create: true }) =>
+    post<Booking & { processing: boolean }>(`/bookings/${number}/album`, body),
+  delivered: (number: string) => post<Booking>(`/bookings/${number}/delivered`),
+  unlock: (number: string, notify: boolean) =>
+    post<Booking & { processing: boolean }>(`/bookings/${number}/unlock`, { notify }),
+  cancel: (number: string, reason: string) => post<Booking>(`/bookings/${number}/cancel`, { reason }),
+  contractPdf: (number: string, preview = false) =>
+    apiBlob(`/bookings/${number}/contract.pdf${preview ? "?preview=1" : ""}`),
+  mine: () => apiFetch<MyBookingSummary[]>("/me/bookings"),
+  mineOne: (number: string) => apiFetch<Booking>(`/me/bookings/${number}`),
+  sign: (number: string, body: { full_name: string; consent: true; contract_hash: string }) =>
+    post<Booking>(`/me/bookings/${number}/sign`, body),
 }

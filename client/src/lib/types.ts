@@ -44,6 +44,9 @@ export type Album = {
   album_photos: Photo[]
   // latest re-edit pushed after delivery; the delivery itself is version 1
   revision?: Revision | null
+  // proof mode: watermarked, downloads refused until the final payment
+  locked?: boolean
+  booking_number?: string | null
 }
 
 export type Revision = {
@@ -166,4 +169,148 @@ export type AlbumFace = {
   image_url: string
   count: number
   filenames: string[]
+}
+
+export type BookingStatus =
+  | "draft"
+  | "sent"
+  | "signed"
+  | "booked"
+  | "event_complete"
+  | "delivered"
+  | "paid"
+  | "cancelled"
+
+export type BookingPackage = {
+  key: string
+  category: string
+  name: string
+  pricing: "hourly" | "flat"
+  rate_cents: number
+  min_hours: number | null
+  includes_video: boolean
+  revisions: number
+}
+
+// the final payment and any extra charges come back as one "Final payment" line
+export type NextPayment = {
+  kind: BookingPayment["kind"]
+  label: string
+  amount_cents: number
+  // due now, as opposed to upcoming
+  due: boolean
+} | null
+
+export type BookingSummary = {
+  number: string
+  status: BookingStatus
+  client: { user_id: number; full_name: string; email: string }
+  event_type: string
+  event_date: string
+  package_name: string
+  total_due_cents: number
+  paid_cents: number
+  next_payment: NextPayment
+  album_slug: string | null
+  created_at: string
+}
+
+export type MyBookingSummary = Omit<BookingSummary, "client" | "created_at"> & {
+  action: "sign" | "pay" | null
+  balance_cents: number
+}
+
+export type PaymentMethod = "zelle" | "cash" | "check" | "other"
+
+export type BookingPayment = {
+  id: number
+  kind: "retainer" | "event_day" | "final" | "extra"
+  label: string
+  percent: number | null
+  amount_cents: number
+  state: "upcoming" | "due" | "paid"
+  received_cents: number
+  received_at: string | null
+  method: PaymentMethod | null
+  note: string | null
+}
+
+export type Booking = {
+  number: string
+  status: BookingStatus
+  client: { user_id: number; full_name: string; email: string; phone: string | null }
+  event: {
+    type: string
+    date: string
+    start_time: string
+    end_time: string
+    location: string
+  }
+  package: {
+    key: string
+    name: string
+    includes_video: boolean
+    revisions: number
+    hours: number | null
+    hourly_rate_cents: number | null
+    fee_overridden: boolean
+  }
+  money: { total_fee: number; extras: number; total_due: number; paid: number; balance: number }
+  payments: BookingPayment[]
+  contract: {
+    version: string | null
+    hash: string | null
+    sent_at: string | null
+    signed: boolean
+    signed_at: string | null
+    signed_name: string | null
+    signed_ip?: string | null
+    pdf_url: string | null
+    // the snapshot that was sent / signed; null on a draft
+    markdown: string | null
+  }
+  album: { id?: number; slug: string; name: string; locked: boolean } | null
+  details_for_client: string | null
+  notes_internal?: string | null
+  delivered_at: string | null
+  unlocked_at: string | null
+  cancelled_at: string | null
+  cancel_reason: string | null
+  timeline: { at: string; label: string }[]
+  next_payment: NextPayment
+  created_at: string
+  // client shape only
+  payment_instructions?: { zelle: string; memo: string; methods: string[] }
+}
+
+export type BookingInput = {
+  client_user_id?: number
+  client?: { full_name: string; email: string }
+  client_phone: string
+  event_type: string
+  event_date?: string
+  start_time: string
+  end_time: string
+  location: string
+  package_key: string
+  // custom packages only
+  package_name?: string
+  hours?: number
+  total_fee_cents?: number | null
+  includes_video?: boolean
+  hourly_rate_cents?: number
+  revisions?: number
+  details_for_client?: string
+  notes_internal?: string
+}
+
+export type BookingPreview = {
+  amounts: {
+    total_fee: number
+    total_due: number
+    retainer: number
+    event_day: number
+    final: number
+  }
+  contract_markdown: string
 }
