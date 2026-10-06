@@ -5,13 +5,14 @@ import Link from "next/link"
 import Image from "next/image"
 import { motion } from "motion/react"
 import { toast } from "sonner"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, bookingsApi } from "@/lib/api"
 import { downloadAlbumZip } from "@/lib/download"
 import { seenRevision } from "@/lib/revision-seen"
-import type { Revision } from "@/lib/types"
+import type { MyBookingSummary, Revision } from "@/lib/types"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AppStoreBadge, StoreBadges } from "@/components/store-badges"
+import { BookingCard, pickHomeBooking } from "@/components/booking-card"
 import {
   ArrowUpRight,
   Download,
@@ -21,6 +22,8 @@ import {
   ImageIcon,
   Images,
   Loader2,
+  Lock,
+  ReceiptText,
   Smartphone,
 } from "lucide-react"
 
@@ -34,6 +37,8 @@ type HomeAlbum = {
   video_count: number
   cover: string | null
   revision: Revision | null
+  locked?: boolean
+  booking_number?: string | null
 }
 
 type HomeFile = {
@@ -42,7 +47,9 @@ type HomeFile = {
   size: number | null
   album_name: string | null
   created_at: string | null
-  download_url?: string
+  // null while the album it belongs to is proof-locked
+  download_url?: string | null
+  locked?: boolean
 }
 
 type Home = {
@@ -120,13 +127,19 @@ export function ClientHome() {
   const [home, setHome] = useState<Home | null>(null)
   const [loading, setLoading] = useState(true)
   const [zipping, setZipping] = useState<string | null>(null)
+  const [booking, setBooking] = useState<MyBookingSummary | null>(null)
   const phone = useIsPhone()
 
   useEffect(() => {
-    apiFetch<Home>("/me/home")
+    const homeReq = apiFetch<Home>("/me/home")
       .then(setHome)
       .catch(() => setHome(null))
-      .finally(() => setLoading(false))
+    // older servers have no bookings; home still works without them
+    const bookingsReq = bookingsApi
+      .mine()
+      .then((rows) => setBooking(pickHomeBooking(rows)))
+      .catch(() => setBooking(null))
+    Promise.all([homeReq, bookingsReq]).finally(() => setLoading(false))
   }, [])
 
   const zip = async (slug: string) => {
@@ -152,6 +165,29 @@ export function ClientHome() {
   }
 
   if (!home || home.albums.length === 0) {
+    if (booking) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="space-y-12"
+        >
+          <BookingCard booking={booking} />
+          <div>
+            <div className="mb-4 flex items-center gap-4">
+              <span className="block h-px w-12 bg-brand" />
+              <span className={eyebrow}>Welcome</span>
+            </div>
+            <h1 className="font-heading text-[clamp(2.25rem,5vw,3.75rem)] leading-[0.95] tracking-tight text-text-primary">
+              {home?.first_name ? `Hi ${home.first_name}.` : "Welcome."}
+              <br />
+              <span className="text-text-secondary">Your photos will live here.</span>
+            </h1>
+          </div>
+        </motion.div>
+      )
+    }
     return (
       <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-24 text-center">
         <ImageIcon className="size-6 text-text-faint" />
@@ -170,6 +206,16 @@ export function ClientHome() {
 
   return (
     <div className="space-y-14">
+      {booking && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease }}
+        >
+          <BookingCard booking={booking} />
+        </motion.div>
+      )}
+
       {/* welcome */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -289,28 +335,48 @@ export function ClientHome() {
             <span className={eyebrow}>Ready to download</span>
           </div>
           <div className="border-y border-border-subtle">
-            {files.map((f) => (
-              <a
-                key={f.id}
-                href={f.download_url}
-                className="group flex items-center justify-between gap-4 border-b border-border-subtle py-4 last:border-b-0"
-              >
-                <div className="flex min-w-0 items-center gap-4">
-                  <span className="flex size-10 shrink-0 items-center justify-center bg-brand/10 text-brand">
-                    <FileArchive className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-text-primary group-hover:text-brand">
-                      {f.filename}
-                    </p>
-                    <p className="truncate text-[11px] text-text-muted">
-                      {[f.album_name, fmtBytes(f.size)].filter(Boolean).join(" · ")}
-                    </p>
+            {files.map((f) =>
+              f.locked || !f.download_url ? (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between gap-4 border-b border-border-subtle py-4 last:border-b-0"
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <span className="flex size-10 shrink-0 items-center justify-center bg-surface-card text-text-faint">
+                      <FileArchive className="size-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-text-secondary">{f.filename}</p>
+                      <p className="truncate text-[11px] text-text-muted">
+                        {f.locked ? "Unlocks after your final payment" : f.album_name}
+                      </p>
+                    </div>
                   </div>
+                  <Lock className="size-4 shrink-0 text-text-faint" />
                 </div>
-                <Download className="size-4 shrink-0 text-text-faint transition-colors group-hover:text-brand" />
-              </a>
-            ))}
+              ) : (
+                <a
+                  key={f.id}
+                  href={f.download_url}
+                  className="group flex items-center justify-between gap-4 border-b border-border-subtle py-4 last:border-b-0"
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <span className="flex size-10 shrink-0 items-center justify-center bg-brand/10 text-brand">
+                      <FileArchive className="size-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-text-primary group-hover:text-brand">
+                        {f.filename}
+                      </p>
+                      <p className="truncate text-[11px] text-text-muted">
+                        {[f.album_name, fmtBytes(f.size)].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                  </div>
+                  <Download className="size-4 shrink-0 text-text-faint transition-colors group-hover:text-brand" />
+                </a>
+              ),
+            )}
           </div>
           {phone && (
             <p className="text-[12px] text-text-muted">
@@ -406,6 +472,31 @@ function GetPhotos({
     "flex h-14 items-center justify-center gap-2.5 bg-brand px-8 text-[12px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:opacity-60 sm:min-w-[240px]"
   const secondary =
     "flex h-14 items-center justify-center gap-2.5 border border-border-default px-8 text-[12px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary sm:min-w-[240px]"
+
+  if (album.locked) {
+    return (
+      <div className="border border-border-subtle bg-surface-elevated p-5 sm:p-6">
+        <p className={`${eyebrow} flex items-center gap-2`}>
+          <Lock className="size-3" /> Proof gallery
+        </p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <Link href={`/albums/${album.slug}`} className={primary}>
+            <Images className="size-4" />
+            Browse the proofs
+          </Link>
+          {album.booking_number && (
+            <Link href={`/bookings/${album.booking_number}`} className={secondary}>
+              <ReceiptText className="size-4" />
+              Final payment
+            </Link>
+          )}
+        </div>
+        <p className="mt-4 text-[13px] leading-relaxed text-text-muted">
+          These are watermarked previews. Full-resolution downloads unlock after your final payment.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="border border-border-subtle bg-surface-elevated p-5 sm:p-6">

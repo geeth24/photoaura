@@ -125,6 +125,8 @@ type Props = {
   favorites?: Set<string>
   onToggleFavorite?: (filename: string) => void
   slug?: string
+  // false on a proof-locked album
+  canDownload?: boolean
 }
 
 export function PhotoViewer({
@@ -137,6 +139,7 @@ export function PhotoViewer({
   favorites,
   onToggleFavorite,
   slug,
+  canDownload = true,
 }: Props) {
   const pswpRef = useRef<PhotoSwipe | null>(null)
   const [layer, setLayer] = useState<HTMLElement | null>(null)
@@ -456,7 +459,7 @@ export function PhotoViewer({
             >
               <Info className="size-5" />
             </button>
-            <DownloadMenu photo={current} slug={slug} />
+            {canDownload && <DownloadMenu photo={current} slug={slug} />}
           </div>
         </div>
 
@@ -572,7 +575,15 @@ function Scrubber({
 }
 
 // videos don't join the swipe set — they get a plain player
-export function VideoViewer({ photo, onClose }: { photo: Photo | null; onClose: () => void }) {
+export function VideoViewer({
+  photo,
+  onClose,
+  canDownload = true,
+}: {
+  photo: Photo | null
+  onClose: () => void
+  canDownload?: boolean
+}) {
   useEffect(() => {
     if (!photo) return
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
@@ -598,6 +609,9 @@ export function VideoViewer({ photo, onClose }: { photo: Photo | null; onClose: 
         src={photo.image}
         poster={tileSrc(photo)}
         controls
+        // locked videos still stream, but lose the browser's own download button
+        controlsList={canDownload ? undefined : "nodownload"}
+        onContextMenu={canDownload ? undefined : (e) => e.preventDefault()}
         autoPlay
         playsInline
         onClick={(e) => e.stopPropagation()}

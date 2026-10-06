@@ -17,6 +17,7 @@ import { ManageDownloadsDialog } from "@/components/manage-downloads-dialog"
 import { UploadRevisionDialog } from "@/components/upload-revision-dialog"
 import { AlbumRevisions } from "@/components/album-revisions"
 import { RevisionBanner } from "@/components/revision-banner"
+import { ProofBanner } from "@/components/proof-banner"
 import { markRevisionSeen } from "@/lib/revision-seen"
 import {
   AlertDialog,
@@ -478,18 +479,25 @@ export function AlbumView({
               </button>
             )}
             {/* clients asked for this — every original in one zip */}
-            <button
-              onClick={handleDownloadAll}
-              disabled={zipping}
-              className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-50"
-            >
-              {zipping ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Download className="size-3" />
-              )}
-              Download all
-            </button>
+            {album.locked ? (
+              <span className="flex items-center gap-1.5 border border-brand/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-brand">
+                <Lock className="size-3" />
+                Proof
+              </span>
+            ) : (
+              <button
+                onClick={handleDownloadAll}
+                disabled={zipping}
+                className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-50"
+              >
+                {zipping ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Download className="size-3" />
+                )}
+                Download all
+              </button>
+            )}
             {/* anyone viewing the album can grab a share link */}
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -525,7 +533,7 @@ export function AlbumView({
           </div>
 
           {/* phones can't get a zip into the camera roll — offer the share sheet */}
-          <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />
+          {!album.locked && <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />}
         </div>
 
         {isAdmin && (
@@ -610,6 +618,7 @@ export function AlbumView({
         )}
       </div>
 
+      {album.locked && <ProofBanner bookingNumber={album.booking_number} albumSlug={albumSlug} studio={isAdmin} />}
       {album.revision && (
         <RevisionBanner
           revision={album.revision}
@@ -627,8 +636,23 @@ export function AlbumView({
         />
       )}
 
+      {/* proof lock/unlock jobs aren't face work; no processing page for them */}
+      {processing && (job?.kind === "lock" || job?.kind === "unlock") && (
+        <div className="flex items-center gap-3 border border-border-subtle bg-surface-elevated px-4 py-3 text-text-secondary">
+          <Loader2 className="size-4 shrink-0 animate-spin text-brand" />
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em]">
+            {job.phase === "warming"
+              ? "Warming the CDN"
+              : job.kind === "lock"
+                ? "Making watermarked proofs"
+                : "Restoring full-resolution files"}
+            {job.total > 0 && job.phase !== "warming" ? ` · ${job.current}/${job.total}` : "…"}
+          </span>
+        </div>
+      )}
+
       {/* people */}
-      {processing && (
+      {processing && job?.kind !== "lock" && job?.kind !== "unlock" && (
         <Link
           href={`/albums/${albumSlug}/processing`}
           className="flex items-center gap-3 border border-border-subtle bg-surface-elevated px-4 py-3 text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
@@ -679,9 +703,11 @@ export function AlbumView({
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
         slug={albumSlug}
+        canDownload={!album.locked}
       />
       <VideoViewer
         photo={video}
+        canDownload={!album.locked}
         onClose={() => {
           setVideo(null)
           if (initialPhoto) window.history.replaceState(window.history.state, "", `/albums/${albumSlug}`)

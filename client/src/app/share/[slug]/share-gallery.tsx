@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { isVideo, type Photo } from "@/lib/types"
 import { downloadSharedAlbumZip } from "@/lib/download"
 import { SaveToPhotos } from "@/components/save-to-photos"
+import { ProofBanner } from "@/components/proof-banner"
 import { Download, ImageOff } from "lucide-react"
 
 const API_URL =
@@ -18,6 +19,8 @@ type ShareAlbum = {
   album_name: string
   image_count: number
   album_photos: Photo[]
+  locked?: boolean
+  booking_number?: string | null
 }
 
 // public, no-login gallery — anyone with the link can view the whole album
@@ -103,23 +106,36 @@ export function ShareGallery({ slug }: { slug: string }) {
                 {album.album_photos.length === 1 ? "photo" : "photos"}
               </p>
 
-              <button
-                onClick={() => downloadSharedAlbumZip(slug, secret)}
-                className="mt-6 flex h-11 items-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)]"
-              >
-                <Download className="size-3.5" />
-                Download all photos
-              </button>
-              <p className="mt-2 text-[11px] text-text-faint">
-                Full resolution originals, as one zip.
-              </p>
-              {/* on a phone the zip lands in Files, not Photos — offer the camera roll too */}
-              <SaveToPhotos photos={album.album_photos} albumSlug={slug} />
+              {album.locked ? (
+                <div className="mt-6">
+                  <ProofBanner linkable={false} />
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => downloadSharedAlbumZip(slug, secret)}
+                    className="mt-6 flex h-11 items-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)]"
+                  >
+                    <Download className="size-3.5" />
+                    Download all photos
+                  </button>
+                  <p className="mt-2 text-[11px] text-text-faint">
+                    Full resolution originals, as one zip.
+                  </p>
+                  {/* on a phone the zip lands in Files, not Photos — offer the camera roll too */}
+                  <SaveToPhotos photos={album.album_photos} albumSlug={slug} />
+                </>
+              )}
             </motion.div>
 
             <PhotoGrid photos={album.album_photos} onOpen={openPhoto} />
-            <PhotoViewer photos={stills} openIndex={viewer} onClose={() => setViewer(null)} />
-            <VideoViewer photo={video} onClose={() => setVideo(null)} />
+            <PhotoViewer
+              photos={stills}
+              openIndex={viewer}
+              onClose={() => setViewer(null)}
+              canDownload={!album.locked}
+            />
+            <VideoViewer photo={video} onClose={() => setVideo(null)} canDownload={!album.locked} />
           </>
         )}
 
