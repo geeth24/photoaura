@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Date,
     Float,
     ForeignKey,
     Integer,
@@ -87,6 +88,10 @@ class Album(Base):
     is_website: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="false")
     # public = openable by anyone; private (default) needs the share secret
     public: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="false")
+    # proof mode: clients only see watermarked proofs until the booking is paid
+    proof_locked: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    # originals sit under {slug}/_hold/{hold_token}/ while locked; never sent to clients
+    hold_token: Mapped[Optional[str]] = mapped_column(String(64))
 
     photos: Mapped[list["FileMetadata"]] = relationship(
         back_populates="album", cascade="all, delete-orphan"
@@ -119,6 +124,9 @@ class FileMetadata(Base):
     # filename stem without any _vN suffix, lowercased — what revisions match on
     base_name: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     revision_number: Mapped[Optional[int]] = mapped_column(Integer)
+    # set while the album is proof-locked: filename is the proof, this is the held original
+    original_filename: Mapped[Optional[str]] = mapped_column(String(255))
+    held: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
 
     album: Mapped[Optional["Album"]] = relationship(back_populates="photos")
 
@@ -335,3 +343,91 @@ class VideoRevision(Base):
     )
 
     video: Mapped[Optional["Video"]] = relationship(back_populates="revisions")
+
+
+class Booking(Base):
+    """A client booking: the signed contract and the payments against it."""
+
+    __tablename__ = "bookings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), server_default="draft", index=True)
+    client_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    client_phone: Mapped[Optional[str]] = mapped_column(String(50))
+
+    event_type: Mapped[Optional[str]] = mapped_column(String(100))
+    event_date: Mapped[Optional[date]] = mapped_column(Date)
+    start_time: Mapped[Optional[str]] = mapped_column(String(5))
+    end_time: Mapped[Optional[str]] = mapped_column(String(5))
+    location: Mapped[Optional[str]] = mapped_column(Text)
+
+    package_key: Mapped[str] = mapped_column(String(50))
+    package_name: Mapped[Optional[str]] = mapped_column(String(255))
+    hours: Mapped[Optional[float]] = mapped_column(Float)
+    includes_video: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    revisions: Mapped[Optional[int]] = mapped_column(Integer)
+    hourly_rate_cents: Mapped[Optional[int]] = mapped_column(Integer)
+    total_fee_cents: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
+    fee_overridden: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+
+    details_for_client: Mapped[Optional[str]] = mapped_column(Text)
+    notes_internal: Mapped[Optional[str]] = mapped_column(Text)
+
+    # the exact contract the client reviews; re-rendered when terms change
+    contract_version: Mapped[Optional[str]] = mapped_column(String(20))
+    contract_markdown: Mapped[Optional[str]] = mapped_column(Text)
+    contract_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    contract_rendered_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+
+    signed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    signed_name: Mapped[Optional[str]] = mapped_column(String(255))
+    signed_ip: Mapped[Optional[str]] = mapped_column(String(64))
+    signed_user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    signed_consent: Mapped[Optional[str]] = mapped_column(Text)
+    signed_version: Mapped[Optional[str]] = mapped_column(String(20))
+    signed_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    pdf_key: Mapped[Optional[str]] = mapped_column(String(512))
+
+    album_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("album.id", ondelete="SET NULL"), index=True
+    )
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    unlocked_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    cancel_reason: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+
+    payments: Mapped[list["BookingPayment"]] = relationship(
+        back_populates="booking", cascade="all, delete-orphan", order_by="BookingPayment.id"
+    )
+
+
+class BookingPayment(Base):
+    """One scheduled payment (retainer / event day / final) or an extra charge."""
+
+    __tablename__ = "booking_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    booking_id: Mapped[int] = mapped_column(
+        ForeignKey("bookings.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(20))  # retainer | event_day | final | extra
+    label: Mapped[str] = mapped_column(String(255))
+    percent: Mapped[Optional[int]] = mapped_column(Integer)
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    received_cents: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
+    received_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    method: Mapped[Optional[str]] = mapped_column(String(20))  # zelle | cash | check | other
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+    booking: Mapped["Booking"] = relationship(back_populates="payments")
