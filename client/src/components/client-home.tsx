@@ -27,7 +27,7 @@ import {
   Smartphone,
 } from "lucide-react"
 
-type HomeAlbum = {
+export type HomeAlbum = {
   id: number
   name: string
   slug: string
@@ -52,7 +52,7 @@ type HomeFile = {
   locked?: boolean
 }
 
-type Home = {
+export type Home = {
   first_name: string | null
   albums: HomeAlbum[]
   files: HomeFile[]
@@ -398,42 +398,52 @@ export function ClientHome() {
             <span className="block h-px w-12 bg-brand" />
             <span className={eyebrow}>Earlier galleries</span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {rest.map((a) => (
-              <Link
-                key={a.id}
-                href={albumHref(a)}
-                className="group block border border-border-subtle bg-surface-elevated transition-colors hover:border-border-strong"
-              >
-                <div className="relative aspect-[4/3] overflow-hidden bg-surface">
-                  {a.cover ? (
-                    <Image
-                      src={a.cover}
-                      alt={a.name}
-                      fill
-                      sizes="(max-width: 640px) 100vw, 33vw"
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <ImageIcon className="size-5 text-text-faint" />
-                    </div>
-                  )}
-                  <RevisionMarker album={a} />
-                </div>
-                <div className="p-4">
-                  <p className="truncate text-sm font-medium text-text-primary">{a.name}</p>
-                  <p className="mt-1 text-[11px] text-text-muted">
-                    {plural(a.photo_count, "photo")}
-                    {a.video_count > 0 && ` · ${plural(a.video_count, "video")}`}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <GalleryGrid albums={rest} />
         </motion.section>
       )}
 
+    </div>
+  )
+}
+
+export function GalleryGrid({ albums }: { albums: HomeAlbum[] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {albums.map((a) => (
+        <Link
+          key={a.id}
+          href={albumHref(a)}
+          className="group block border border-border-subtle bg-surface-elevated transition-colors hover:border-border-strong"
+        >
+          <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+            {a.cover ? (
+              <Image
+                src={a.cover}
+                alt={a.name}
+                fill
+                sizes="(max-width: 640px) 100vw, 33vw"
+                className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <ImageIcon className="size-5 text-text-faint" />
+              </div>
+            )}
+            <RevisionMarker album={a} />
+          </div>
+          <div className="p-4">
+            <p className="truncate text-sm font-medium text-text-primary">{a.name}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted">
+              {a.locked && <Lock className="size-3 shrink-0" />}
+              <span className="truncate">
+                {a.locked && "Proofs · "}
+                {plural(a.photo_count, "photo")}
+                {a.video_count > 0 && ` · ${plural(a.video_count, "video")}`}
+              </span>
+            </p>
+          </div>
+        </Link>
+      ))}
     </div>
   )
 }

@@ -2,13 +2,13 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
 import { useAuth } from "@/context/auth-context"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { LogOut, UserCircle } from "lucide-react"
+import { ClientTabBar, ClientTopNav, ProfileLink, useClientNav } from "@/components/client-nav"
+import { LogOut } from "lucide-react"
 
-// clients get a quiet top bar; the studio keeps its sidebar
+// clients get a light top bar (tabs at the bottom on phones); the studio keeps its sidebar
 export function Shell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   if (user?.role === "client") return <ClientShell>{children}</ClientShell>
@@ -37,28 +37,22 @@ function StudioShell({ children }: { children: React.ReactNode }) {
 
 function ClientShell({ children }: { children: React.ReactNode }) {
   const { logout } = useAuth()
-  const pathname = usePathname()
-  const onProfile = pathname.startsWith("/profile")
+  const { items, pathname } = useClientNav()
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
-      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border-subtle bg-surface/80 px-5 backdrop-blur-xl sm:px-8">
-        <Link href="/albums" className="flex items-center gap-2.5">
-          <Image src="/images/logo.png" alt="" width={26} height={26} />
-          <span className="text-[11px] font-medium uppercase tracking-[0.3em] text-text-primary">
-            PhotoAura
-          </span>
-        </Link>
-        <nav className="flex items-center gap-1">
-          <Link
-            href="/profile"
-            aria-label="Profile"
-            className={`flex size-9 items-center justify-center transition-colors ${
-              onProfile ? "text-brand" : "text-text-muted hover:text-text-primary"
-            }`}
-          >
-            <UserCircle className="size-[18px]" />
+      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-6 border-b border-border-subtle bg-surface/80 px-5 backdrop-blur-xl sm:px-8">
+        <div className="flex h-full items-center gap-6 lg:gap-10">
+          <Link href="/albums" className="flex items-center gap-2.5">
+            <Image src="/images/logo.png" alt="" width={26} height={26} />
+            <span className="text-[11px] font-medium uppercase tracking-[0.3em] text-text-primary">
+              PhotoAura
+            </span>
           </Link>
+          <ClientTopNav items={items} pathname={pathname} />
+        </div>
+        <div className="flex items-center gap-1">
+          <ProfileLink pathname={pathname} />
           <button
             onClick={logout}
             aria-label="Sign out"
@@ -66,11 +60,13 @@ function ClientShell({ children }: { children: React.ReactNode }) {
           >
             <LogOut className="size-[17px]" />
           </button>
-        </nav>
+        </div>
       </header>
-      <main className="min-w-0 flex-1 overflow-x-hidden px-5 py-8 sm:px-8 lg:px-12">
+      {/* bottom padding clears the phone tab bar */}
+      <main className="min-w-0 flex-1 overflow-x-hidden px-5 pb-28 pt-8 sm:px-8 md:pb-8 lg:px-12">
         <div className="mx-auto w-full max-w-6xl">{children}</div>
       </main>
+      <ClientTabBar items={items} pathname={pathname} />
     </div>
   )
 }

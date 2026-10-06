@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { motion } from "motion/react"
 import { ArrowUpRight, CalendarPlus, CalendarX2, Plus } from "lucide-react"
 import { useAuth } from "@/context/auth-context"
 import { bookingsApi } from "@/lib/api"
-import { fmtDay, money } from "@/lib/bookings"
+import { fmtDay, money, parseDay } from "@/lib/bookings"
 import type { BookingStatus, BookingSummary, MyBookingSummary } from "@/lib/types"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -197,21 +196,27 @@ function StudioBookings() {
   )
 }
 
+// upcoming soonest first; past (and cancelled) most recent first
+function splitByDate(rows: MyBookingSummary[]) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const isPast = (b: MyBookingSummary) => b.status === "cancelled" || (parseDay(b.event_date) ?? today) < today
+  return {
+    upcoming: rows.filter((b) => !isPast(b)).sort((a, b) => a.event_date.localeCompare(b.event_date)),
+    past: rows.filter(isPast).sort((a, b) => b.event_date.localeCompare(a.event_date)),
+  }
+}
+
 function ClientBookings() {
   useDocumentTitle("Your bookings")
-  const router = useRouter()
   const [rows, setRows] = useState<MyBookingSummary[] | null>(null)
 
   useEffect(() => {
     bookingsApi
       .mine()
-      .then((r) => {
-        // one booking: skip the list
-        if (r.length === 1) router.replace(`/bookings/${r[0].number}`)
-        else setRows(r)
-      })
+      .then(setRows)
       .catch(() => setRows([]))
-  }, [router])
+  }, [])
 
   if (rows == null) {
     return (
@@ -224,6 +229,8 @@ function ClientBookings() {
     )
   }
 
+  const { upcoming, past } = splitByDate(rows)
+
   return (
     <div className="space-y-10">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }}>
@@ -234,6 +241,11 @@ function ClientBookings() {
         <h1 className="font-heading text-[clamp(2.25rem,5vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
           Your bookings
         </h1>
+        {rows.length > 0 && (
+          <p className="mt-3 text-sm font-light text-text-secondary">
+            {upcoming.length} upcoming · {past.length} past
+          </p>
+        )}
       </motion.div>
 
       {rows.length === 0 ? (
@@ -245,43 +257,59 @@ function ClientBookings() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {rows.map((b, i) => (
-            <motion.div
-              key={b.number}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: Math.min(i * 0.05, 0.3), ease }}
-            >
-              <Link
-                href={`/bookings/${b.number}`}
-                className="group flex h-full flex-col gap-5 border border-border-subtle bg-surface-elevated p-5 transition-colors hover:border-border-strong sm:p-6"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className={micro}>{b.number}</p>
-                    <p className="mt-2 font-heading text-2xl leading-tight tracking-tight text-text-primary">
-                      {b.event_type}
-                    </p>
-                    <p className="mt-1 text-[13px] text-text-secondary">{fmtDay(b.event_date)}</p>
-                  </div>
-                  <StatusChip status={b.status} />
-                </div>
-                <div className="mt-auto flex items-end justify-between gap-4 border-t border-border-subtle pt-4">
-                  <p className="text-[13px] text-text-muted">
-                    {b.action === "sign"
-                      ? "Review and sign your agreement"
-                      : b.next_payment
-                        ? `${b.next_payment.label} · ${money(b.next_payment.amount_cents)}`
-                        : `${money(b.paid_cents)} of ${money(b.total_due_cents)} paid`}
-                  </p>
-                  <ArrowUpRight className="size-4 shrink-0 text-text-faint transition-colors group-hover:text-brand" />
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
+        [
+          { label: "Upcoming", list: upcoming },
+          { label: "Past", list: past },
+        ]
+          .filter((g) => g.list.length > 0)
+          .map((g, gi) => (
+            <section key={g.label} className="space-y-4">
+              <p className={micro}>{g.label}</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {g.list.map((b, i) => (
+                  <motion.div
+                    key={b.number}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45, delay: Math.min((gi * 2 + i) * 0.05, 0.3), ease }}
+                  >
+                    <ClientBookingCard b={b} />
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          ))
       )}
     </div>
+  )
+}
+
+function ClientBookingCard({ b }: { b: MyBookingSummary }) {
+  return (
+    <Link
+      href={`/bookings/${b.number}`}
+      className="group flex h-full flex-col gap-5 border border-border-subtle bg-surface-elevated p-5 transition-colors hover:border-border-strong sm:p-6"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className={micro}>{b.number}</p>
+          <p className="mt-2 font-heading text-2xl leading-tight tracking-tight text-text-primary">{b.event_type}</p>
+          <p className="mt-1 text-[13px] text-text-secondary">{fmtDay(b.event_date)}</p>
+        </div>
+        <StatusChip status={b.status} />
+      </div>
+      <div className="mt-auto flex items-end justify-between gap-4 border-t border-border-subtle pt-4">
+        <p className="text-[13px] text-text-muted">
+          {b.status === "cancelled"
+            ? "This booking was cancelled"
+            : b.action === "sign"
+              ? "Review and sign your agreement"
+              : b.next_payment
+                ? `${b.next_payment.label} · ${money(b.next_payment.amount_cents)}${b.next_payment.due ? " due now" : ""}`
+                : `${money(b.paid_cents)} of ${money(b.total_due_cents)} paid`}
+        </p>
+        <ArrowUpRight className="size-4 shrink-0 text-text-faint transition-colors group-hover:text-brand" />
+      </div>
+    </Link>
   )
 }
