@@ -9,12 +9,14 @@ Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, *
 
 **This {{^video}}Photography Services Agreement{{/video}}{{#video}}Photography & Videography Services Agreement{{/video}} ("Agreement") is entered into as of {{agreement_date}} by and between:**
 
-**Photographer:** Geeth Gunnampalli, d/b/a Reactive Shots Studios | reactiveshots.com
+**Photographer:** Geeth Gunnampalli
+Geeth Gunnampalli d/b/a Reactive Shots Studios | reactiveshots.com
+
 Email: geeth@reactiveshots.com | Phone: +1 (972) 829-5173
 
-**Client:** {{client_name}}
-**Email:** {{client_email}}
-**Phone:** {{client_phone}}
+**Client: {{client_name}}**
+**Email: {{client_email}}**
+**Phone: {{client_phone}}**
 
 ## 1. Services
 
