@@ -23,6 +23,7 @@ from routers.client_files.client_files_router import router as client_files_rout
 from routers.admin.ops_router import router as ops_router
 from routers.revisions.revisions_router import router as revisions_router
 from routers.app_config.app_config_router import router as app_config_router
+from routers.bookings.bookings_router import router as bookings_router
 
 
 @asynccontextmanager
@@ -56,6 +57,7 @@ app.include_router(client_files_router)
 app.include_router(ops_router)
 app.include_router(revisions_router)
 app.include_router(app_config_router)
+app.include_router(bookings_router)
 os.makedirs(settings.DATA_DIR, exist_ok=True)
 app.mount("/api/static", StaticFiles(directory=settings.DATA_DIR), name="static")
 

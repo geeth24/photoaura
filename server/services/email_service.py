@@ -5,6 +5,7 @@ Templates live in the Next client as React Email — we POST to the client's
 the Resend key stays in the backend.
 """
 
+import base64
 import os
 import socket
 from typing import Optional
@@ -57,7 +58,8 @@ def _render(template: str, props: dict) -> Optional[dict]:
         return None
 
 
-def _send(to_email: str, subject: str, html: str) -> bool:
+def _send(to_email: str, subject: str, html: str, attachments: Optional[list] = None) -> bool:
+    """attachments: [{"filename": str, "content": bytes}]"""
     if not resend.api_key:
         print("RESEND_API_KEY not set — skipping email to", to_email)
         return False
@@ -65,6 +67,11 @@ def _send(to_email: str, subject: str, html: str) -> bool:
         payload = {"from": FROM, "to": [to_email], "subject": subject, "html": html}
         if BCC:
             payload["bcc"] = BCC
+        if attachments:
+            payload["attachments"] = [
+                {"filename": a["filename"], "content": base64.b64encode(a["content"]).decode()}
+                for a in attachments
+            ]
         resend.Emails.send(payload)
         return True
     except Exception as e:
@@ -147,3 +154,10 @@ def send_album_revision(
     if not payload:
         return False
     return _send(to_email, payload["subject"], payload["html"])
+
+
+def send_template(to_email: str, template: str, props: dict, attachments: Optional[list] = None) -> bool:
+    payload = _render(template, props)
+    if not payload:
+        return False
+    return _send(to_email, payload["subject"], payload["html"], attachments)
