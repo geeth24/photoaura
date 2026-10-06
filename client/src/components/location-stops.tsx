@@ -164,38 +164,8 @@ export function LocationStops({ value, onChange, disabled, invalid, className }:
   }, [value])
   // the map follows committed stops (picked or left), not every keystroke
   const [committed, setCommitted] = useState(() => stops.map((s) => s.trim()).filter(Boolean))
-  const [mapUrl, setMapUrl] = useState<string | null>(null)
-  const [mapState, setMapState] = useState<"idle" | "loading" | "error">("idle")
-
   const set = (i: number, v: string) => onChange(stops.map((s, j) => (j === i ? v : s)).join("\n"))
   const commit = () => setCommitted(stops.map((s) => s.trim()).filter(Boolean))
-  const key = committed.join("\n")
-
-  const mapStops = useMemo(() => (key ? key.split("\n").filter((s) => s.length > 5) : []), [key])
-
-  useEffect(() => {
-    if (!mapStops.length) return
-    let url: string | null = null
-    let cancelled = false
-    const t = setTimeout(async () => {
-      setMapState("loading")
-      try {
-        const qs = mapStops.map((s) => `stops=${encodeURIComponent(s)}`).join("&")
-        const blob = await apiBlob(`/maps/static.png?${qs}&w=640&h=240`)
-        if (cancelled) return
-        url = URL.createObjectURL(blob)
-        setMapUrl(url)
-        setMapState("idle")
-      } catch {
-        if (!cancelled) setMapState("error")
-      }
-    }, 300)
-    return () => {
-      cancelled = true
-      clearTimeout(t)
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [mapStops])
 
   return (
     <div className="space-y-2">
@@ -252,15 +222,87 @@ export function LocationStops({ value, onChange, disabled, invalid, className }:
         )}
       </div>
 
-      {mapStops.length > 0 && (mapUrl || mapState === "loading") && (
-        <div className="relative aspect-[640/240] w-full overflow-hidden border border-border-subtle bg-surface-elevated">
-          {mapUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={mapUrl} alt="Map of the event locations" className={cn("size-full object-cover transition-opacity", mapState === "loading" && "opacity-50")} />
-          )}
-          {mapState === "loading" && !mapUrl && <div className="absolute inset-0 animate-pulse bg-surface-hover" />}
-        </div>
+      <StopsMap stops={committed} />
+    </div>
+  )
+}
+
+export function splitStops(location: string | null | undefined) {
+  return (location ?? "").split("\n").map((s) => s.trim()).filter(Boolean)
+}
+
+/** Dark map with a numbered pin per stop, rendered by the API so the key stays server-side. */
+export function StopsMap({ stops, className }: { stops: string[]; className?: string }) {
+  const [mapUrl, setMapUrl] = useState<string | null>(null)
+  const [mapState, setMapState] = useState<"idle" | "loading" | "error">("idle")
+  const key = stops.filter((s) => s.length > 5).join("\n")
+  const mapStops = useMemo(() => (key ? key.split("\n") : []), [key])
+
+  useEffect(() => {
+    if (!mapStops.length) return
+    let url: string | null = null
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setMapState("loading")
+      try {
+        const qs = mapStops.map((s) => `stops=${encodeURIComponent(s)}`).join("&")
+        const blob = await apiBlob(`/maps/static.png?${qs}&w=640&h=240`)
+        if (cancelled) return
+        url = URL.createObjectURL(blob)
+        setMapUrl(url)
+        setMapState("idle")
+      } catch {
+        if (!cancelled) setMapState("error")
+      }
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [mapStops])
+
+  if (!mapStops.length || mapState === "error" || (!mapUrl && mapState !== "loading")) return null
+  return (
+    <div className={cn("relative aspect-[640/240] w-full overflow-hidden border border-border-subtle bg-surface-elevated", className)}>
+      {mapUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={mapUrl} alt="Map of the event locations" className={cn("size-full object-cover transition-opacity", mapState === "loading" && "opacity-50")} />
+      ) : (
+        <div className="absolute inset-0 animate-pulse bg-surface-hover" />
       )}
+    </div>
+  )
+}
+
+/** Each stop as a Maps link, numbered when there's more than one, plus directions. */
+export function StopsList({ location, className }: { location: string | null | undefined; className?: string }) {
+  const stops = splitStops(location)
+  if (!stops.length) return <span className="text-text-muted">TBD</span>
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      {stops.map((stop, i) => (
+        <a
+          key={i}
+          href={mapsLink([stop])}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-start gap-2 hover:text-brand"
+        >
+          {stops.length > 1 && (
+            <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center bg-brand text-[9px] font-semibold text-surface">{i + 1}</span>
+          )}
+          <span>{stop}</span>
+        </a>
+      ))}
+      <a
+        href={mapsLink(stops)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.2em] text-brand hover:underline"
+      >
+        Get directions <ExternalLink className="size-3" />
+      </a>
     </div>
   )
 }

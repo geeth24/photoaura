@@ -31,6 +31,7 @@ import { ContractView } from "@/components/contract-view"
 import { BookingSteps, StatusChip } from "@/components/booking-status"
 import { PaymentsTable } from "@/components/booking-payments"
 import { InvoiceButton } from "@/components/invoice-button"
+import { StopsList, StopsMap, splitStops } from "@/components/location-stops"
 import { cn } from "@/lib/utils"
 
 const CONSENT_TEXT = "I agree to sign this agreement electronically, and that typing my name below is my signature."
@@ -121,17 +122,11 @@ export function ClientBooking({ number }: { number: string }) {
 }
 
 function EventFacts({ b, columns = 3 }: { b: Booking; columns?: 2 | 3 }) {
-  const maps = `https://maps.google.com/?q=${encodeURIComponent(b.event.location)}`
   const facts: [string, React.ReactNode][] = [
     ["Event", b.event.type],
     ["Date", fmtDay(b.event.date)],
     ["Time", `${fmtTime(b.event.start_time)} – ${fmtTime(b.event.end_time)}`],
-    [
-      "Location",
-      <a key="l" href={maps} target="_blank" rel="noopener noreferrer" className="hover:text-brand">
-        {b.event.location}
-      </a>,
-    ],
+    ["Location", <StopsList key="l" location={b.event.location} />],
     ["Package", `${b.package.name}${b.package.hours ? `, ${b.package.hours} hours` : ""}`],
     [
       "Includes",
@@ -139,19 +134,22 @@ function EventFacts({ b, columns = 3 }: { b: Booking; columns?: 2 | 3 }) {
     ],
   ]
   return (
-    <dl
-      className={cn(
-        "grid gap-px border border-border-subtle bg-border-subtle sm:grid-cols-2",
-        columns === 3 && "lg:grid-cols-3",
-      )}
-    >
-      {facts.map(([k, v]) => (
-        <div key={k} className="bg-surface-elevated px-5 py-4">
-          <dt className={micro}>{k}</dt>
-          <dd className="mt-1.5 text-[15px] leading-snug text-text-primary">{v}</dd>
-        </div>
-      ))}
-    </dl>
+    <div>
+      <dl
+        className={cn(
+          "grid gap-px border border-border-subtle bg-border-subtle sm:grid-cols-2",
+          columns === 3 && "lg:grid-cols-3",
+        )}
+      >
+        {facts.map(([k, v]) => (
+          <div key={k} className="bg-surface-elevated px-5 py-4">
+            <dt className={micro}>{k}</dt>
+            <dd className="mt-1.5 text-[15px] leading-snug text-text-primary">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <StopsMap stops={splitStops(b.event.location)} className="max-h-64 border-t-0" />
+    </div>
   )
 }
 

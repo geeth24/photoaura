@@ -67,6 +67,7 @@ import {
 } from "@/components/booking-payments"
 import { InvoiceButton } from "@/components/invoice-button"
 import { cn } from "@/lib/utils"
+import { StopsList, StopsMap, splitStops } from "@/components/location-stops"
 
 const eyebrow = "text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted"
 const micro = "text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted"
@@ -457,19 +458,20 @@ export function BookingDetail({ number }: { number: string }) {
                 ["Type", b.event.type],
                 ["Date", fmtDay(b.event.date)],
                 ["Time", `${fmtTime(b.event.start_time)} – ${fmtTime(b.event.end_time)}`],
-                ["Location", b.event.location],
+                ["Location", <StopsList key="l" location={b.event.location} />],
                 ["Package", `${b.package.name}${b.package.hours ? `, ${b.package.hours} hrs` : ""}`],
                 [
                   "Includes",
                   `${b.package.includes_video ? "Photos + video" : "Photos"} · ${b.package.revisions} revision ${b.package.revisions === 1 ? "round" : "rounds"}${b.package.hourly_rate_cents ? ` · overtime ${money(b.package.hourly_rate_cents)}/hr` : ""}`,
                 ],
               ].map(([k, v]) => (
-                <div key={k} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3">
+                <div key={String(k)} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3">
                   <dt className={micro}>{k}</dt>
                   <dd className="text-text-primary">{v}</dd>
                 </div>
               ))}
             </dl>
+            <StopsMap stops={splitStops(b.event.location)} className="mt-4" />
             {b.details_for_client && (
               <div className="mt-5 border-l-2 border-brand pl-4">
                 <p className={micro}>For the client</p>
