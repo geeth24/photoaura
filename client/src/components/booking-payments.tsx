@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { PaymentChip } from "@/components/booking-status"
 import { cn } from "@/lib/utils"
+import { DatePicker } from "@/components/date-picker"
 
 const micro = "text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted"
 const field = "h-10 bg-surface-elevated text-sm md:text-sm"
@@ -234,7 +235,7 @@ export function MarkReceivedDialog({
           </div>
           <label className="grid gap-1.5">
             <span className={micro}>Date received</span>
-            <Input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} className={field} />
+            <DatePicker value={date} max={today()} onChange={setDate} className={field} />
           </label>
           <label className="grid gap-1.5">
             <span className={micro}>Note (optional)</span>

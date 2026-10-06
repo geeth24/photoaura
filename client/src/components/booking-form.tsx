@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select"
+import { DatePicker } from "@/components/date-picker"
+import { TimePicker } from "@/components/time-picker"
 import { ContractView } from "@/components/contract-view"
 import { cn } from "@/lib/utils"
 
@@ -460,32 +462,29 @@ export function BookingForm({ initial }: { initial?: Booking }) {
             </Field>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Date" error={show("date")}>
-                <Input
-                  type="date"
+                <DatePicker
                   value={date}
                   disabled={locked}
-                  onChange={(e) => setDate(e.target.value)}
-                  aria-invalid={!!show("date")}
+                  onChange={setDate}
+                  invalid={!!show("date")}
                   className={field}
                 />
               </Field>
               <Field label="Starts" error={show("start")}>
-                <Input
-                  type="time"
+                <TimePicker
                   value={start}
                   disabled={locked}
-                  onChange={(e) => setStart(e.target.value)}
-                  aria-invalid={!!show("start")}
+                  onChange={setStart}
+                  invalid={!!show("start")}
                   className={field}
                 />
               </Field>
               <Field label="Ends" error={show("end")}>
-                <Input
-                  type="time"
+                <TimePicker
                   value={end}
                   disabled={locked}
-                  onChange={(e) => setEnd(e.target.value)}
-                  aria-invalid={!!show("end")}
+                  onChange={setEnd}
+                  invalid={!!show("end")}
                   className={field}
                 />
               </Field>
