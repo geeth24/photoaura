@@ -29,7 +29,7 @@ function StudioShell({ children }: { children: React.ReactNode }) {
         </header>
         {/* min-w-0 lets this flex child shrink to the viewport so a wide
             child (the photo masonry) can't push the page past the edge */}
-        <main className="min-w-0 flex-1 overflow-x-hidden p-8">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-clip p-8">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   )

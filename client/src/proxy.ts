@@ -12,7 +12,7 @@ function roleFromToken(token?: string): string | null {
   }
 }
 
-const PROTECTED = ["/dashboard", "/albums", "/photos", "/downloads", "/users", "/faces", "/website", "/profile", "/ops"]
+const PROTECTED = ["/dashboard", "/albums", "/bookings", "/photos", "/downloads", "/users", "/faces", "/website", "/profile", "/ops"]
 const ADMIN_ONLY = ["/dashboard", "/photos", "/downloads", "/users", "/faces", "/website", "/ops"]
 
 export function proxy(request: NextRequest) {
@@ -28,6 +28,10 @@ export function proxy(request: NextRequest) {
     if (role === "client" && ADMIN_ONLY.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL("/albums", request.url))
     }
+    // clients read their bookings but never create or edit one
+    if (role === "client" && /^\/bookings\/(new$|[^/]+\/edit$)/.test(pathname)) {
+      return NextResponse.redirect(new URL("/bookings", request.url))
+    }
   }
 
   if (pathname === "/login" && token) {
@@ -42,6 +46,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/albums/:path*",
+    "/bookings/:path*",
     "/photos/:path*",
     "/downloads/:path*",
     "/users/:path*",

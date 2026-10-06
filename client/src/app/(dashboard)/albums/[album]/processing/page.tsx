@@ -103,7 +103,7 @@ export default function ProcessingPage({
     if (s.videoOnly) return status?.phase === "transcoding"
     return faces || !s.facesOnly
   })
-  const phaseIdx = status ? PHASES.indexOf(status.phase) : 0
+  const phaseIdx = status ? (PHASES as readonly string[]).indexOf(status.phase) : 0
   const finished = status?.finished ?? false
   const errored = !!status?.error || failedToLoad
 

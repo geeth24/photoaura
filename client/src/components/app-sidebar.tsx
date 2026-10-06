@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Images,
   FolderOpen,
+  CalendarCheck,
   Users,
   Smile,
   Globe,
@@ -32,6 +33,7 @@ import { RadSoftMark } from "@/components/icons"
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
   { title: "Albums", href: "/albums", icon: FolderOpen, adminOnly: false },
+  { title: "Bookings", href: "/bookings", icon: CalendarCheck, adminOnly: true },
   { title: "Photos", href: "/photos", icon: Images, adminOnly: true },
   { title: "Downloads", href: "/downloads", icon: Download, adminOnly: true },
   { title: "Users", href: "/users", icon: Users, adminOnly: true },
