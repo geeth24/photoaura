@@ -34,12 +34,14 @@ from services.booking_service import (
     contract_fields,
     contract_hash,
     dollars,
+    hours_text,
     long_date,
     render_contract,
     schedule_amounts,
     today_local,
 )
 from services.contract_pdf import render_pdf
+from services.invoice_pdf import day, render_invoice
 from utils.utils import slugify
 
 router = APIRouter()
@@ -1011,6 +1013,126 @@ def contract_pdf(
     return _pdf_response(pdf, f"{b.number}-agreement.pdf")
 
 
+# ---- invoice ----
+
+def _invoice_lines(b: Booking) -> list:
+    pkg = PACKAGES_BY_KEY.get(b.package_key or "") or PACKAGES_BY_KEY["custom"]
+    fee = b.total_fee_cents or 0
+    if pkg["key"] == "custom":
+        name = b.package_name or "Custom Package"
+    else:
+        name = f"{pkg['category']} Photography — {pkg['name']}"
+    hourly = pkg["pricing"] == "hourly" and b.hours
+    if hourly and not b.fee_overridden:
+        package = {
+            "description": name,
+            "qty": hours_text(b.hours),
+            "rate_cents": pkg["rate_cents"],
+            "amount_cents": fee,
+        }
+    else:
+        # an agreed fee replaces hours x rate
+        package = {
+            "description": f"{name} ({hours_text(b.hours)})" if hourly else name,
+            "qty": "1",
+            "rate_cents": fee,
+            "amount_cents": fee,
+        }
+    extras = [
+        {"description": p.label, "qty": "1", "rate_cents": p.amount_cents, "amount_cents": p.amount_cents}
+        for p in _payments(b)
+        if p.kind == "extra"
+    ]
+    return [package] + extras
+
+
+def _due_when(b: Booking, p: BookingPayment) -> str:
+    when = {
+        "retainer": "When you sign the agreement",
+        "event_day": f"On the event day, {day(b.event_date, short=True)}" if b.event_date else "On the event day",
+        "final": "When your gallery is delivered",
+        "extra": "With the final payment",
+    }[p.kind]
+    return f"{when} · {dollars(p.received_cents)} received" if p.received_cents else when
+
+
+def _invoice_balance(b: Booking) -> int:
+    # a cancelled booking's invoice is void: nothing more is owed
+    return 0 if b.cancelled_at else _money(b)["balance"]
+
+
+def _invoice_status(b: Booking) -> str:
+    if b.cancelled_at:
+        return "cancelled"
+    if _invoice_balance(b) == 0:
+        return "paid"
+    nxt = _next_payment(b)
+    return "due" if nxt and nxt["due"] else "open"
+
+
+def _invoice(session, b: Booking) -> dict:
+    """Everything the invoice PDF prints, built fresh from the booking."""
+    _, name, email = _client_of(session, b)
+    money = _money(b)
+    received = [p for p in _payments(b) if (p.received_cents or 0) > 0]
+    paid_dates = [p.received_at for p in received if p.received_at]
+    return {
+        "number": f"INV-{b.number}",
+        "booking_number": b.number,
+        "issued": b.sent_at.date(),
+        "as_of": today_local(),
+        "status": b.status,
+        "cancelled_on": b.cancelled_at.date() if b.cancelled_at else None,
+        "client": {"name": name, "email": email, "phone": b.client_phone},
+        "event": {
+            "type": b.event_type,
+            "date": b.event_date,
+            "start_time": b.start_time,
+            "end_time": b.end_time,
+            "location": b.location,
+        },
+        "lines": _invoice_lines(b),
+        "total_cents": money["total_due"],
+        "paid_cents": money["paid"],
+        "balance_cents": _invoice_balance(b),
+        "paid_on": max(paid_dates).date() if paid_dates else None,
+        "received": [
+            {
+                "date": p.received_at.date() if p.received_at else None,
+                "description": p.label,
+                "method": METHODS.get(p.method or "", "Other"),
+                "amount_cents": p.received_cents,
+            }
+            for p in received
+        ],
+        # what's still to pay; paid lines are already under payments received
+        "schedule": [
+            {
+                "label": f"{p.label} · {p.percent}%" if p.percent else p.label,
+                "amount_cents": p.amount_cents - (p.received_cents or 0),
+                "state": _state(b, p),
+                "when": _due_when(b, p),
+            }
+            for p in _payments(b)
+            if not _paid(p)
+        ],
+        "memo": _memo(b),
+    }
+
+
+def _invoice_response(session, b: Booking) -> Response:
+    pdf = render_invoice(_invoice(session, b))
+    return _pdf_response(pdf, f"Reactive Shots Studios Invoice INV-{b.number}.pdf")
+
+
+@router.get("/api/bookings/{number}/invoice.pdf")
+def invoice_pdf(number: str, _admin=Depends(require_admin), session: Session = Depends(get_session)):
+    b = _get(session, number)
+    if not b.sent_at:
+        raise HTTPException(status_code=409, detail="The invoice is issued once the booking is sent.")
+    return _invoice_response(session, b)
+
+
 # ---- client ----
 
 def _me(session, current_user) -> User:
@@ -1068,6 +1190,39 @@ def my_bookings(current_user=Depends(get_current_user), session: Session = Depen
 def my_booking(number: str, current_user=Depends(get_current_user), session: Session = Depends(get_session)):
     me = _me(session, current_user)
     return _booking_json(session, _my_booking(session, me, number), admin=False)
+
+
+@router.get("/api/me/bookings/{number}/invoice.pdf")
+def my_invoice_pdf(number: str, current_user=Depends(get_current_user), session: Session = Depends(get_session)):
+    me = _me(session, current_user)
+    return _invoice_response(session, _my_booking(session, me, number))
+
+
+@router.get("/api/me/invoices")
+def my_invoices(current_user=Depends(get_current_user), session: Session = Depends(get_session)):
+    me = _me(session, current_user)
+    rows = (
+        session.query(Booking)
+        .filter(Booking.client_user_id.in_(_owner_ids(session, me)), Booking.sent_at.isnot(None))
+        .order_by(Booking.event_date.desc().nullslast(), Booking.id.desc())
+        .all()
+    )
+    out = []
+    for b in rows:
+        money = _money(b)
+        out.append({
+            "booking_number": b.number,
+            "invoice_number": f"INV-{b.number}",
+            "event_type": b.event_type,
+            "event_date": b.event_date.isoformat() if b.event_date else None,
+            "issued_at": _iso(b.sent_at),
+            "total_cents": money["total_due"],
+            "paid_cents": money["paid"],
+            "balance_cents": _invoice_balance(b),
+            "status": _invoice_status(b),
+            "next_payment": _next_payment(b),
+        })
+    return out
 
 
 def _client_ip(request: Request) -> Optional[str]:

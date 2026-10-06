@@ -33,6 +33,7 @@ from db.base import session_scope  # noqa: E402
 from db.migrate import run_migrations  # noqa: E402
 from db.models import Album, Booking, FileMetadata, User, UserEmail  # noqa: E402
 from routers.auth.auth_router import create_token  # noqa: E402
+from routers.bookings.bookings_router import _invoice as invoice_data  # noqa: E402
 from services import email_service  # noqa: E402
 from services.aws_service import s3_client  # noqa: E402
 
@@ -174,6 +175,7 @@ def main():
             new_client_id = bk["client"]["user_id"]
             check(bk["client"]["email"] == f"priya-{RUN}@example.test", "new client user created")
             check(c.get(f"/api/me/bookings/{num}", headers=C).status_code == 404, "other clients can't see it")
+            check(c.get(f"/api/bookings/{num}/invoice.pdf", headers=A).status_code == 409, "no invoice for a draft")
 
             rendered.clear()
             r = c.post(f"/api/bookings/{num}/send", headers=A).json()
@@ -195,6 +197,34 @@ def main():
             check("notes_internal" not in cb and "signed_ip" not in cb["contract"], "client shape hides internals")
             check(cb["contract"]["markdown"].startswith("# PHOTOGRAPHY"), "client gets the contract snapshot")
             check(cb["payment_instructions"]["memo"] == f"{num} retainer", "memo names the retainer")
+
+            print("invoice")
+            filename = f'attachment; filename="Reactive Shots Studios Invoice INV-{num}.pdf"'
+            got = c.get(f"/api/me/bookings/{num}/invoice.pdf", headers=P)
+            check(got.status_code == 200 and got.content[:4] == b"%PDF"
+                  and got.headers["content-disposition"] == filename, "client downloads the invoice")
+            adm = c.get(f"/api/bookings/{num}/invoice.pdf", headers=A)
+            check(adm.status_code == 200 and adm.content[:4] == b"%PDF"
+                  and adm.headers["content-disposition"] == filename, "admin downloads the invoice")
+            check(c.get(f"/api/me/bookings/{num}/invoice.pdf", headers=C).status_code == 404, "stranger gets 404")
+            check(c.get(f"/api/me/bookings/{num}/invoice.pdf", headers=F).status_code == 404,
+                  "unrelated family gets 404")
+            check(c.get(f"/api/bookings/{num}/invoice.pdf", headers=P).status_code == 403,
+                  "admin invoice route is admin-only")
+            check(c.get(f"/api/bookings/{num}/invoice.pdf", headers=C).status_code == 403, "stranger gets 403")
+            mine = c.get("/api/me/invoices", headers=P).json()
+            check(len(mine) == 1 and mine[0]["invoice_number"] == f"INV-{num}" and mine[0]["booking_number"] == num
+                  and mine[0]["total_cents"] == 67500 and mine[0]["paid_cents"] == 0
+                  and mine[0]["balance_cents"] == 67500 and mine[0]["status"] == "open", f"/api/me/invoices {mine}")
+            check(all(x["booking_number"] != num for x in c.get("/api/me/invoices", headers=C).json()),
+                  "other clients' invoices aren't listed")
+            with session_scope() as s:
+                b = s.query(Booking).filter_by(number=num).first()
+                data = invoice_data(s, b)
+                check(data["number"] == f"INV-{num}" and data["issued"] == b.sent_at.date(), "invoice number + date")
+            check(data["lines"] == [{"description": "Event Photography — Photos Only", "qty": "4.5 hours",
+                                     "rate_cents": 15000, "amount_cents": 67500}], f"package line {data['lines']}")
+            check([x["state"] for x in data["schedule"]] == ["upcoming"] * 3, "nothing due before signing")
 
             r = c.patch(f"/api/bookings/{num}", json={"hours": 5}, headers=A).json()
             check(r["money"]["total_fee"] == 75000 and r["contract"]["hash"] != first_hash, "edit re-renders contract")
@@ -264,6 +294,18 @@ def main():
             check(r["next_payment"]["amount_cents"] == 37500 + 7500, "final + extras reported together")
             fam = c.get("/api/me/bookings", headers=F).json()
             check(any(x["number"] == num for x in fam) is False, "unrelated family can't see it")
+            mine = c.get("/api/me/invoices", headers=P).json()[0]
+            check(mine["total_cents"] == 82500 and mine["paid_cents"] == 37500 and mine["balance_cents"] == 45000
+                  and mine["status"] == "open", f"invoice after event day + overtime {mine}")
+            with session_scope() as s:
+                data = invoice_data(s, s.query(Booking).filter_by(number=num).first())
+            lines = [x["description"] for x in data["lines"]]
+            check(lines == ["Event Photography — Photos Only", "Overtime (30 min)"]
+                  and data["lines"][0]["qty"] == "5 hours" and data["total_cents"] == 82500, "extra charge line")
+            check([(x["description"], x["method"], x["amount_cents"]) for x in data["received"]]
+                  == [("Booking retainer", "Cash", 7500), ("Event-day payment", "Check", 30000)], "payments received")
+            check([x["label"] for x in data["schedule"]] == ["Final payment · 50%", "Overtime (30 min)"]
+                  and data["memo"] == f"{num} final", "remaining schedule + memo")
 
             print("album + proof mode")
             files = [
@@ -348,6 +390,13 @@ def main():
             r = c.post(f"/api/bookings/{num}/payments/{extra_id}/receive",
                        json={"amount_cents": 7500, "method": "zelle"}, headers=A).json()
             check(r["status"] == "paid" and r["money"]["balance"] == 0, "paid")
+            mine = c.get("/api/me/invoices", headers=P).json()[0]
+            check(mine["status"] == "paid" and mine["balance_cents"] == 0 and mine["paid_cents"] == 82500,
+                  "invoice paid in full")
+            with session_scope() as s:
+                data = invoice_data(s, s.query(Booking).filter_by(number=num).first())
+            check(data["schedule"] == [] and data["paid_on"] is not None, "nothing left on the schedule")
+            check(c.get(f"/api/me/bookings/{num}/invoice.pdf", headers=P).content[:4] == b"%PDF", "paid invoice PDF")
             wait_job(c, A)
             k = set(keys(f"{SLUG}/"))
             with session_scope() as s:
@@ -373,7 +422,18 @@ def main():
             r = c.post("/api/bookings", json={**body, "client_user_id": client_id, "client": None,
                                               "package_key": "custom", "total_fee_cents": 12345}, headers=A).json()
             check(r["payments"][0]["amount_cents"] == 1235 and r["payments"][2]["amount_cents"] == 6172, "custom fee")
-            r = c.post(f"/api/bookings/{r['number']}/cancel", json={"reason": "date moved"}, headers=A).json()
+            other = r["number"]
+            c.post(f"/api/bookings/{other}/send", headers=A)
+            got = c.get(f"/api/me/bookings/{other}/invoice.pdf", headers=F)
+            check(got.status_code == 200 and got.content[:4] == b"%PDF", "family member downloads the invoice")
+            check(any(x["booking_number"] == other for x in c.get("/api/me/invoices", headers=F).json()),
+                  "family member's invoice list")
+            check(c.get(f"/api/me/bookings/{other}/invoice.pdf", headers=P).status_code == 404,
+                  "another client gets 404")
+            r = c.post(f"/api/bookings/{other}/cancel", json={"reason": "date moved"}, headers=A).json()
+            mine = next(x for x in c.get("/api/me/invoices", headers=C).json() if x["booking_number"] == other)
+            check(mine["status"] == "cancelled" and mine["balance_cents"] == 0, "cancelled invoice owes nothing")
+            check(c.get(f"/api/bookings/{other}/invoice.pdf", headers=A).status_code == 200, "cancelled invoice PDF")
             check(r["status"] == "cancelled" and r["cancel_reason"] == "date moved", "cancelled")
             lst = c.get("/api/bookings?status=cancelled", headers=A).json()
             check(any(x["number"] == r["number"] for x in lst), "status filter")
