@@ -968,8 +968,7 @@ function ReviseDialog({
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl font-normal tracking-tight">Send the revised agreement?</DialogTitle>
           <DialogDescription>
-            Rebuilds {first}&apos;s agreement from the current terms and template and emails {email} to review and sign
-            it again. The earlier version can&apos;t be signed anymore.
+            {`Rebuilds ${first}'s agreement from the current terms and template and emails ${email} to review and sign it again. The earlier version can't be signed anymore.`}
           </DialogDescription>
         </DialogHeader>
         <label className="grid gap-1.5">
