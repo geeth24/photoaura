@@ -13,9 +13,9 @@ final class AlbumStore {
     private(set) var state: AlbumState
     private let api: APIClient
 
-    init(api: APIClient, slug: String, initialName: String) {
+    init(api: APIClient, slug: String, initialName: String, initialLocked: Bool = false, isClient: Bool = true) {
         self.api = api
-        self.state = AlbumState(slug: slug, initialName: initialName)
+        self.state = AlbumState(slug: slug, initialName: initialName, initialLocked: initialLocked, isClient: isClient)
     }
 
     func send(_ intent: AlbumIntent) {
@@ -51,11 +51,29 @@ final class AlbumStore {
             if state.revision == nil { state.onlyRevised = false }
             // opening the album is what clears "Revision N ready" on the home
             if let r = state.revision { SeenRevisions.markSeen(r.number, slug: state.slug) }
+            if detail.isLocked {
+                state.lockBookingNumber = state.lockBookingNumber ?? detail.bookingNumber
+                if state.isClient { loadLockInfo(bookingNumber: detail.bookingNumber) }
+            }
 
         case .loadFailed(let msg):
             state.error = msg
             state.isLoading = false
             state.hasLoadedOnce = true
+
+        case .lockInfoLoaded(let number, let amount):
+            if let number { state.lockBookingNumber = number }
+            state.unlockAmountCents = amount
+        }
+    }
+
+    // the album only says it's locked; the client's own booking knows what's left to pay
+    private func loadLockInfo(bookingNumber: String?) {
+        Task { [api, slug = state.slug] in
+            guard let rows = try? await api.myBookings() else { return }
+            guard let b = rows.first(where: { $0.number == bookingNumber || $0.albumSlug == slug }) else { return }
+            let amount = b.nextPayment.flatMap { $0.isClosing ? $0.amountCents : nil }
+            self.send(.lockInfoLoaded(bookingNumber: b.number, amountCents: amount))
         }
     }
 }

@@ -13,6 +13,7 @@ struct AlbumView: View {
     // the home's "save all" lands here with the sheet up as soon as photos load
     var openActions: Bool = false
     @Environment(APIClient.self) private var api
+    @Environment(AuthStore.self) private var auth
     @State private var store: AlbumStore?
     @State private var activeViewerPhotoID: String? = nil
     @State private var openPhoto: PhotoTarget?
@@ -33,19 +34,22 @@ struct AlbumView: View {
         }
         .onAppear {
             if store == nil {
-                let s = AlbumStore(api: api, slug: album.slug, initialName: album.albumName)
+                var isClient = true
+                if case .signedIn(let user) = auth.status { isClient = user.role != "admin" }
+                let s = AlbumStore(api: api, slug: album.slug, initialName: album.albumName, initialLocked: album.isLocked, isClient: isClient)
                 store = s
                 s.send(.load)
             }
         }
         .onChange(of: store?.state.photos.isEmpty ?? true) { _, empty in
-            if openActions, !empty, !actionsPresented { actionsPresented = true }
+            if openActions, !empty, !actionsPresented, store?.state.isLocked == false { actionsPresented = true }
         }
         .navigationTitle(album.albumName)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if let photos = store?.state.photos, !photos.isEmpty {
+                // a locked gallery has nothing to save yet; the banner says why
+                if let store, !store.state.isLocked, !store.state.photos.isEmpty {
                     Button {
                         actionsPresented = true
                     } label: {
@@ -56,7 +60,7 @@ struct AlbumView: View {
             }
         }
         .sheet(isPresented: $actionsPresented) {
-            if let store {
+            if let store, !store.state.isLocked {
                 GalleryActionsSheet(
                     albumName: store.state.title,
                     slug: store.state.slug,
@@ -72,6 +76,7 @@ struct AlbumView: View {
                     startIndex: target.index,
                     currentPhotoID: $activeViewerPhotoID,
                     albumSlug: store.state.slug,
+                    downloadsLocked: store.state.isLocked,
                     sourceFrame: { tileFrames.rects[$0] },
                     onClose: {
                         withTransaction(.instant) { openPhoto = nil }
@@ -109,6 +114,15 @@ private struct AlbumContent: View {
                         )
                         .padding(.horizontal, EditorialSpacing.screenGutter)
                         .padding(.top, EditorialSpacing.medium)
+
+                        if store.state.isLocked {
+                            ProofBanner(
+                                studio: !store.state.isClient,
+                                bookingNumber: store.state.lockBookingNumber,
+                                amountCents: store.state.unlockAmountCents
+                            )
+                            .padding(.horizontal, EditorialSpacing.screenGutter)
+                        }
 
                         if let revision = store.state.revision {
                             RevisionBanner(

@@ -97,7 +97,7 @@ private struct GalleriesContent: View {
                     NavigationLink(value: album) {
                         EditorialPhotoCard(
                             title: album.albumName,
-                            caption: "\(album.imageCount) photos",
+                            caption: album.isLocked ? "Preview · \(album.imageCount) photos" : "\(album.imageCount) photos",
                             aspect: 4 / 5
                         ) {
                             if let cover = album.coverImage {
@@ -109,6 +109,11 @@ private struct GalleriesContent: View {
                                 }
                             } else {
                                 EditorialColors.surfaceElevated
+                            }
+                        }
+                        .overlay(alignment: .topLeading) {
+                            if album.isLocked {
+                                EditorialPhotoTag("Preview", icon: "lock.fill", compact: true).padding(10)
                             }
                         }
                     }

@@ -18,6 +18,8 @@ struct PhotoViewer: View {
     let startIndex: Int
     // set when opened from an album, so photos can be starred as picks
     var albumSlug: String? = nil
+    // proof-locked gallery: no saving or sharing until the final payment
+    var downloadsLocked = false
     // the photo on screen; the grid keeps its tile visible for the flight back
     @Binding var currentPhotoID: String?
     // where a photo's tile sits on screen right now, if it's visible
@@ -37,12 +39,14 @@ struct PhotoViewer: View {
         startIndex: Int,
         currentPhotoID: Binding<String?>,
         albumSlug: String? = nil,
+        downloadsLocked: Bool = false,
         sourceFrame: @escaping (String) -> CGRect? = { _ in nil },
         onClose: @escaping () -> Void = {}
     ) {
         self.photos = photos
         self.startIndex = startIndex
         self.albumSlug = albumSlug
+        self.downloadsLocked = downloadsLocked
         self._currentPhotoID = currentPhotoID
         self.sourceFrame = sourceFrame
         self.onClose = onClose
@@ -485,29 +489,40 @@ struct PhotoViewer: View {
             }
             .accessibilityLabel("Info")
 
-            Menu {
-                Button { Task { await savePhoto(optimized: false) } } label: {
-                    Label("Save original", systemImage: "photo")
-                }
-                if !isVideoPhoto {
-                    Button { Task { await savePhoto(optimized: true) } } label: {
-                        Label("Save optimized", systemImage: "arrow.down.circle")
-                    }
-                }
-                Button { Task { await prepareShare() } } label: {
-                    Label("Share…", systemImage: "square.and.arrow.up")
-                }
-            } label: {
-                Image(systemName: downloadIcon)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 38, height: 38)
+            if !isCurrentLocked {
+                saveMenu
             }
-            .disabled(saveState == .saving || shareState == .preparing)
-            .accessibilityLabel("Save or share")
         }
         .font(.system(size: 15, weight: .semibold))
         .padding(.horizontal, 3)
         .editorialGlass(in: Capsule(), interactive: true)
+    }
+
+    // the all-photos library mixes albums, so each photo carries its own flag too
+    private var isCurrentLocked: Bool {
+        downloadsLocked || photos[index].locked == true
+    }
+
+    private var saveMenu: some View {
+        Menu {
+            Button { Task { await savePhoto(optimized: false) } } label: {
+                Label("Save original", systemImage: "photo")
+            }
+            if !isVideoPhoto {
+                Button { Task { await savePhoto(optimized: true) } } label: {
+                    Label("Save optimized", systemImage: "arrow.down.circle")
+                }
+            }
+            Button { Task { await prepareShare() } } label: {
+                Label("Share…", systemImage: "square.and.arrow.up")
+            }
+        } label: {
+            Image(systemName: downloadIcon)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 38, height: 38)
+        }
+        .disabled(saveState == .saving || shareState == .preparing)
+        .accessibilityLabel("Save or share")
     }
 
     // the download button doubles as save/share progress

@@ -10,6 +10,13 @@ import Foundation
 struct AlbumState {
     let slug: String
     let initialName: String
+    // what the list said, so downloads stay hidden before the album loads
+    let initialLocked: Bool
+    let isClient: Bool
+
+    // a locked album's booking, and the final payment that unlocks it
+    var lockBookingNumber: String? = nil
+    var unlockAmountCents: Int? = nil
 
     var detail: AlbumDetail? = nil
     var faces: [FaceSummary] = []
@@ -46,6 +53,9 @@ struct AlbumState {
     }
 
     var title: String { detail?.albumName ?? initialName }
+
+    // proof mode: watermarked previews, and the server refuses originals and zips
+    var isLocked: Bool { detail.map(\.isLocked) ?? initialLocked }
 }
 
 enum AlbumIntent {
@@ -55,4 +65,5 @@ enum AlbumIntent {
     case toggleOnlyRevised
     case loadSucceeded(AlbumDetail, [FaceSummary])
     case loadFailed(String)
+    case lockInfoLoaded(bookingNumber: String?, amountCents: Int?)
 }
