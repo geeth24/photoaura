@@ -31,9 +31,12 @@ struct AlbumSummary: Codable, Hashable, Identifiable {
     let slug: String
     let imageCount: Int
     let albumPhotos: [Photo]?
+    // proof mode: watermarked previews until the booking's final payment
+    var locked: Bool? = nil
 
     var id: Int { albumId }
     var coverImage: String? { albumPhotos?.first?.compressedImage }
+    var isLocked: Bool { locked == true }
 }
 
 // GET /api/album/{slug}/ — single album detail (no album_id in response)
@@ -47,6 +50,11 @@ struct AlbumDetail: Decodable, Hashable {
     let `public`: Bool?
     // latest re-edit pushed after delivery; nil until there is one
     let revision: AlbumRevision?
+    // proof mode: the server refuses originals and zips until it's paid
+    let locked: Bool?
+    let bookingNumber: String?
+
+    var isLocked: Bool { locked == true }
 }
 
 // one numbered re-edit of a delivered album; the delivery itself is version 1
@@ -106,6 +114,8 @@ struct Photo: Codable, Hashable, Identifiable {
     let image: String
     let compressedImage: String
     let fileMetadata: PhotoMetadata
+    // set on every photo of a proof-locked album
+    var locked: Bool? = nil
     var id: String { image }
     var isVideo: Bool { fileMetadata.contentType?.hasPrefix("video/") == true }
 }
@@ -176,10 +186,14 @@ struct HomeAlbum: Decodable, Hashable, Identifiable {
     let videoCount: Int
     let cover: String?
     let revision: AlbumRevision?
+    let locked: Bool?
+    let bookingNumber: String?
+
+    var isLocked: Bool { locked == true }
 
     // the album screen takes a summary; counts are all it needs from us
     var summary: AlbumSummary {
-        AlbumSummary(albumId: id, albumName: name, slug: slug, imageCount: photoCount + videoCount, albumPhotos: nil)
+        AlbumSummary(albumId: id, albumName: name, slug: slug, imageCount: photoCount + videoCount, albumPhotos: nil, locked: locked)
     }
 }
 
@@ -204,6 +218,8 @@ struct ClientFile: Codable, Hashable, Identifiable {
     let contentType: String?
     let createdAt: String?
     let downloadUrl: String?
+    // no download link until the album's final payment
+    var locked: Bool? = nil
 }
 
 extension PhotoMetadata {

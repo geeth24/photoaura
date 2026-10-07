@@ -14,6 +14,11 @@ enum APIError: LocalizedError {
     case transport(Error)
     case noToken
 
+    var statusCode: Int? {
+        if case .badStatus(let code, _) = self { return code }
+        return nil
+    }
+
     var errorDescription: String? {
         switch self {
         case .badURL:
@@ -63,6 +68,11 @@ final class APIClient {
         try await send(path: path, query: query, method: "GET", body: Optional<Empty>.none, requiresAuth: requiresAuth)
     }
 
+    /// Raw bytes for PDFs and map images, which need the bearer token so can't go through AsyncImage.
+    func data(_ path: String, queryItems: [URLQueryItem] = []) async throws -> Data {
+        try await perform(path: path, queryItems: queryItems, method: "GET", body: Optional<Empty>.none, requiresAuth: true)
+    }
+
     func post<B: Encodable, T: Decodable>(_ path: String, body: B, requiresAuth: Bool = true) async throws -> T {
         try await send(path: path, query: [:], method: "POST", body: body, requiresAuth: requiresAuth)
     }
@@ -75,16 +85,23 @@ final class APIClient {
         let _: Empty = try await send(path: path, query: [:], method: "DELETE", body: Optional<Empty>.none, requiresAuth: requiresAuth)
     }
 
+    func delete<T: Decodable>(_ path: String, requiresAuth: Bool = true) async throws -> T {
+        try await send(path: path, query: [:], method: "DELETE", body: Optional<Empty>.none, requiresAuth: requiresAuth)
+    }
+
     func patch<B: Encodable, T: Decodable>(_ path: String, body: B, requiresAuth: Bool = true) async throws -> T {
         try await send(path: path, query: [:], method: "PATCH", body: body, requiresAuth: requiresAuth)
     }
 
-    private func buildURL(path: String, query: [String: String]) throws -> URL {
+    private func buildURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
         // join base + path manually so existing trailing slashes / segments survive
         let joined = baseURL.absoluteString.trimmingCharacters(in: ["/"]) + "/" + path.trimmingPrefix("/")
         guard var comps = URLComponents(string: joined) else { throw APIError.badURL }
-        if !query.isEmpty {
-            comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        if !queryItems.isEmpty {
+            // addresses can hold & and +, which URLQueryItem leaves as-is
+            comps.percentEncodedQueryItems = queryItems.map {
+                URLQueryItem(name: $0.name, value: $0.value?.addingPercentEncoding(withAllowedCharacters: .queryValue))
+            }
         }
         guard let url = comps.url else { throw APIError.badURL }
         return url
@@ -97,7 +114,26 @@ final class APIClient {
         body: B?,
         requiresAuth: Bool
     ) async throws -> T {
-        let url = try buildURL(path: path, query: query)
+        let items = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        let data = try await perform(path: path, queryItems: items, method: method, body: body, requiresAuth: requiresAuth)
+
+        if T.self == Empty.self { return Empty() as! T }
+
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
+    private func perform<B: Encodable>(
+        path: String,
+        queryItems: [URLQueryItem],
+        method: String,
+        body: B?,
+        requiresAuth: Bool
+    ) async throws -> Data {
+        let url = try buildURL(path: path, queryItems: queryItems)
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -125,18 +161,15 @@ final class APIClient {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw APIError.badStatus(http.statusCode, body)
         }
-
-        if T.self == Empty.self { return Empty() as! T }
-
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw APIError.decoding(error)
-        }
+        return data
     }
 }
 
 struct Empty: Codable {}
+
+private extension CharacterSet {
+    static let queryValue = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+}
 
 private extension String {
     func trimmingPrefix(_ p: String) -> String {
