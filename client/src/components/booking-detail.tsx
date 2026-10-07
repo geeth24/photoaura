@@ -418,7 +418,7 @@ export function BookingDetail({ number }: { number: string }) {
             jobKick={jobKick}
             onJobDone={load}
             onLink={(body, msg) => act("album", () => bookingsApi.linkAlbum(b.number, body), msg)}
-            onDeliver={() => act("deliver", () => bookingsApi.delivered(b.number), `Proof gallery sent to ${first}`)}
+            onDeliver={() => act("deliver", () => bookingsApi.delivered(b.number), `Gallery preview sent to ${first}`)}
             onUnlock={(notify) =>
               act(
                 "unlock",
@@ -547,7 +547,7 @@ function AlbumCard({
         a ? (
           a.locked ? (
             <span className="flex items-center gap-1.5 border border-brand/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-brand">
-              <Lock className="size-3" /> Proof · locked
+              <Lock className="size-3" /> Preview · locked
             </span>
           ) : (
             <span className="flex items-center gap-1.5 border border-border-default px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary">
@@ -566,7 +566,7 @@ function AlbumCard({
               </p>
               <p className="mt-1 text-[13px] text-text-secondary">
                 {a.locked
-                  ? "Watermarked proofs. Downloads unlock with the final payment."
+                  ? "Watermarked previews. Downloads unlock with the final payment."
                   : b.unlocked_at
                     ? `Full resolution since ${fmtStamp(b.unlocked_at)}`
                     : "Full resolution, downloads open."}
@@ -591,7 +591,7 @@ function AlbumCard({
                       Mark gallery delivered
                     </button>
                   }
-                  title={`Deliver the proof gallery to ${first}?`}
+                  title={`Deliver the gallery preview to ${first}?`}
                   body={`${first} gets an email with the gallery link and the final payment due (${money(finalDue)}). Downloads stay locked until it's received.`}
                   confirm="Deliver"
                   onConfirm={onDeliver}
@@ -610,7 +610,7 @@ function AlbumCard({
                     </button>
                   }
                   title="Unlock before the final payment?"
-                  body="Swaps the proofs for the clean full-resolution files and opens downloads. Payments marked received unlock it on their own, so use this only for an exception."
+                  body="Swaps the previews for the clean full-resolution files and opens downloads. Payments marked received unlock it on their own, so use this only for an exception."
                   confirm="Unlock gallery"
                   onConfirm={() => onUnlock(notify)}
                 >
@@ -626,11 +626,11 @@ function AlbumCard({
       ) : (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-sm text-[13px] text-text-secondary">
-            No gallery yet. Linking one puts it in proof mode, so downloads stay locked until the final payment.
+            No gallery yet. Linking one puts it in preview mode, so downloads stay locked until the final payment.
           </p>
           {!cancelled && (
             <div className="flex shrink-0 flex-wrap gap-2">
-              <LinkAlbumDialog onPick={(id, name) => onLink({ album_id: id }, `${name} linked in proof mode`)} />
+              <LinkAlbumDialog onPick={(id, name) => onLink({ album_id: id }, `${name} linked in preview mode`)} />
               <button
                 className={brand}
                 disabled={busy === "album"}
@@ -687,7 +687,7 @@ function useProofJob(slug: string | null, kick: number, onDone: () => void) {
 }
 
 const JOB_LABEL: Record<string, string> = {
-  proofing: "Making watermarked proofs",
+  proofing: "Making watermarked previews",
   unlocking: "Restoring full-resolution files",
   warming: "Warming the CDN",
 }
@@ -796,7 +796,7 @@ function LinkAlbumDialog({ onPick }: { onPick: (id: number, name: string) => voi
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl font-normal tracking-tight">Link an album</DialogTitle>
           <DialogDescription>
-            Photos already in it are swapped for watermarked proofs in the background.
+            Photos already in it are swapped for watermarked previews in the background.
           </DialogDescription>
         </DialogHeader>
         <div className="relative">

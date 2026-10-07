@@ -37,7 +37,7 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 - **Total Fee:** ${{total_fee}}. The payments below are percentages of the Total Fee.
 - **Booking Retainer (10%):** A non-refundable retainer equal to 10% of the Total Fee (${{retainer_amount}}) is due upon signing to reserve the event date. The date is not secured until both the signed Agreement and the retainer are received.
 - **Event-Day Payment (40%):** 40% of the Total Fee (${{event_day_amount}}) is due upon completion of event coverage.
-- **Final Payment (50%):** The remaining 50% (${{final_amount}}) is due when the proof gallery is delivered. Until the final balance is paid in full, proof images may be watermarked and downloads may be restricted. Unwatermarked high-resolution files and full download access are released once the final payment is received.
+- **Final Payment (50%):** The remaining 50% (${{final_amount}}) is due when the gallery preview is delivered. Until the final balance is paid in full, preview images may be watermarked and downloads may be restricted. Unwatermarked high-resolution files and full download access are released once the final payment is received.
 - **Late Payment:** If the final payment is not received within 30 days of gallery delivery, the Photographer may suspend access to the gallery until the balance is paid. Full-resolution files are not released until payment is received in full.
 - **Overtime:** Coverage beyond the contracted end time is subject to Photographer availability and is billed at the package’s hourly rate (${{hourly_rate}}/hour), prorated in 15-minute increments, and added to the final payment.
 
@@ -52,7 +52,7 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 
 ## 4. {{^video}}Image Delivery{{/video}}{{#video}}Image & Video Delivery{{/video}}
 
-- **Delivery Time:** A proof gallery of edited photographs will be delivered through a private online gallery within approximately 2 weeks after the event.{{#video}} The edited video will be delivered within approximately 3 weeks.{{/video}} Delivery times apply unless otherwise agreed in writing.
+- **Delivery Time:** A preview gallery of edited photographs will be delivered through a private online gallery within approximately 2 weeks after the event.{{#video}} The edited video will be delivered within approximately 3 weeks.{{/video}} Delivery times apply unless otherwise agreed in writing.
 - **RAW Files:** RAW or unedited files{{#video}} and footage{{/video}} are not included and will not be provided unless expressly agreed to in writing. Any release of RAW files may require an additional fee.
 - **Artistic Discretion:** The Photographer retains sole artistic discretion over image selection and editing and may exclude duplicate, test, missed-focus, blinking, unflattering, or otherwise unsuitable images.
 - **Revisions:** The number of revision rounds included is set by the Client’s package. Additional revision rounds may be billed at $25 per round. Revision requests must be submitted within 7 days of gallery delivery.

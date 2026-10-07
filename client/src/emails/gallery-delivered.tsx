@@ -11,7 +11,7 @@ type Props = {
   memo: string
 }
 
-export const galleryDeliveredSubject = (albumName: string) => `Your proof gallery is ready — ${albumName}`
+export const galleryDeliveredSubject = (albumName: string) => `Your gallery preview is ready — ${albumName}`
 
 // the link opens the proof gallery itself
 export default function GalleryDeliveredEmail({
@@ -27,7 +27,7 @@ export default function GalleryDeliveredEmail({
 
   return (
     <EmailShell preview={`Your photos are edited and ready to view — ${albumName}`}>
-      <Eyebrow>Proof gallery</Eyebrow>
+      <Eyebrow>Gallery preview</Eyebrow>
       <Text style={styles.heading}>{albumName}</Text>
       <Text style={styles.subtitle}>
         Hi {first} — your photos are edited and ready. Have a look, pick your favorites, and let us know about any
@@ -41,7 +41,7 @@ export default function GalleryDeliveredEmail({
       <Divider />
 
       <Text style={styles.paragraph}>
-        These are watermarked proofs. The clean, full-resolution files and downloads unlock as soon as your final
+        These are watermarked previews. The clean, full-resolution files and downloads unlock as soon as your final
         payment is received.
       </Text>
 

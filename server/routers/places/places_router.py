@@ -35,6 +35,17 @@ def _key():
     return MAPS_KEY
 
 
+def _call(method, url, error: str, **kw):
+    """Google call with one retry; a network blip comes back as a 502 the
+    browser can read instead of an unhandled 500."""
+    for attempt in (1, 2):
+        try:
+            return requests.request(method, url, **kw)
+        except requests.RequestException:
+            if attempt == 2:
+                raise HTTPException(status_code=502, detail=error)
+
+
 @router.get("/api/places/autocomplete")
 def autocomplete(
     q: str = Query(..., min_length=2, max_length=200),
@@ -44,8 +55,10 @@ def autocomplete(
     body = {"input": q, "includedRegionCodes": ["us"], "locationBias": DFW}
     if session:
         body["sessionToken"] = session
-    r = requests.post(
+    r = _call(
+        "POST",
         f"{PLACES}/places:autocomplete",
+        "Address lookup failed",
         json=body,
         headers={"X-Goog-Api-Key": _key()},
         timeout=8,
@@ -72,8 +85,10 @@ def autocomplete(
 @router.get("/api/places/{place_id}")
 def place(place_id: str, session: Optional[str] = None, _admin=Depends(require_admin)):
     params = {"sessionToken": session} if session else {}
-    r = requests.get(
+    r = _call(
+        "GET",
         f"{PLACES}/places/{place_id}",
+        "Place lookup failed",
         params=params,
         headers={
             "X-Goog-Api-Key": _key(),
@@ -112,7 +127,7 @@ def static_map(
         params.append(("markers", f"color:0x00A6FB|label:{i}|{stop}"))
     if len(stops) == 1:
         params.append(("zoom", "14"))
-    r = requests.get("https://maps.googleapis.com/maps/api/staticmap", params=params, timeout=10)
+    r = _call("GET", "https://maps.googleapis.com/maps/api/staticmap", "Map failed to load", params=params, timeout=10)
     if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
         raise HTTPException(status_code=502, detail="Map failed to load")
     return Response(content=r.content, media_type=r.headers["content-type"], headers={"Cache-Control": "private, max-age=86400"})

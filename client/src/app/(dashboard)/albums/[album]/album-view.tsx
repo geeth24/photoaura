@@ -482,7 +482,7 @@ export function AlbumView({
             {album.locked ? (
               <span className="flex items-center gap-1.5 border border-brand/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-brand">
                 <Lock className="size-3" />
-                Proof
+                Preview
               </span>
             ) : (
               <button
@@ -644,7 +644,7 @@ export function AlbumView({
             {job.phase === "warming"
               ? "Warming the CDN"
               : job.kind === "lock"
-                ? "Making watermarked proofs"
+                ? "Making watermarked previews"
                 : "Restoring full-resolution files"}
             {job.total > 0 && job.phase !== "warming" ? ` · ${job.current}/${job.total}` : "…"}
           </span>

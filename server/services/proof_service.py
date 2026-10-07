@@ -2,7 +2,7 @@
 watermarked proofs and the originals sit under a private hold prefix.
 
 Layout while locked:
-  {slug}/{stem}-proof.jpg                       what every client loads
+  {slug}/{stem}-preview.jpg                     what every client loads
   {slug}/_hold/{hold_token}/{original_filename} the untouched original
 """
 
@@ -23,12 +23,35 @@ from utils.utils import hold_key
 
 AWS_BUCKET = settings.AWS_BUCKET
 LOCKED_DETAIL = "Downloads unlock once your final payment is received."
-MARK_TEXT = "Reactive Shots Studios · Proof"
+MARK_TEXT = "Reactive Shots Studios"
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "rs-logo-white.png")
+_logo: Optional[Image.Image] = None
 PROOF_EDGE = 2048
 
 
+def _logo_mark(w: int, h: int) -> Image.Image:
+    """The RS logo, big and centred, so it can't be cropped out."""
+    global _logo
+    if _logo is None:
+        _logo = Image.open(LOGO_PATH).convert("RGBA")
+    side = max(48, round(min(w, h) * 0.42))
+    logo = _logo.resize((side, side), Image.Resampling.LANCZOS)
+    alpha = logo.getchannel("A")
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    pos = ((w - side) // 2, (h - side) // 2)
+    # a soft dark halo keeps it readable on white dresses and bright skies
+    halo = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    halo.putalpha(alpha.point(lambda a: a * 70 // 255))
+    halo = halo.filter(ImageFilter.GaussianBlur(max(2.0, side / 60)))
+    layer.alpha_composite(halo, pos)
+    white = Image.new("RGBA", (side, side), (255, 255, 255, 0))
+    white.putalpha(alpha.point(lambda a: a * 105 // 255))
+    layer.alpha_composite(white, pos)
+    return layer
+
+
 def make_proof(content: bytes) -> bytes:
-    """Downsized JPEG with a small mark in the bottom-right corner."""
+    """Downsized JPEG with the RS logo across the middle and the studio name in the corner."""
     img = ImageOps.exif_transpose(Image.open(io.BytesIO(content))).convert("RGB")
     img.thumbnail((PROOF_EDGE, PROOF_EDGE), Image.Resampling.LANCZOS)
     w, h = img.size
@@ -52,7 +75,10 @@ def make_proof(content: bytes) -> bytes:
     mark = Image.new("RGBA", img.size, (0, 0, 0, 0))
     ImageDraw.Draw(mark).text((x, y), MARK_TEXT, font=font, fill=(255, 255, 255, 178))
 
-    out = Image.alpha_composite(Image.alpha_composite(img.convert("RGBA"), shadow), mark).convert("RGB")
+    out = img.convert("RGBA")
+    for layer in (_logo_mark(w, h), shadow, mark):
+        out = Image.alpha_composite(out, layer)
+    out = out.convert("RGB")
     buf = io.BytesIO()
     out.save(buf, format="JPEG", quality=85, optimize=True)
     return buf.getvalue()
@@ -60,9 +86,9 @@ def make_proof(content: bytes) -> bytes:
 
 def proof_name(original: str, taken: set) -> str:
     stem = os.path.splitext(original)[0]
-    name, n = f"{stem}-proof.jpg", 2
+    name, n = f"{stem}-preview.jpg", 2
     while name.lower() in taken:
-        name, n = f"{stem}-{n}-proof.jpg", n + 1
+        name, n = f"{stem}-{n}-preview.jpg", n + 1
     taken.add(name.lower())
     return name
 

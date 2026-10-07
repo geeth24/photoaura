@@ -335,7 +335,7 @@ const HEADLINE: Partial<Record<Booking["status"], [string, string]>> = {
   signed: ["Signed. One step left.", "Your date is held as soon as the retainer arrives."],
   booked: ["Your date is secured.", "Everything's set. We'll be in touch before the day."],
   event_complete: ["Thank you for having us.", "We're editing your photos now."],
-  delivered: ["Your proof gallery is ready.", "Full-resolution downloads unlock with the final payment."],
+  delivered: ["Your gallery preview is ready.", "Full-resolution downloads unlock with the final payment."],
   paid: ["Paid in full. Thank you!", "Your full-resolution gallery is unlocked."],
 }
 
@@ -392,7 +392,7 @@ function Signed({ b }: { b: Booking }) {
                     <Images className="size-5" />
                   </span>
                   <div className="min-w-0">
-                    <p className={micro}>{b.album.locked ? "Proof gallery" : "Your gallery"}</p>
+                    <p className={micro}>{b.album.locked ? "Gallery preview" : "Your gallery"}</p>
                     <p className="mt-1 truncate font-heading text-2xl tracking-tight text-text-primary">
                       {b.album.name}
                     </p>

@@ -43,8 +43,8 @@ export function ProofBanner({
         <div className="min-w-0">
           <p className="text-sm text-text-primary">
             {studio
-              ? "Proof gallery — the client's full-resolution downloads unlock when the final payment is marked received."
-              : `Proof gallery — full-resolution downloads unlock after your final payment${amount ? ` (${money(amount)})` : ""}.`}
+              ? "Gallery preview — the client's full-resolution downloads unlock when the final payment is marked received."
+              : `Gallery preview — full-resolution downloads unlock after your final payment${amount ? ` (${money(amount)})` : ""}.`}
           </p>
           <p className="mt-1 text-[13px] font-light text-text-muted">
             {studio ? "Downloads are off for everyone until then." : "Until then you're seeing watermarked previews."}

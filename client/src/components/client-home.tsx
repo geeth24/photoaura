@@ -436,7 +436,7 @@ export function GalleryGrid({ albums }: { albums: HomeAlbum[] }) {
             <p className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted">
               {a.locked && <Lock className="size-3 shrink-0" />}
               <span className="truncate">
-                {a.locked && "Proofs · "}
+                {a.locked && "Preview · "}
                 {plural(a.photo_count, "photo")}
                 {a.video_count > 0 && ` · ${plural(a.video_count, "video")}`}
               </span>
@@ -487,12 +487,12 @@ function GetPhotos({
     return (
       <div className="border border-border-subtle bg-surface-elevated p-5 sm:p-6">
         <p className={`${eyebrow} flex items-center gap-2`}>
-          <Lock className="size-3" /> Proof gallery
+          <Lock className="size-3" /> Gallery preview
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <Link href={`/albums/${album.slug}`} className={primary}>
             <Images className="size-4" />
-            Browse the proofs
+            Browse the previews
           </Link>
           {album.booking_number && (
             <Link href={`/bookings/${album.booking_number}`} className={secondary}>

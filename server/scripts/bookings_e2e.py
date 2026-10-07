@@ -330,9 +330,9 @@ def main():
             blank = dict.fromkeys(["size", "width", "height", "upload_date", "exif_data", "blur_data_url",
                                    "orientation", "description", "tags"])
             pending = [NS(**blank, id=1, album_id=1, filename="a.jpg", content_type="image/jpeg", held=False),
-                       NS(**blank, id=2, album_id=1, filename="b-proof.jpg", content_type="image/jpeg", held=True)]
+                       NS(**blank, id=2, album_id=1, filename="b-preview.jpg", content_type="image/jpeg", held=True)]
             got = [p["file_metadata"]["filename"] for p in create_album_photos_json("x", pending, True)]
-            check(got == ["b-proof.jpg"], f"clean photos hidden until their proof is ready {got}")
+            check(got == ["b-preview.jpg"], f"clean photos hidden until their proof is ready {got}")
             files = [
                 ("files", ("IMG_0001.jpg", jpeg((200, 30, 30)), "image/jpeg")),
                 ("files", ("IMG_0002.jpg", jpeg((30, 200, 30), (800, 1200)), "image/jpeg")),
@@ -350,17 +350,17 @@ def main():
                 album = s.query(Album).filter_by(slug=SLUG).first()
                 token = album.hold_token
                 photos = s.query(FileMetadata).filter_by(album_id=album_id).all()
-                check(all(p.held and p.filename.endswith("-proof.jpg") for p in photos), "rows point at proofs")
+                check(all(p.held and p.filename.endswith("-preview.jpg") for p in photos), "rows point at proofs")
             k = set(keys(f"{SLUG}/"))
-            check(f"{SLUG}/IMG_0001.jpg" not in k and f"{SLUG}/IMG_0001-proof.jpg" in k, "clean original removed")
+            check(f"{SLUG}/IMG_0001.jpg" not in k and f"{SLUG}/IMG_0001-preview.jpg" in k, "clean original removed")
             check(f"{SLUG}/_hold/{token}/IMG_0001.jpg" in k, "original held")
-            proof = Image.open(io.BytesIO(s3_client.get_object(Bucket=BUCKET, Key=f"{SLUG}/IMG_0003-proof.jpg")["Body"].read()))
+            proof = Image.open(io.BytesIO(s3_client.get_object(Bucket=BUCKET, Key=f"{SLUG}/IMG_0003-preview.jpg")["Body"].read()))
             check(proof.format == "JPEG" and proof.size == (800, 1200), f"proof orientation applied {proof.size}")
 
             album_json = c.get(f"/api/album/{SLUG}/", headers=P).json()
             check(album_json["locked"] and album_json["booking_number"] == num, "album JSON locked + booking")
             check("hold_token" not in str(album_json) and token not in str(album_json), "hold token never exposed")
-            check(all(p["file_metadata"]["filename"].endswith("-proof.jpg") and p["locked"]
+            check(all(p["file_metadata"]["filename"].endswith("-preview.jpg") and p["locked"]
                       for p in album_json["album_photos"]), "photos are proofs")
             home = c.get("/api/me/home", headers=P).json()
             check(any(a["slug"] == SLUG and a["locked"] for a in home["albums"]), "/api/me/home locked")
@@ -370,7 +370,7 @@ def main():
             check(any(a["slug"] == SLUG and a["locked"] for a in albums_json), "/api/albums/ locked")
             for path, method in (
                 (f"/api/album/{SLUG}/download-ticket", "post"),
-                (f"/api/album/{SLUG}/download/IMG_0001-proof.jpg", "get"),
+                (f"/api/album/{SLUG}/download/IMG_0001-preview.jpg", "get"),
                 (f"/api/album/{SLUG}/download-all?secret={album_json['secret']}", "get"),
             ):
                 rr = getattr(c, method)(path, headers=P)
@@ -382,7 +382,7 @@ def main():
             wait_job(c, A)
             with session_scope() as s:
                 m = s.query(FileMetadata).filter_by(album_id=album_id, original_filename="IMG_0004.jpg").first()
-                check(m is not None and m.held and m.filename == "IMG_0004-proof.jpg", "new upload stored held")
+                check(m is not None and m.held and m.filename == "IMG_0004-preview.jpg", "new upload stored held")
 
             r = c.post(f"/api/album/{SLUG}/revisions", data={"notify": "false"},
                        files=[("files", ("IMG_0001.jpg", jpeg((250, 250, 0)), "image/jpeg"))], headers=A)
@@ -391,9 +391,9 @@ def main():
             k = set(keys(f"{SLUG}/"))
             with session_scope() as s:
                 m = s.query(FileMetadata).filter_by(album_id=album_id, base_name="img_0001").first()
-                check(m.held and m.original_filename == "IMG_0001_v2.jpg" and m.filename == "IMG_0001_v2-proof.jpg",
+                check(m.held and m.original_filename == "IMG_0001_v2.jpg" and m.filename == "IMG_0001_v2-preview.jpg",
                       f"revision held ({m.original_filename}, {m.filename})")
-            check(f"{SLUG}/_hold/{token}/IMG_0001_v2.jpg" in k and f"{SLUG}/IMG_0001-proof.jpg" not in k
+            check(f"{SLUG}/_hold/{token}/IMG_0001_v2.jpg" in k and f"{SLUG}/IMG_0001-preview.jpg" not in k
                   and f"{SLUG}/IMG_0001_v2.jpg" not in k, "revision proof regenerated, old proof gone")
             photo_id = album_json["album_photos"][0]["file_metadata"]["id"]
             check(c.get(f"/api/photo/{photo_id}/versions", headers=P).json() == [], "no clean versions while locked")
@@ -437,7 +437,7 @@ def main():
                       and not any(p.held for p in photos), "filenames restored")
                 b = s.query(Booking).filter_by(number=num).first()
                 check(b.unlocked_at is not None, "unlocked_at set")
-            check(not any(x.endswith("-proof.jpg") for x in k) and not any("/_hold/" in x for x in k),
+            check(not any(x.endswith("-preview.jpg") for x in k) and not any("/_hold/" in x for x in k),
                   "proofs and hold copies removed")
             check(f"{SLUG}/IMG_0001.jpg" in k and f"{SLUG}/IMG_0001_v2.jpg" in k, "every version restored")
             ul = emails("gallery-unlocked")
