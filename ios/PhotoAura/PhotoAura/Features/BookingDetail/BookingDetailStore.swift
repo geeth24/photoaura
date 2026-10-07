@@ -33,6 +33,11 @@ final class BookingDetailStore {
             }
 
         case .loaded(let booking):
+            // consent was given to the old text; a different contract has to be agreed to again
+            if let old = state.booking?.contract.hash, old != booking.contract.hash, !booking.contract.signed {
+                state.consent = false
+                state.stale = true
+            }
             state.booking = booking
             state.isLoading = false
             state.hasLoadedOnce = true
