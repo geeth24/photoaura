@@ -24,9 +24,19 @@ from utils.utils import hold_key
 AWS_BUCKET = settings.AWS_BUCKET
 LOCKED_DETAIL = "Downloads unlock once your final payment is received."
 MARK_TEXT = "Reactive Shots Studios"
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "rs-logo-white.png")
+ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
+LOGO_PATH = os.path.join(ASSETS, "rs-logo-white.png")
+FONT_PATH = os.path.join(ASSETS, "blackmud.ttf")
 _logo: Optional[Image.Image] = None
 PROOF_EDGE = 2048
+
+
+def _font(size: int):
+    # the studio's Blackmud wordmark, same as the site
+    try:
+        return ImageFont.truetype(FONT_PATH, size)
+    except OSError:
+        return ImageFont.load_default(size=size)
 
 
 def _logo_mark(w: int, h: int) -> Image.Image:
@@ -56,14 +66,14 @@ def make_proof(content: bytes) -> bytes:
     img.thumbnail((PROOF_EDGE, PROOF_EDGE), Image.Resampling.LANCZOS)
     w, h = img.size
 
-    size = max(11, round(h * 0.025))
-    font = ImageFont.load_default(size=size)
+    size = max(14, round(h * 0.034))
+    font = _font(size)
     probe = ImageDraw.Draw(img)
     left, top, right, bottom = probe.textbbox((0, 0), MARK_TEXT, font=font)
     # very wide-and-short frames: keep the mark from running across the photo
     if right - left > w * 0.6:
-        size = max(9, int(size * (w * 0.6) / (right - left)))
-        font = ImageFont.load_default(size=size)
+        size = max(11, int(size * (w * 0.6) / (right - left)))
+        font = _font(size)
         left, top, right, bottom = probe.textbbox((0, 0), MARK_TEXT, font=font)
     margin = max(8, round(size * 1.1))
     x = w - (right - left) - margin - left
