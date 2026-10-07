@@ -30,11 +30,14 @@ enum BookingFormat {
     /// "1350.5" or "$1,350.50" → 135050. nil when it isn't a positive amount.
     static func cents(from text: String) -> Int? {
         let cleaned = text.replacingOccurrences(of: "[$,\\s]", with: "", options: .regularExpression)
-        guard let value = Decimal(string: cleaned, locale: Locale(identifier: "en_US")), value > 0 else { return nil }
-        var scaled = value * 100
-        var rounded = Decimal()
-        NSDecimalRound(&rounded, &scaled, 0, .plain)
-        return NSDecimalNumber(decimal: rounded).intValue
+        // the whole string has to be an amount; Decimal(string:) happily reads "12oops" as 12
+        guard cleaned.range(of: #"^(\d+(\.\d{0,2})?|\.\d{1,2})$"#, options: .regularExpression) != nil else { return nil }
+        let parts = cleaned.split(separator: ".", omittingEmptySubsequences: false)
+        let dollars = parts.first.flatMap { Int($0.isEmpty ? "0" : String($0)) } ?? 0
+        let fraction = parts.count > 1 ? String(parts[1]).padding(toLength: 2, withPad: "0", startingAt: 0) : "00"
+        guard let cents = Int(fraction), dollars < Int.max / 100 else { return nil }
+        let total = dollars * 100 + cents
+        return total > 0 ? total : nil
     }
 
     static func amountText(_ cents: Int) -> String {
