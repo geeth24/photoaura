@@ -10,7 +10,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-enum class EditorialBadgeTone { Neutral, Brand, Success, Warning, Danger, Muted }
+enum class EditorialBadgeTone {
+    Neutral, Brand, Success, Warning, Danger, Muted,
+
+    /** filled brand, for "done" (paid in full) */
+    Solid,
+}
 
 @Composable
 fun EditorialBadge(text: String, modifier: Modifier = Modifier, tone: EditorialBadgeTone = EditorialBadgeTone.Neutral) {
@@ -22,10 +27,14 @@ fun EditorialBadge(text: String, modifier: Modifier = Modifier, tone: EditorialB
         EditorialBadgeTone.Warning -> c.warning to c.warning.copy(alpha = 0.4f)
         EditorialBadgeTone.Danger -> c.error to c.error.copy(alpha = 0.4f)
         EditorialBadgeTone.Muted -> c.textMuted to c.borderDefault
+        EditorialBadgeTone.Solid -> c.background to c.brand
     }
     Text(
         text.uppercase(),
-        modifier.border(EditorialMetrics.borderWidth, border).padding(horizontal = 10.dp, vertical = 5.dp),
+        modifier
+            .then(if (tone == EditorialBadgeTone.Solid) Modifier.background(c.brand) else Modifier)
+            .border(EditorialMetrics.borderWidth, border)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         style = EditorialTheme.typography.label(tracking = 2.sp),
         color = fg,
         maxLines = 1,

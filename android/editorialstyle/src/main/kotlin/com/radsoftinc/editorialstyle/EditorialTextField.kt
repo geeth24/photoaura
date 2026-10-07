@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,7 +28,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
-enum class EditorialFieldKind { Text, Email, Password, Search, Uri }
+enum class EditorialFieldKind {
+    Text, Email, Password, Search, Uri,
+
+    /** money and other amounts: number pad with a decimal point */
+    Decimal,
+
+    /** a person's name: words capitalised, no autocorrect */
+    Name,
+}
 
 @Composable
 fun EditorialTextField(
@@ -39,6 +48,7 @@ fun EditorialTextField(
     kind: EditorialFieldKind = EditorialFieldKind.Text,
     footnote: String? = null,
     isError: Boolean = false,
+    prefix: String? = null,
 ) {
     val c = EditorialTheme.colors
     val type = EditorialTheme.typography
@@ -59,9 +69,14 @@ fun EditorialTextField(
                     EditorialFieldKind.Email -> KeyboardType.Email
                     EditorialFieldKind.Password -> KeyboardType.Password
                     EditorialFieldKind.Uri -> KeyboardType.Uri
+                    EditorialFieldKind.Decimal -> KeyboardType.Decimal
                     else -> KeyboardType.Text
                 },
-                capitalization = if (plain) KeyboardCapitalization.Sentences else KeyboardCapitalization.None,
+                capitalization = when (kind) {
+                    EditorialFieldKind.Text -> KeyboardCapitalization.Sentences
+                    EditorialFieldKind.Name -> KeyboardCapitalization.Words
+                    else -> KeyboardCapitalization.None
+                },
                 autoCorrectEnabled = plain,
                 imeAction = if (kind == EditorialFieldKind.Search) ImeAction.Search else ImeAction.Default,
             ),
@@ -85,8 +100,15 @@ fun EditorialTextField(
                         .padding(horizontal = 14.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    if (value.isEmpty()) Text(placeholder, style = type.sans(type.body.fontSize), color = c.textFaint, maxLines = 1)
-                    inner()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (prefix != null) {
+                            Text(prefix, Modifier.padding(end = 6.dp), style = type.sans(type.body.fontSize), color = c.textFaint)
+                        }
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (value.isEmpty()) Text(placeholder, style = type.sans(type.body.fontSize), color = c.textFaint, maxLines = 1)
+                            inner()
+                        }
+                    }
                 }
             },
         )
