@@ -153,9 +153,14 @@ def build_photo_json(meta, album_slug, locked=None):
     return out
 
 
+def proof_ready(meta, locked) -> bool:
+    """False for a clean photo in a locked album that hasn't been swapped for its proof yet."""
+    return not locked or bool(getattr(meta, "held", False)) or (meta.content_type or "").startswith("video/")
+
+
 def create_album_photos_json(album_slug, file_metadata, locked=None):
     # chronological by capture time so the grid + lightbox read like the event
-    file_metadata = sorted(file_metadata, key=capture_time)
+    file_metadata = sorted((m for m in file_metadata if proof_ready(m, locked)), key=capture_time)
     return [build_photo_json(meta, album_slug, locked) for meta in file_metadata]
 
 

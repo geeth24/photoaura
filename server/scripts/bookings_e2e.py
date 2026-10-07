@@ -285,6 +285,19 @@ def main():
                        json={"amount_cents": 7500, "method": "cash", "received_at": "2026-10-07"}, headers=A).json()
             check(r["status"] == "booked" and r["payments"][0]["received_at"] == "2026-10-07T00:00:00Z",
                   "receipt with a plain date")
+            c.post(f"/api/bookings/{num}/payments/{pay['retainer']}/undo", headers=A)
+            r = c.post(f"/api/bookings/{num}/payments/{pay['retainer']}/receive",
+                       json={"amount_cents": 5000, "method": "cash"}, headers=A).json()
+            check(r["status"] == "signed", "partial retainer isn't booked yet")
+            rendered.clear()
+            r = c.post(f"/api/bookings/{num}/payments/{pay['retainer']}/receive",
+                       json={"amount_cents": 2500, "method": "zelle"}, headers=A).json()
+            check(r["status"] == "booked" and r["payments"][0]["received_cents"] == 7500
+                  and emails("payment-received")[0]["amount"] == "$25.00", "second partial adds up")
+            with session_scope() as s:
+                rows = invoice_data(s, s.query(Booking).filter_by(number=num).first())["received"]
+            check([(x["method"], x["amount_cents"]) for x in rows] == [("Cash", 5000), ("Zelle", 2500)],
+                  f"each part is its own invoice row {rows}")
             r = c.post(f"/api/bookings/{num}/payments/{pay['event_day']}/receive",
                        json={"amount_cents": 30000, "method": "check"}, headers=A).json()
             check(r["status"] == "event_complete", "event day -> event_complete")
@@ -303,11 +316,20 @@ def main():
             check(lines == ["Event Photography — Photos Only", "Overtime (30 min)"]
                   and data["lines"][0]["qty"] == "5 hours" and data["total_cents"] == 82500, "extra charge line")
             check([(x["description"], x["method"], x["amount_cents"]) for x in data["received"]]
-                  == [("Booking retainer", "Cash", 7500), ("Event-day payment", "Check", 30000)], "payments received")
+                  == [("Booking retainer", "Cash", 5000), ("Booking retainer", "Zelle", 2500),
+                      ("Event-day payment", "Check", 30000)], "payments received")
             check([x["label"] for x in data["schedule"]] == ["Final payment · 50%", "Overtime (30 min)"]
                   and data["memo"] == f"{num} final", "remaining schedule + memo")
 
             print("album + proof mode")
+            from types import SimpleNamespace as NS
+            from utils.utils import create_album_photos_json
+            blank = dict.fromkeys(["size", "width", "height", "upload_date", "exif_data", "blur_data_url",
+                                   "orientation", "description", "tags"])
+            pending = [NS(**blank, id=1, album_id=1, filename="a.jpg", content_type="image/jpeg", held=False),
+                       NS(**blank, id=2, album_id=1, filename="b-proof.jpg", content_type="image/jpeg", held=True)]
+            got = [p["file_metadata"]["filename"] for p in create_album_photos_json("x", pending, True)]
+            check(got == ["b-proof.jpg"], f"clean photos hidden until their proof is ready {got}")
             files = [
                 ("files", ("IMG_0001.jpg", jpeg((200, 30, 30)), "image/jpeg")),
                 ("files", ("IMG_0002.jpg", jpeg((30, 200, 30), (800, 1200)), "image/jpeg")),
@@ -383,13 +405,18 @@ def main():
             check(c.get("/api/me/bookings", headers=P).json()[0]["action"] == "pay", "client action pay")
             pay = {p["kind"]: p["id"] for p in r["payments"] if p["kind"] != "extra"}
             extra_id = [p["id"] for p in r["payments"] if p["kind"] == "extra"][0]
+            r = c.post(f"/api/bookings/{num}/payments", json={"label": "Added by mistake", "amount_cents": 1000},
+                       headers=A).json()
+            mistake_id = [p["id"] for p in r["payments"] if p["label"] == "Added by mistake"][0]
             rendered.clear()
             r = c.post(f"/api/bookings/{num}/payments/{pay['final']}/receive",
                        json={"amount_cents": 37500, "method": "zelle"}, headers=A).json()
             check(r["status"] == "delivered", "final without the overtime isn't paid in full")
             r = c.post(f"/api/bookings/{num}/payments/{extra_id}/receive",
                        json={"amount_cents": 7500, "method": "zelle"}, headers=A).json()
-            check(r["status"] == "paid" and r["money"]["balance"] == 0, "paid")
+            check(r["status"] == "delivered", "an unpaid extra keeps it open")
+            r = c.delete(f"/api/bookings/{num}/payments/{mistake_id}", headers=A).json()
+            check(r["status"] == "paid" and r["money"]["balance"] == 0, "paid once the stray charge is removed")
             mine = c.get("/api/me/invoices", headers=P).json()[0]
             check(mine["status"] == "paid" and mine["balance_cents"] == 0 and mine["paid_cents"] == 82500,
                   "invoice paid in full")
@@ -424,6 +451,13 @@ def main():
             check(r["payments"][0]["amount_cents"] == 1235 and r["payments"][2]["amount_cents"] == 6172, "custom fee")
             other = r["number"]
             c.post(f"/api/bookings/{other}/send", headers=A)
+            ob = c.get(f"/api/me/bookings/{other}", headers=C).json()
+            c.post(f"/api/me/bookings/{other}/sign", headers=C,
+                   json={"full_name": "Test Client", "consent": True, "contract_hash": ob["contract"]["hash"]})
+            ofinal = [p["id"] for p in c.get(f"/api/bookings/{other}", headers=A).json()["payments"] if p["kind"] == "final"][0]
+            r = c.post(f"/api/bookings/{other}/payments/{ofinal}/receive",
+                       json={"amount_cents": 6172, "method": "cash"}, headers=A).json()
+            check(r["status"] == "signed", f"final alone isn't paid in full ({r['status']})")
             got = c.get(f"/api/me/bookings/{other}/invoice.pdf", headers=F)
             check(got.status_code == 200 and got.content[:4] == b"%PDF", "family member downloads the invoice")
             check(any(x["booking_number"] == other for x in c.get("/api/me/invoices", headers=F).json()),

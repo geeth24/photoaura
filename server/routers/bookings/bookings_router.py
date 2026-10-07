@@ -133,6 +133,20 @@ def _paid(p: BookingPayment) -> bool:
     return p.amount_cents <= 0 or (p.received_cents or 0) >= p.amount_cents
 
 
+def _receipts(p: BookingPayment) -> list:
+    """Each part received on a line; rows from before receipts read as one."""
+    if p.receipts:
+        return list(p.receipts)
+    if not p.received_cents:
+        return []
+    return [{
+        "amount_cents": p.received_cents,
+        "method": p.method,
+        "received_at": p.received_at.isoformat() if p.received_at else None,
+        "note": p.note,
+    }]
+
+
 def _payments(b: Booking) -> list:
     return sorted(b.payments, key=lambda p: (KIND_ORDER.get(p.kind, 9), p.id or 0))
 
@@ -157,8 +171,7 @@ def _derive_status(b: Booking) -> str:
     if not b.signed_at:
         return "sent"
     by_kind = {p.kind: p for p in b.payments if p.kind != "extra"}
-    closing = [p for p in b.payments if p.kind in ("final", "extra")]
-    if closing and all(_paid(p) for p in closing):
+    if any(p.kind == "final" for p in b.payments) and all(_paid(p) for p in b.payments):
         return "paid"
     if b.delivered_at:
         return "delivered"
@@ -475,7 +488,7 @@ def _send_all(messages: list):
         print(f"booking email {template} -> {to}: {'sent' if ok else 'not sent'}")
 
 
-def _receipt_message(session, b: Booking, p: BookingPayment):
+def _receipt_message(session, b: Booking, p: BookingPayment, amount_cents: int):
     target = _client_link(session, b)
     if not target:
         return None
@@ -487,7 +500,7 @@ def _receipt_message(session, b: Booking, p: BookingPayment):
         "link": link,
         "bookingNumber": b.number,
         "label": p.label,
-        "amount": dollars(p.received_cents or 0),
+        "amount": dollars(amount_cents),
         "method": METHODS.get(p.method or "", "Other"),
         "paidTotal": dollars(money["paid"]),
         "balance": dollars(money["balance"]),
@@ -723,14 +736,19 @@ def receive_payment(
     if received_at.tzinfo:
         received_at = received_at.astimezone(timezone.utc).replace(tzinfo=None)
     was = b.status
-    p.received_cents = body.amount_cents
+    note = (body.note or "").strip() or None
+    # a second partial payment adds to the first, and keeps its own receipt
+    p.receipts = _receipts(p) + [
+        {"amount_cents": body.amount_cents, "method": method, "received_at": received_at.isoformat(), "note": note}
+    ]
+    p.received_cents = (p.received_cents or 0) + body.amount_cents
     p.received_at = received_at
     p.method = method
-    p.note = (body.note or "").strip() or None
+    p.note = note
     status = _refresh_status(b)
 
     messages = []
-    receipt = _receipt_message(session, b, p)
+    receipt = _receipt_message(session, b, p, body.amount_cents)
     if receipt:
         messages.append(receipt)
     if status == "paid" and was != "paid":
@@ -757,6 +775,7 @@ def undo_payment(
     p.received_at = None
     p.method = None
     p.note = None
+    p.receipts = None
     _refresh_status(b)
     session.commit()
     return _booking_json(session, b, admin=True)
@@ -786,6 +805,7 @@ def add_charge(
 def remove_charge(
     number: str,
     payment_id: int,
+    background: BackgroundTasks,
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
@@ -796,8 +816,10 @@ def remove_charge(
         raise HTTPException(status_code=404, detail="Payment not found")
     if p.kind != "extra" or p.received_at:
         raise HTTPException(status_code=409, detail="Only unpaid extra charges can be removed.")
+    was = b.status
     b.payments.remove(p)
-    _refresh_status(b)
+    if _refresh_status(b) == "paid" and was != "paid":
+        _schedule_unlock(session, b, background, notify=True)
     session.commit()
     return _booking_json(session, b, admin=True)
 
@@ -1098,12 +1120,13 @@ def _invoice(session, b: Booking) -> dict:
         "paid_on": max(paid_dates).date() if paid_dates else None,
         "received": [
             {
-                "date": p.received_at.date() if p.received_at else None,
+                "date": datetime.fromisoformat(r["received_at"]).date() if r.get("received_at") else None,
                 "description": p.label,
-                "method": METHODS.get(p.method or "", "Other"),
-                "amount_cents": p.received_cents,
+                "method": METHODS.get(r.get("method") or "", "Other"),
+                "amount_cents": r["amount_cents"],
             }
             for p in received
+            for r in _receipts(p)
         ],
         # what's still to pay; paid lines are already under payments received
         "schedule": [

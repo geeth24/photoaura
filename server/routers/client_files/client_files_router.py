@@ -207,12 +207,12 @@ def my_home(
         in_album = session.query(func.count(FileMetadata.id)).filter(FileMetadata.album_id == a.id)
         total = in_album.scalar() or 0
         videos = in_album.filter(FileMetadata.content_type.like("video/%")).scalar() or 0
-        cover = (
-            session.query(FileMetadata)
-            .filter(FileMetadata.album_id == a.id, ~FileMetadata.content_type.like("video/%"))
-            .order_by(FileMetadata.id)
-            .first()
+        covers = session.query(FileMetadata).filter(
+            FileMetadata.album_id == a.id, ~FileMetadata.content_type.like("video/%")
         )
+        if a.proof_locked:
+            covers = covers.filter(FileMetadata.held.is_(True))
+        cover = covers.order_by(FileMetadata.id).first()
         out_albums.append(
             {
                 "id": a.id,

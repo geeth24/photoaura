@@ -426,6 +426,8 @@ class BookingPayment(Base):
     received_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
     method: Mapped[Optional[str]] = mapped_column(String(20))  # zelle | cash | check | other
     note: Mapped[Optional[str]] = mapped_column(Text)
+    # one entry per part when a line is paid in pieces
+    receipts: Mapped[Optional[Any]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
     )

@@ -13,7 +13,7 @@ from db.models import (
     User,
     UserAlbumPermission,
 )
-from utils.utils import build_photo_json, original_key
+from utils.utils import build_photo_json, original_key, proof_ready
 from utils.face_recog import (
     detect_and_store_faces,
     assign_pending_faces,
@@ -442,6 +442,8 @@ async def get_face(
         if not album:
             continue
 
+        if not proof_ready(photo, album.proof_locked):
+            continue
         face_photos.append(build_photo_json(photo, album.slug, album.proof_locked))
 
     return {
