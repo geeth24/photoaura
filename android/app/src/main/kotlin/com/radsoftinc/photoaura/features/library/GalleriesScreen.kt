@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,22 +43,30 @@ import com.radsoftinc.photoaura.core.ImageUrls
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.friendly
+import com.radsoftinc.photoaura.features.bookings.BookingSync
 import com.radsoftinc.photoaura.ui.RemoteImage
 
 data class GalleriesState(val albums: List<AlbumSummary>? = null, val error: String? = null)
 
 sealed interface GalleriesIntent {
     data object Load : GalleriesIntent
+
+    /** A booking change can unlock a proof gallery, so the tiles follow it. */
+    data class Sync(val version: Int) : GalleriesIntent
     data class Loaded(val a: List<AlbumSummary>) : GalleriesIntent
     data class Failed(val m: String) : GalleriesIntent
 }
 
 /** The studio's own view: every gallery it can see. Clients get Home instead. */
 class GalleriesStore : Store<GalleriesState, GalleriesIntent>(GalleriesState()) {
-    init { send(GalleriesIntent.Load) }
+    private var synced = -1
 
     override fun send(intent: GalleriesIntent) {
         when (intent) {
+            is GalleriesIntent.Sync -> if (intent.version != synced) {
+                synced = intent.version
+                send(GalleriesIntent.Load)
+            }
             GalleriesIntent.Load -> {
                 val uid = Session.user?.id ?: return
                 io { try { send(GalleriesIntent.Loaded(Api.myAlbums(uid))) } catch (e: Exception) { send(GalleriesIntent.Failed(e.friendly())) } }
@@ -71,6 +80,7 @@ class GalleriesStore : Store<GalleriesState, GalleriesIntent>(GalleriesState()) 
 @Composable
 fun GalleriesScreen(onOpenAlbum: (String, String) -> Unit, bottomPadding: Dp, store: GalleriesStore = viewModel()) {
     val s by store.state.collectAsStateWithLifecycle()
+    LaunchedEffect(BookingSync.version) { store.send(GalleriesIntent.Sync(BookingSync.version)) }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val gutter = EditorialSpacing.screenGutter
     LazyVerticalGrid(
