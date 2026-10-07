@@ -159,6 +159,8 @@ def main():
             check("$675.00" in md and "$67.50" in md and "$75.00 per 30 minutes" in md, "money formatted")
             check("{{" not in md and "videography" not in md.lower(), "no placeholders, photo-only wording")
             check("zelle@reactiveshots.com or (972) 829-5173" in md, "contract lists both Zelle options")
+            check("free to share the photographs with friends and family" in md and "non-transferable" not in md,
+                  "usage rights read as a permission, not a restriction")
             deal = c.post("/api/bookings/preview", json={**body, "total_fee_cents": 60000}, headers=A).json()["contract_markdown"]
             check("Event Photography — Photos Only (4.5 hours)\n" in deal and "$150/hr" not in deal
                   and "$600.00 (discounted from $675.00)" in deal, "an agreed fee shows as a discount, not hours x rate")

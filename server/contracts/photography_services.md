@@ -1,5 +1,5 @@
 <!--
-version: 2026-10-07.2
+version: 2026-10-07.3
 Master contract. {{field}} is filled per booking; {{#video}}…{{/video}} only shows on
 packages that include video, {{^video}}…{{/video}} only on photo-only ones.
 Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, **bold**.
@@ -60,10 +60,9 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 
 ## 5. Usage Rights
 
-- The Photographer retains all copyrights and ownership rights in the photographs{{#video}} and video{{/video}}.
-- Upon full payment, the Client receives a non-exclusive, non-transferable license for personal, non-commercial use, including social media posting, personal printing, and sharing with friends and family.
-- Nothing in this Agreement limits the Client's personal use and sharing of their own photographs{{#video}} and video{{/video}}.
-- Commercial, advertising, publication, resale, or brand use requires prior written permission and may require a separate license and fee.
+- The Photographer owns the copyright in the photographs{{#video}} and video{{/video}}. This is standard and doesn't limit the Client's personal use.
+- The Client is free to share the photographs{{#video}} and video{{/video}} with friends and family, post them on social media, and print them for personal use. Full-resolution files are released once the final payment is received.
+- Commercial use (advertising, publication, resale, or brand use) requires the Photographer's written permission and may require a separate fee.
 
 ## 6. Portfolio Use & Minors
 
