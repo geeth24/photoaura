@@ -9,6 +9,8 @@ import Foundation
 
 struct HomeState {
     var summary: HomeSummary? = nil
+    // something to sign or pay, else the next event
+    var booking: MyBookingSummary? = nil
     var isLoading: Bool = false
     var error: String? = nil
     var hasLoadedOnce: Bool = false
@@ -17,6 +19,6 @@ struct HomeState {
 enum HomeIntent {
     case load
     case refresh
-    case loadSucceeded(HomeSummary)
+    case loadSucceeded(HomeSummary, MyBookingSummary?)
     case loadFailed(String)
 }

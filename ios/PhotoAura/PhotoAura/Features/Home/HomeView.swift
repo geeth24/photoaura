@@ -27,7 +27,8 @@ struct HomeView: View {
             }
         }
         .onAppear {
-            guard store == nil else { return }
+            // back from signing or a booking: what's waiting may have changed
+            if let store { store.send(.refresh); return }
             let s = HomeStore(api: api)
             store = s
             s.send(.load)
@@ -36,7 +37,7 @@ struct HomeView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             // same get-your-photos entry the album screen has, for the newest gallery
-            if let newest = store?.state.summary?.albums.first {
+            if let newest = store?.state.summary?.albums.first, !newest.isLocked {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(value: HomeSaveTarget(album: newest.summary)) {
                         Image(systemName: "square.and.arrow.down")
@@ -84,12 +85,23 @@ private struct HomeContent: View {
                 actionTitle: "Try again"
             ) { store.send(.refresh) }
         } else if let home = store.state.summary, let newest = home.albums.first {
+            if let booking = store.state.booking { HomeBookingCard(booking: booking) }
             welcome(home)
             hero(newest)
-            getPhotos(newest)
-            if !home.files.isEmpty { files(home.files) }
+            if newest.isLocked { previewPanel(newest) } else { getPhotos(newest) }
+            if !home.files.isEmpty { files(home.files, saveAllShown: !newest.isLocked) }
             let rest = Array(home.albums.dropFirst())
             if !rest.isEmpty { earlier(rest) }
+        } else if let booking = store.state.booking {
+            HomeBookingCard(booking: booking)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(store.state.summary?.firstName.map { "Hi \($0)." } ?? "Welcome.")
+                    .font(EditorialTypography.serif(size: 36))
+                    .foregroundStyle(EditorialColors.textPrimary)
+                Text("Your photos will live here.")
+                    .font(EditorialTypography.serif(size: 36))
+                    .foregroundStyle(EditorialColors.textSecondary)
+            }
         } else {
             EditorialEmptyState(
                 systemImage: "photo.on.rectangle",
@@ -152,7 +164,11 @@ private struct HomeContent: View {
                     }
                     .clipped()
                     .overlay(alignment: .topLeading) {
-                        RevisionReadyTag(album: album).padding(EditorialSpacing.medium)
+                        HStack(spacing: 6) {
+                            if album.isLocked { EditorialPhotoTag("Preview", icon: "lock.fill") }
+                            RevisionReadyTag(album: album)
+                        }
+                        .padding(EditorialSpacing.medium)
                     }
 
                 LinearGradient(
@@ -242,9 +258,64 @@ private struct HomeContent: View {
         .overlay(Rectangle().stroke(EditorialColors.borderSubtle, lineWidth: 1))
     }
 
+    // MARK: - gallery preview
+
+    // a proof-locked gallery: browse the watermarked previews, or go pay the final
+    private func previewPanel(_ album: HomeAlbum) -> some View {
+        VStack(alignment: .leading, spacing: EditorialSpacing.medium) {
+            HStack(spacing: 6) {
+                Image(systemName: "lock.fill").font(.system(size: 10, weight: .semibold))
+                Text("Gallery preview").editorialEyebrow(color: EditorialColors.textMuted)
+            }
+            .foregroundStyle(EditorialColors.textMuted)
+
+            NavigationLink(value: album.summary) {
+                HStack(spacing: 10) {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Browse the previews")
+                        .font(.system(size: 12, weight: .bold))
+                        .tracking(EditorialTypography.Tracking.button)
+                        .textCase(.uppercase)
+                }
+                .foregroundStyle(EditorialColors.background)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity)
+                .background(EditorialColors.brand)
+            }
+            .buttonStyle(EditorialPressStyle())
+
+            if let number = album.bookingNumber {
+                NavigationLink(value: BookingRoute(number: number)) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Final payment")
+                            .font(.system(size: 12, weight: .bold))
+                            .tracking(EditorialTypography.Tracking.button)
+                            .textCase(.uppercase)
+                    }
+                    .foregroundStyle(EditorialColors.textSecondary)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+                    .overlay(Rectangle().stroke(EditorialColors.borderDefault, lineWidth: 1))
+                }
+                .buttonStyle(EditorialPressStyle())
+            }
+
+            Text("These are watermarked previews. Full-resolution downloads unlock after your final payment.")
+                .font(EditorialTypography.sans(size: EditorialTypography.Size.caption))
+                .foregroundStyle(EditorialColors.textMuted)
+                .lineSpacing(EditorialTypography.LineSpacing.hint)
+        }
+        .padding(EditorialSpacing.large)
+        .background(EditorialColors.surfaceElevated)
+        .overlay(Rectangle().stroke(EditorialColors.borderSubtle, lineWidth: 1))
+    }
+
     // MARK: - files
 
-    private func files(_ files: [ClientFile]) -> some View {
+    private func files(_ files: [ClientFile], saveAllShown: Bool) -> some View {
         VStack(alignment: .leading, spacing: EditorialSpacing.medium) {
             EditorialEyebrow("Ready to download", color: EditorialColors.textMuted)
             VStack(spacing: 10) {
@@ -253,34 +324,35 @@ private struct HomeContent: View {
                         if let s = file.downloadUrl, let url = URL(string: s) { openURL(url) }
                     } label: {
                         HStack(spacing: EditorialSpacing.medium) {
+                            let locked = file.locked == true
                             Image(systemName: fileIcon(file))
                                 .font(.system(size: 16, weight: .regular))
-                                .foregroundStyle(EditorialColors.brand)
+                                .foregroundStyle(locked ? EditorialColors.textFaint : EditorialColors.brand)
                                 .frame(width: 40, height: 40)
-                                .background(EditorialColors.brand.opacity(0.1))
+                                .background(locked ? EditorialColors.surfaceCard : EditorialColors.brand.opacity(0.1))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(file.filename)
                                     .font(EditorialTypography.sans(size: EditorialTypography.Size.body, weight: .medium))
-                                    .foregroundStyle(EditorialColors.textPrimary)
+                                    .foregroundStyle(locked ? EditorialColors.textSecondary : EditorialColors.textPrimary)
                                     .lineLimit(1)
-                                Text(fileSubtitle(file))
+                                Text(locked ? "Unlocks after your final payment" : fileSubtitle(file))
                                     .font(EditorialTypography.sans(size: EditorialTypography.Size.hint))
                                     .foregroundStyle(EditorialColors.textMuted)
                             }
                             Spacer(minLength: 0)
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(EditorialColors.brand)
+                            Image(systemName: locked ? "lock.fill" : "arrow.down.circle.fill")
+                                .font(.system(size: locked ? 15 : 20))
+                                .foregroundStyle(locked ? EditorialColors.textFaint : EditorialColors.brand)
                         }
                         .padding(EditorialSpacing.medium)
                         .background(EditorialColors.surfaceElevated)
                         .overlay(Rectangle().stroke(EditorialColors.borderSubtle, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
-                    .disabled(file.downloadUrl == nil)
+                    .disabled(file.downloadUrl == nil || file.locked == true)
                 }
             }
-            Text("Zips open in the Files app. For your camera roll, use Save all to Photos above.")
+            Text(saveAllShown ? "Zips open in the Files app. For your camera roll, use Save all to Photos above." : "Zips open in the Files app.")
                 .font(EditorialTypography.sans(size: EditorialTypography.Size.hint))
                 .foregroundStyle(EditorialColors.textMuted)
         }
@@ -297,7 +369,11 @@ private struct HomeContent: View {
             ) {
                 ForEach(albums) { album in
                     NavigationLink(value: album.summary) {
-                        EditorialPhotoCard(title: album.name, caption: countsText(album), aspect: 4 / 5) {
+                        EditorialPhotoCard(
+                            title: album.name,
+                            caption: album.isLocked ? "Preview · \(countsText(album))" : countsText(album),
+                            aspect: 4 / 5
+                        ) {
                             if let cover = album.cover {
                                 CachedImage(url: ImageURLHelper.autoOriented(from: cover, width: 750), contentMode: .fill)
                             } else {
@@ -305,7 +381,11 @@ private struct HomeContent: View {
                             }
                         }
                         .overlay(alignment: .topLeading) {
-                            RevisionReadyTag(album: album, compact: true).padding(10)
+                            HStack(spacing: 4) {
+                                if album.isLocked { EditorialPhotoTag("Preview", icon: "lock.fill", compact: true) }
+                                RevisionReadyTag(album: album, compact: true)
+                            }
+                            .padding(10)
                         }
                     }
                     .buttonStyle(.plain)

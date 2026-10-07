@@ -24,15 +24,18 @@ final class HomeStore {
             state.isLoading = true
             state.error = nil
             Task { [api] in
+                // older servers have no bookings; home still works without them
+                async let bookings = try? await api.myBookings()
                 do {
                     let summary = try await api.home()
-                    self.send(.loadSucceeded(summary))
+                    self.send(.loadSucceeded(summary, await bookings?.homeBooking))
                 } catch {
                     self.send(.loadFailed(error.localizedDescription))
                 }
             }
-        case .loadSucceeded(let summary):
+        case .loadSucceeded(let summary, let booking):
             state.summary = summary
+            state.booking = booking
             state.isLoading = false
             state.hasLoadedOnce = true
         case .loadFailed(let m):
