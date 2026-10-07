@@ -454,6 +454,20 @@ def main():
             check(r.status_code == 200 and f"{SLUG}/IMG_0001_v2.jpg" in before and f"{SLUG}/IMG_0001.jpg" in before
                   and not {f"{SLUG}/IMG_0001_v2.jpg", f"{SLUG}/IMG_0001.jpg"} & after, "deleting a photo removes it and its old versions")
             check(c.delete("/api/danger/delete", headers=C).status_code in (404, 405), "no wipe-everything endpoint")
+            check(c.get("/api/albums/").status_code == 401 and c.get("/api/photos/").status_code == 401
+                  and c.get("/api/shared-albums/").status_code == 401, "album and photo lists need a sign-in")
+            check(c.get(f"/api/album/{SLUG}/").status_code == 404
+                  and c.get(f"/api/album/{SLUG}/?secret=wrong").status_code == 404, "a gallery needs a sign-in or its secret")
+            mine = c.get(f"/api/album/{SLUG}/", headers=P).json()
+            check(mine["secret"] and mine["album_permissions"] == [], "the client gets the share secret, not other clients' emails")
+            shared = c.get(f"/api/album/{SLUG}/?secret={mine['secret']}")
+            check(shared.status_code == 200 and shared.json()["secret"] is None, "the share secret opens it without exposing itself")
+            check(c.get(f"/api/album/{SLUG}/", headers=C).status_code == 404, "another client can't open it")
+            check(all(a["slug"] != SLUG for a in c.get(f"/api/albums/?user_id={new_client_id}", headers=C).json())
+                  and all(x["file_metadata"]["album_id"] != album_id
+                          for x in c.get(f"/api/photos/?user_id={new_client_id}", headers=C).json()),
+                  "passing someone else's user_id doesn't show their galleries")
+            check(c.get(f"/api/album/{SLUG}/", headers=A).json()["album_permissions"] != [], "admin still sees who has access")
             check(c.put("/api/face/x", json={"name": "y"}, headers=C).status_code == 403
                   and c.delete("/api/videos/revisions/cleanup", headers=C).status_code == 403
                   and c.put("/api/videos/revisions/1/permanent?permanent=true", headers=C).status_code == 403,

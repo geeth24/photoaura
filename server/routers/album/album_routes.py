@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import HTTPException, APIRouter, Depends
 from fastapi.responses import StreamingResponse
 import os
@@ -28,7 +29,7 @@ from db.models import (
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, hold_key, slugify
-from dependencies import is_admin_caller, require_admin, get_current_user
+from dependencies import is_admin_caller, oauth2_optional, require_admin, get_current_user, verify_token
 from services.proof_service import LOCKED_DETAIL
 
 from routers.revisions.revisions_router import latest_revision
@@ -54,16 +55,39 @@ def album_booking_number(session, album_id):
     return row[0] if row else None
 
 
+def _viewer(session, token):
+    """The signed-in user behind an optional bearer token, or None."""
+    if not token:
+        return None
+    try:
+        data = verify_token(token, HTTPException(status_code=401))
+    except HTTPException:
+        return None
+    return session.query(User).filter_by(user_name=data.user_name).first()
+
+
+def _has_permission(session, user, album) -> bool:
+    owner = user.parent_user_id or user.id
+    return session.query(UserAlbumPermission).filter_by(album_id=album.id, user_id=owner).first() is not None
+
+
 @router.get("/api/album/{album_slug}/")
 async def get_album(
     album_slug: str,
     secret: str = None,
     orientation: str = None,
     session: Session = Depends(get_session),
+    token: Optional[str] = Depends(oauth2_optional),
 ):
     album = session.query(Album).filter_by(slug=album_slug).first()
 
     if album is None:
+        raise HTTPException(status_code=404, detail="Album not found")
+    me = _viewer(session, token)
+    admin = bool(me and me.role == "admin")
+    member = admin or bool(me and _has_permission(session, me, album))
+    # signed-in clients see their own galleries; anyone else needs the share secret or a public album
+    if not (member or album.public or (secret and secret == album.secret)):
         raise HTTPException(status_code=404, detail="Album not found")
 
     photos_query = session.query(FileMetadata).filter_by(album_id=album.id)
@@ -77,7 +101,7 @@ async def get_album(
     album_photos = create_album_photos_json(album_slug, file_metadata, album.proof_locked)
 
     permissions = (
-        session.query(UserAlbumPermission).filter_by(album_id=album.id).all()
+        session.query(UserAlbumPermission).filter_by(album_id=album.id).all() if admin else []
     )
     permissions_list = []
     for perm in permissions:
@@ -99,7 +123,7 @@ async def get_album(
         "image_count": album.image_count,
         "shared": album.shared,
         "upload": album.upload,
-        "secret": album.secret,
+        "secret": album.secret if member else None,
         "public": bool(album.public),
         "face_detection": album.face_detection,
         "album_permissions": permissions_list,
@@ -110,18 +134,27 @@ async def get_album(
     }
 
 
+def _own_id(session, current_user) -> int:
+    me = session.query(User).filter_by(user_name=current_user.user_name).first()
+    if not me:
+        raise HTTPException(status_code=401, detail="Account not found")
+    return me.parent_user_id or me.id
+
+
 @router.get("/api/albums/")
 async def get_all_albums(
     user_id: int = None,
     include_website: bool = False,
     session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
     admin: bool = Depends(is_admin_caller),
 ):
     # website-management albums live under /website, not the client Albums list.
     # the /website CMS pages pass include_website=true to list them for linking.
     filters = [] if include_website else [Album.is_website.isnot(True)]
-    # iOS always sends its own user_id; an admin should still see every album
-    user_id = None if admin else access_user_id(session, user_id)
+    # iOS always sends its own user_id; an admin should still see every album.
+    # a client only ever gets their own, whatever user_id they pass
+    user_id = None if admin else _own_id(session, current_user)
     if user_id:
         albums = (
             session.query(Album)
@@ -160,10 +193,11 @@ async def get_all_photos(
     user_id: int = None,
     orientation: str = None,
     session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
     admin: bool = Depends(is_admin_caller),
 ):
     not_website = Album.is_website.isnot(True)
-    user_id = None if admin else access_user_id(session, user_id)
+    user_id = None if admin else _own_id(session, current_user)
     if user_id:
         albums = (
             session.query(Album)
@@ -685,7 +719,7 @@ async def update_album(
 
 
 @router.get("/api/shared-albums/")
-async def get_shared_albums(session: Session = Depends(get_session)):
+async def get_shared_albums(_admin=Depends(require_admin), session: Session = Depends(get_session)):
     albums = session.query(Album).filter_by(shared=True).all()
 
     all_albums = []
