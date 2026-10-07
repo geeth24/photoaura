@@ -1,9 +1,8 @@
-What's new in 2.1
+What's new in 2.5
 
-• Photo details — tap the ⓘ in the photo viewer to see filename, dimensions, file size, and camera info (lens, ISO, aperture, shutter, focal length, date taken).
-• Download choices — tap Save and pick Original (full resolution) or Optimized (smaller, great for sharing).
-• Faster galleries — album and Photos grids load and scroll noticeably smoother on large albums.
-• Smarter People — face grouping is cleaner: fewer duplicate people, and each person now shows only photos they're actually in.
-• Fixes — album delete is faster and fully cleans up, re-uploads no longer duplicate photos, and various sync/caching issues are resolved.
+• Bookings — clients see their booking, payment schedule, Zelle details, stops with directions and a map, and can read and sign their agreement right in the app.
+• Invoices — every invoice with what's paid and what's left, plus the invoice and signed agreement as PDFs.
+• Gallery previews — galleries waiting on the final payment show watermarked previews with a banner; saving unlocks once it's paid.
+• Studio tools — a Bookings tab to send agreements, mark payments received, add overtime or charges and mark galleries delivered.
 
-Please try: opening a few photos and checking the info sheet, saving both Original and Optimized, scrolling a large album, and tapping people in an album to confirm the right photos show.
+Please try: signing an agreement, opening an invoice PDF, browsing a gallery preview, and on a studio account marking a payment received and adding overtime.
