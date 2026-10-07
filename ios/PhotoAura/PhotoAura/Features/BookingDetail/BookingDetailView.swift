@@ -26,12 +26,15 @@ struct BookingScreen: View {
 struct BookingDetailView: View {
     let number: String
     @Environment(APIClient.self) private var api
+    @Environment(BookingsStore.self) private var clientBookings: BookingsStore?
     @State private var store: BookingDetailStore?
 
     var body: some View {
         Group {
             if let store {
                 BookingDetailContent(store: store)
+                    // signing or a payment here changes the list row and the tab badge
+                    .onDisappear { clientBookings?.send(.refresh) }
                     .bookingToast(store.state.toast)
                     .documentPreview(store.state.document) { store.send(.dismissDocument) }
             } else {

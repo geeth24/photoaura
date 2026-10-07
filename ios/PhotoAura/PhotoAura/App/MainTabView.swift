@@ -65,6 +65,8 @@ struct MainTabView: View {
         }
         .modifier(MinimizeTabBarIfAvailable())
         .tint(EditorialColors.brand)
+        // a booking screen in any tab refreshes this when it closes
+        .environment(clientBookings)
         .task(id: isClient) {
             guard isClient, clientBookings == nil else { return }
             let s = BookingsStore(api: api)
