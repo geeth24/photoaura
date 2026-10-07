@@ -29,28 +29,29 @@ PROOF_EDGE = 2048
 
 
 def _logo_mark(w: int, h: int) -> Image.Image:
-    """The RS logo, big and centred, so it can't be cropped out."""
+    """A faint offset grid of RS logos: no single spot sits on a face, and no crop removes it."""
     global _logo
     if _logo is None:
         _logo = Image.open(LOGO_PATH).convert("RGBA")
-    side = max(48, round(min(w, h) * 0.42))
-    logo = _logo.resize((side, side), Image.Resampling.LANCZOS)
-    alpha = logo.getchannel("A")
-    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    pos = ((w - side) // 2, (h - side) // 2)
-    # a soft dark halo keeps it readable on white dresses and bright skies
+    side = max(40, round(min(w, h) * 0.13))
+    alpha = _logo.resize((side, side), Image.Resampling.LANCZOS).getchannel("A")
+    # a faint dark halo keeps the marks visible on white outfits and bright skies
     halo = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    halo.putalpha(alpha.point(lambda a: a * 70 // 255))
-    halo = halo.filter(ImageFilter.GaussianBlur(max(2.0, side / 60)))
-    layer.alpha_composite(halo, pos)
+    halo.putalpha(alpha.point(lambda a: a * 30 // 255))
+    halo = halo.filter(ImageFilter.GaussianBlur(max(1.5, side / 50)))
     white = Image.new("RGBA", (side, side), (255, 255, 255, 0))
-    white.putalpha(alpha.point(lambda a: a * 105 // 255))
-    layer.alpha_composite(white, pos)
+    white.putalpha(alpha.point(lambda a: a * 60 // 255))
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    step = round(side * 2.3)
+    for row, y in enumerate(range(-side // 3, h, step)):
+        for x in range(-side // 3 + (step // 2 if row % 2 else 0), w, step):
+            layer.alpha_composite(halo, (x, y))
+            layer.alpha_composite(white, (x, y))
     return layer
 
 
 def make_proof(content: bytes) -> bytes:
-    """Downsized JPEG with the RS logo across the middle."""
+    """Downsized JPEG with a faint grid of RS logos."""
     img = ImageOps.exif_transpose(Image.open(io.BytesIO(content))).convert("RGB")
     img.thumbnail((PROOF_EDGE, PROOF_EDGE), Image.Resampling.LANCZOS)
     w, h = img.size
