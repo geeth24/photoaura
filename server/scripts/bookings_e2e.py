@@ -448,6 +448,13 @@ def main():
             r = c.post(f"/api/bookings/{num}/unlock", headers=A)
             check(r.status_code == 200, "unlock is idempotent")
 
+            before = set(keys(f"{SLUG}/"))
+            r = c.delete(f"/api/photo/delete/?slug={SLUG}&photo_name=IMG_0001_v2.jpg", headers=A)
+            after = set(keys(f"{SLUG}/"))
+            check(r.status_code == 200 and f"{SLUG}/IMG_0001_v2.jpg" in before and f"{SLUG}/IMG_0001.jpg" in before
+                  and not {f"{SLUG}/IMG_0001_v2.jpg", f"{SLUG}/IMG_0001.jpg"} & after, "deleting a photo removes it and its old versions")
+            check(c.delete("/api/danger/delete", headers=C).status_code in (404, 405), "no wipe-everything endpoint")
+
             print("cancel")
             r = c.post("/api/bookings", json={**body, "client_user_id": client_id, "client": None,
                                               "package_key": "custom", "total_fee_cents": 12345}, headers=A).json()

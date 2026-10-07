@@ -17,7 +17,6 @@ from routers.files.files_router import router as files_router
 from routers.category.category import router as category_router
 from routers.face.face_router import router as face_router
 from routers.websocket.websocket_router import router as websocket_router
-from routers.danger.danger_router import router as danger_router
 from routers.video.video_router import router as video_router
 from routers.client_files.client_files_router import router as client_files_router
 from routers.admin.ops_router import router as ops_router
@@ -52,7 +51,6 @@ app.include_router(files_router)
 app.include_router(websocket_router)
 app.include_router(category_router)
 app.include_router(face_router)
-app.include_router(danger_router)
 app.include_router(video_router)
 app.include_router(client_files_router)
 app.include_router(ops_router)

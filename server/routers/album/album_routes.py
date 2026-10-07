@@ -16,6 +16,7 @@ from db.models import (
     Album,
     FileMetadata,
     PhotoFavorite,
+    PhotoVersion,
     UserAlbumPermission,
     AlbumCategory,
     PhotoFaceLink,
@@ -26,7 +27,7 @@ from db.models import (
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
-from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, slugify
+from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, hold_key, slugify
 from dependencies import is_admin_caller, require_admin, get_current_user
 from services.proof_service import LOCKED_DETAIL
 
@@ -731,14 +732,28 @@ async def delete_photo(
     if photo is None:
         raise HTTPException(status_code=404, detail="Photo not found")
 
+    # the photo, its video poster, its held original and every earlier version
+    names = {photo.filename} | {
+        v.filename for v in session.query(PhotoVersion).filter_by(photo_id=photo.id) if v.filename
+    }
+    stale = {f"{slug}/{n}" for n in names} | {f"{slug}/{photo.filename}.poster.jpg"}
+    if album.hold_token:
+        stale |= {hold_key(slug, album.hold_token, n) for n in names | {photo.original_filename} if n}
+
     # clear face references first — photo_face_link's FK has no cascade, so a
     # tagged photo (one assigned to a person) can't be deleted until these go
     session.query(PhotoFaceLink).filter_by(photo_id=photo.id).delete()
     session.query(FaceEmbedding).filter_by(photo_id=photo.id).delete()
+    session.query(PhotoVersion).filter_by(photo_id=photo.id).delete()
     session.delete(photo)
     session.flush()
 
     album.image_count = max(0, album.image_count - 1)
     session.commit()
+
+    try:
+        s3_client.delete_objects(Bucket=AWS_BUCKET, Delete={"Objects": [{"Key": k} for k in sorted(stale)]})
+    except Exception as e:
+        logging.error(f"photo delete: S3 cleanup failed: {e}")
 
     return {"message": "Photo deleted successfully."}
