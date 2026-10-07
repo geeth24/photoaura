@@ -13,6 +13,8 @@ public struct EditorialTextField: View {
         case email
         case password
         case search
+        case name
+        case decimal
     }
 
     private let label: String?
@@ -76,6 +78,15 @@ public struct EditorialTextField: View {
                 .textInputAutocapitalization(kind == .email || kind == .search ? .never : .sentences)
                 .autocorrectionDisabled(kind == .email || kind == .search)
                 .keyboardType(kind == .email ? .emailAddress : .default)
+        case .name:
+            TextField(placeholder, text: $text)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled(true)
+                .textContentType(.name)
+        case .decimal:
+            TextField(placeholder, text: $text)
+                .keyboardType(.decimalPad)
+                .monospacedDigit()
         case .password:
             SecureField(placeholder, text: $text)
                 .textInputAutocapitalization(.never)

@@ -14,6 +14,7 @@ public enum EditorialBadgeTone {
     case warning
     case danger
     case muted
+    case filled  // solid brand, for "done" states like paid in full
 }
 
 public struct EditorialBadge: View {
@@ -42,6 +43,7 @@ public struct EditorialBadge: View {
         .foregroundStyle(textColor)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
+        .background(tone == .filled ? EditorialColors.brand : .clear)
         .overlay(
             Rectangle()
                 .stroke(borderColor, lineWidth: EditorialMetrics.borderWidth)
@@ -56,6 +58,7 @@ public struct EditorialBadge: View {
         case .warning: return EditorialColors.warning
         case .danger: return EditorialColors.error
         case .muted: return EditorialColors.textMuted
+        case .filled: return EditorialColors.background
         }
     }
 
@@ -63,6 +66,7 @@ public struct EditorialBadge: View {
         switch tone {
         case .neutral, .muted: return EditorialColors.borderHairline
         case .brand: return EditorialColors.borderAccent
+        case .filled: return EditorialColors.brand
         case .success: return EditorialColors.success.opacity(0.4)
         case .warning: return EditorialColors.warning.opacity(0.4)
         case .danger: return EditorialColors.error.opacity(0.4)
