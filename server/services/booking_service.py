@@ -3,7 +3,7 @@
 import hashlib
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 CONTRACTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "contracts")
@@ -202,3 +202,16 @@ def today_local() -> date:
         return datetime.now(ZoneInfo("America/Chicago")).date()
     except Exception:
         return datetime.utcnow().date()
+
+
+def local_date(dt: Optional[datetime]) -> Optional[date]:
+    """Dallas calendar date of a stored (naive UTC) timestamp, so an evening
+    signature isn't dated tomorrow."""
+    if not dt:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+
+        return dt.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("America/Chicago")).date()
+    except Exception:
+        return dt.date()

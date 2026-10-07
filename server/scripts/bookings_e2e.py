@@ -16,6 +16,7 @@ import os
 import sys
 import time
 import uuid
+from datetime import datetime
 
 if os.environ.get("POSTGRES_HOST", "localhost") not in ("localhost", "127.0.0.1"):
     sys.exit("refusing to run: POSTGRES_HOST must be a local database")
@@ -36,6 +37,7 @@ from routers.auth.auth_router import create_token  # noqa: E402
 from routers.bookings.bookings_router import _invoice as invoice_data  # noqa: E402
 from services import email_service  # noqa: E402
 from services.aws_service import s3_client  # noqa: E402
+from services.booking_service import local_date  # noqa: E402
 
 BUCKET = settings.AWS_BUCKET
 RUN = uuid.uuid4().hex[:8]
@@ -221,7 +223,7 @@ def main():
             with session_scope() as s:
                 b = s.query(Booking).filter_by(number=num).first()
                 data = invoice_data(s, b)
-                check(data["number"] == f"INV-{num}" and data["issued"] == b.sent_at.date(), "invoice number + date")
+                check(data["number"] == f"INV-{num}" and data["issued"] == local_date(b.sent_at), "invoice number + date")
             check(data["lines"] == [{"description": "Event Photography — Photos Only", "qty": "4.5 hours",
                                      "rate_cents": 15000, "amount_cents": 67500}], f"package line {data['lines']}")
             check([x["state"] for x in data["schedule"]] == ["upcoming"] * 3, "nothing due before signing")
@@ -322,6 +324,7 @@ def main():
                   and data["memo"] == f"{num} final", "remaining schedule + memo")
 
             print("album + proof mode")
+            check(str(local_date(datetime(2026, 10, 7, 1, 3))) == "2026-10-06", "an 8 PM Dallas signature is dated that day")
             from types import SimpleNamespace as NS
             from utils.utils import create_album_photos_json
             blank = dict.fromkeys(["size", "width", "height", "upload_date", "exif_data", "blur_data_url",

@@ -35,6 +35,7 @@ from services.booking_service import (
     contract_hash,
     dollars,
     hours_text,
+    local_date,
     long_date,
     render_contract,
     schedule_amounts,
@@ -730,7 +731,8 @@ def receive_payment(
     if body.amount_cents <= 0:
         raise HTTPException(status_code=400, detail="Enter the amount received.")
 
-    received_at = body.received_at or _now()
+    # a receipt is a studio calendar date, stored as that day's midnight
+    received_at = body.received_at or today_local()
     if not isinstance(received_at, datetime):
         received_at = datetime.combine(received_at, datetime.min.time())
     if received_at.tzinfo:
@@ -1101,10 +1103,10 @@ def _invoice(session, b: Booking) -> dict:
     return {
         "number": f"INV-{b.number}",
         "booking_number": b.number,
-        "issued": b.sent_at.date(),
+        "issued": local_date(b.sent_at),
         "as_of": today_local(),
         "status": b.status,
-        "cancelled_on": b.cancelled_at.date() if b.cancelled_at else None,
+        "cancelled_on": local_date(b.cancelled_at),
         "client": {"name": name, "email": email, "phone": b.client_phone},
         "event": {
             "type": b.event_type,

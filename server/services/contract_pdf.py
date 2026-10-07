@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from services.booking_service import CONSENT_TEXT, PHOTOGRAPHER, long_date
+from services.booking_service import CONSENT_TEXT, PHOTOGRAPHER, local_date, long_date
 from services.studio_pdf import BODY, BRAND, INK, LINE, MARGIN, MUTED, StudioDoc, inline, rule
 
 BULLET_GLYPH, BULLET_TEXT = 6.35, 12.7  # 0.25" glyph, 0.5" text, as in the document
@@ -119,9 +119,9 @@ def _signatures(pdf: StudioDoc, booking, client_name: str):
     top = pdf.get_y()
     cols = [
         ("Photographer Signature:", PHOTOGRAPHER if booking.sent_at else "",
-         long_date(booking.sent_at.date()) if booking.sent_at else ""),
+         long_date(local_date(booking.sent_at)) if booking.sent_at else ""),
         ("Client Signature:", booking.signed_name if signed else "",
-         long_date(booking.signed_at.date()) if signed else ""),
+         long_date(local_date(booking.signed_at)) if signed else ""),
     ]
     for i, (label, signature, date) in enumerate(cols):
         x = MARGIN + i * (col_w + 12)
