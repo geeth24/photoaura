@@ -30,19 +30,31 @@ private struct PaymentSheetFrame<Fields: View>: View {
                         Text(message).editorialSubtitle()
                     }
                     fields
-                    EditorialButton(primary, isLoading: isSaving, isDisabled: !canSubmit, action: onSubmit)
-                        .padding(.top, EditorialSpacing.xSmall)
                 }
                 .padding(.horizontal, EditorialSpacing.screenGutter)
                 .padding(.top, EditorialSpacing.small)
-                .padding(.bottom, EditorialSpacing.xxLarge)
+                .padding(.bottom, EditorialSpacing.large)
             }
             .scrollDismissesKeyboard(.interactively)
+            // pinned under the form so it rides above the keyboard on small phones
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                EditorialButton(primary, isLoading: isSaving, isDisabled: !canSubmit, action: onSubmit)
+                    .padding(.horizontal, EditorialSpacing.screenGutter)
+                    .padding(.vertical, EditorialSpacing.small)
+                    .background(EditorialColors.background)
+            }
             .background(EditorialColors.background)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }.disabled(isSaving)
+                }
+                // the decimal pad has no return key
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
                 }
             }
         }
