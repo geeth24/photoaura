@@ -106,6 +106,9 @@ def package_label(package_key: str, package_name: Optional[str], hours, rate_cen
         return package_name or "Custom Package"
     label = f"{pkg['category']} Photography — {pkg['name']}"
     if pkg["pricing"] == "hourly" and hours:
+        if not rate_cents:
+            # an agreed fee replaces hours x rate, so the rate isn't quoted
+            return label + f" ({hours_text(hours)})"
         rate = f"${rate_cents // 100:,}" if rate_cents % 100 == 0 else dollars(rate_cents)
         label += f" ({hours_text(hours)} at {rate}/hr)"
     return label
@@ -173,6 +176,11 @@ def contract_fields(b, client_name: str, client_email: str, number: str, agreeme
     rate = overtime_rate(b.package_key, b.includes_video, b.hourly_rate_cents)
     pkg = PACKAGES_BY_KEY.get(b.package_key) or {}
     pkg_rate = pkg.get("rate_cents") if pkg.get("pricing") == "hourly" else None
+    fee = b.total_fee_cents or 0
+    list_price = int(round(pkg_rate * b.hours)) if pkg_rate and b.hours else pkg.get("rate_cents") or 0
+    overridden = bool(getattr(b, "fee_overridden", False)) and pkg.get("key") != "custom"
+    if overridden:
+        pkg_rate = None
     return {
         "agreement_date": long_date(agreement_on),
         "client_name": client_name or "",
@@ -185,11 +193,13 @@ def contract_fields(b, client_name: str, client_email: str, number: str, agreeme
         "start_time": clock(b.start_time),
         "end_time": clock(b.end_time),
         "package": package_label(b.package_key, b.package_name, b.hours, pkg_rate or 0),
-        "total_fee": money(b.total_fee_cents or 0),
+        "total_fee": money(fee),
+        "total_fee_note": f" (discounted from ${money(list_price)})" if overridden and list_price > fee else "",
         "retainer_amount": money(amounts["retainer"]),
         "event_day_amount": money(amounts["event_day"]),
         "final_amount": money(amounts["final"]),
         "hourly_rate": money(rate),
+        "overtime_half_hour": money(rate // 2),
         "booking_number": number,
     }
 

@@ -1,5 +1,5 @@
 <!--
-version: 2026-10-06
+version: 2026-10-06.2
 Master contract. {{field}} is filled per booking; {{#video}}…{{/video}} only shows on
 packages that include video, {{^video}}…{{/video}} only on photo-only ones.
 Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, **bold**.
@@ -34,12 +34,12 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 
 ## 2. Payment
 
-- **Total Fee:** ${{total_fee}}. The payments below are percentages of the Total Fee.
+- **Total Fee:** ${{total_fee}}{{total_fee_note}}. The payments below are percentages of the Total Fee.
 - **Booking Retainer (10%):** A non-refundable retainer equal to 10% of the Total Fee (${{retainer_amount}}) is due upon signing to reserve the event date. The date is not secured until both the signed Agreement and the retainer are received.
 - **Event-Day Payment (40%):** 40% of the Total Fee (${{event_day_amount}}) is due upon completion of event coverage.
 - **Final Payment (50%):** The remaining 50% (${{final_amount}}) is due when the gallery preview is delivered. Until the final balance is paid in full, preview images may be watermarked and downloads may be restricted. Unwatermarked high-resolution files and full download access are released once the final payment is received.
 - **Late Payment:** If the final payment is not received within 30 days of gallery delivery, the Photographer may suspend access to the gallery until the balance is paid. Full-resolution files are not released until payment is received in full.
-- **Overtime:** Coverage beyond the contracted end time is subject to Photographer availability and is billed at the package’s hourly rate (${{hourly_rate}}/hour), prorated in 15-minute increments, and added to the final payment.
+- **Overtime:** The first 15 minutes past the contracted end time are complimentary. If the Client asks the Photographer to stay longer, additional coverage is subject to Photographer availability, billed at ${{overtime_half_hour}} per 30 minutes, and added to the final payment.
 
 **Accepted Payment Methods:** Zelle, cash, or check. Zelle: zelle@reactiveshots.com. Please include your booking number ({{booking_number}}) in the Zelle memo.
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Loader2, Plus, Undo2, X } from "lucide-react"
+import { Clock, Loader2, Plus, Undo2, X } from "lucide-react"
 import { bookingsApi } from "@/lib/api"
 import { METHOD_LABEL, money } from "@/lib/bookings"
 import type { Booking, BookingPayment, PaymentMethod } from "@/lib/types"
@@ -384,7 +384,7 @@ export function RemoveChargeButton({
 
 export function AddChargeDialog({ number, onDone }: { number: string; onDone: (b: Booking) => void }) {
   const [open, setOpen] = useState(false)
-  const [label, setLabel] = useState("Overtime")
+  const [label, setLabel] = useState("")
   const [amount, setAmount] = useState("")
   const [saving, setSaving] = useState(false)
 
@@ -398,7 +398,7 @@ export function AddChargeDialog({ number, onDone }: { number: string; onDone: (b
       onDone(await bookingsApi.addCharge(number, { label: label.trim(), amount_cents: cents }))
       toast.success(`${label.trim()} added to the final payment`)
       setOpen(false)
-      setLabel("Overtime")
+      setLabel("")
       setAmount("")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't add the charge")
@@ -425,7 +425,7 @@ export function AddChargeDialog({ number, onDone }: { number: string; onDone: (b
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl font-normal tracking-tight">Add a charge</DialogTitle>
-          <DialogDescription>Overtime or an add-on. It&apos;s due with the final payment.</DialogDescription>
+          <DialogDescription>An add-on, like extra prints. It&apos;s due with the final payment.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-1">
           <label className="grid gap-1.5">
@@ -433,7 +433,7 @@ export function AddChargeDialog({ number, onDone }: { number: string; onDone: (b
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="Overtime — 45 min"
+              placeholder="Second photographer"
               className={field}
             />
           </label>
@@ -451,9 +451,6 @@ export function AddChargeDialog({ number, onDone }: { number: string; onDone: (b
                 className={cn(field, "pl-6 tabular-nums")}
               />
             </div>
-            <span className="text-[12px] text-text-muted">
-              Overtime is billed at the hourly rate in 15-minute steps.
-            </span>
           </label>
         </div>
         <DialogFooter>
@@ -467,6 +464,100 @@ export function AddChargeDialog({ number, onDone }: { number: string; onDone: (b
           <Button onClick={submit} disabled={!valid || saving}>
             {saving && <Loader2 className="size-3.5 animate-spin" />}
             Add {valid ? money(cents) : "charge"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// the contract gives the first 15 minutes free, then bills in 30-minute blocks
+const OVERTIME_BLOCKS = [30, 60, 90, 120]
+
+const minutesLabel = (m: number) => (m < 60 ? `${m} min` : `${m / 60} ${m === 60 ? "hr" : "hrs"}`)
+
+export function OvertimeDialog({
+  number,
+  hourlyCents,
+  onDone,
+}: {
+  number: string
+  hourlyCents: number
+  onDone: (b: Booking) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [minutes, setMinutes] = useState(30)
+  const [saving, setSaving] = useState(false)
+  const block = Math.floor(hourlyCents / 2)
+  const cents = block * (minutes / 30)
+
+  const submit = async () => {
+    setSaving(true)
+    try {
+      onDone(await bookingsApi.addCharge(number, { label: `Overtime (${minutesLabel(minutes)})`, amount_cents: cents }))
+      toast.success(`Overtime added · ${money(cents)} with the final payment`)
+      setOpen(false)
+      setMinutes(30)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't add the overtime")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !saving && setOpen(o)}>
+      <DialogTrigger
+        render={
+          <button
+            className={cn(
+              smallButton,
+              "h-9 border-border-default text-text-secondary hover:border-border-strong hover:text-text-primary",
+            )}
+          >
+            <Clock className="size-3.5" />
+            Overtime
+          </button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-2xl font-normal tracking-tight">Add overtime</DialogTitle>
+          <DialogDescription>
+            The first 15 minutes past the end time are free. After that it&apos;s {money(block)} per 30 minutes, due
+            with the final payment.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-2 py-1 sm:grid-cols-4">
+          {OVERTIME_BLOCKS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMinutes(m)}
+              aria-pressed={minutes === m}
+              className={cn(
+                "flex flex-col items-center gap-1 border px-2 py-3 transition-colors",
+                minutes === m
+                  ? "border-brand bg-brand/10 text-text-primary"
+                  : "border-border-default text-text-secondary hover:border-border-strong hover:text-text-primary",
+              )}
+            >
+              <span className="text-sm font-medium">{minutesLabel(m)}</span>
+              <span className="text-[11px] tabular-nums text-text-muted">{money(block * (m / 30))}</span>
+            </button>
+          ))}
+        </div>
+        <DialogFooter>
+          <DialogClose
+            render={
+              <Button variant="outline" disabled={saving}>
+                Cancel
+              </Button>
+            }
+          />
+          <Button onClick={submit} disabled={saving || block <= 0}>
+            {saving && <Loader2 className="size-3.5 animate-spin" />}
+            Add {money(cents)}
           </Button>
         </DialogFooter>
       </DialogContent>

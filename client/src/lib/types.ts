@@ -269,6 +269,7 @@ export type Booking = {
     revisions: number
     hours: number | null
     hourly_rate_cents: number | null
+    overtime_rate_cents: number
     fee_overridden: boolean
   }
   money: { total_fee: number; extras: number; total_due: number; paid: number; balance: number }

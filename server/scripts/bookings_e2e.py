@@ -152,10 +152,15 @@ def main():
             check(pv["amounts"] == {"total_fee": 67500, "total_due": 67500, "retainer": 6750,
                                     "event_day": 27000, "final": 33750}, f"preview amounts {pv['amounts']}")
             md = pv["contract_markdown"]
+            check("first 15 minutes past the contracted end time are complimentary" in md
+                  and "$75.00 per 30 minutes" in md, "overtime: 15 minutes free, then half the hourly rate per 30 min")
             check("Saturday, November 14, 2026" in md and "5:00 PM – 9:30 PM" in md, "dates and times formatted")
             check("Event Photography — Photos Only (4.5 hours at $150/hr)" in md, "package line")
-            check("$675.00" in md and "$67.50" in md and "($150.00/hour)" in md, "money formatted")
+            check("$675.00" in md and "$67.50" in md and "$75.00 per 30 minutes" in md, "money formatted")
             check("{{" not in md and "videography" not in md.lower(), "no placeholders, photo-only wording")
+            deal = c.post("/api/bookings/preview", json={**body, "total_fee_cents": 60000}, headers=A).json()["contract_markdown"]
+            check("Event Photography — Photos Only (4.5 hours)\n" in deal and "$150/hr" not in deal
+                  and "$600.00 (discounted from $675.00)" in deal, "an agreed fee shows as a discount, not hours x rate")
             short = c.post("/api/bookings/preview", json={**body, "hours": 2}, headers=A)
             check(short.status_code == 400, "hourly minimum enforced")
             with session_scope() as s:
@@ -252,6 +257,7 @@ def main():
                        headers={**P, "X-Forwarded-For": "203.0.113.9, 10.0.0.1", "User-Agent": "e2e-agent/1.0"})
             check(r.status_code == 200 and r.json()["status"] == "signed", f"signed {r.status_code}")
             ab = c.get(f"/api/bookings/{num}", headers=A).json()
+            check(ab["package"]["overtime_rate_cents"] == 15000, "the booking page knows the overtime rate")
             check(ab["contract"]["signed_ip"] == "203.0.113.9" and ab["contract"]["signed_name"] == "Priya Sharma",
                   "IP is the first forwarded hop, name normalised")
             check(ab["payments"][0]["state"] == "due" and ab["payments"][2]["state"] == "upcoming", "retainer due")

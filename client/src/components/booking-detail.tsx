@@ -60,6 +60,7 @@ import {
 import { BookingSteps, StatusChip } from "@/components/booking-status"
 import {
   AddChargeDialog,
+  OvertimeDialog,
   MarkReceivedDialog,
   PaymentsTable,
   RemoveChargeButton,
@@ -314,7 +315,12 @@ export function BookingDetail({ number }: { number: string }) {
                     className="h-9 gap-1.5 px-3 text-[10px] tracking-[0.18em]"
                   />
                 )}
-                {!cancelled && b.status !== "paid" && <AddChargeDialog number={b.number} onDone={setB} />}
+                {!cancelled && b.status !== "paid" && (
+                  <>
+                    <OvertimeDialog number={b.number} hourlyCents={b.package.overtime_rate_cents} onDone={setB} />
+                    <AddChargeDialog number={b.number} onDone={setB} />
+                  </>
+                )}
               </div>
             }
           >
@@ -462,7 +468,7 @@ export function BookingDetail({ number }: { number: string }) {
                 ["Package", `${b.package.name}${b.package.hours ? `, ${b.package.hours} hrs` : ""}`],
                 [
                   "Includes",
-                  `${b.package.includes_video ? "Photos + video" : "Photos"} · ${b.package.revisions} revision ${b.package.revisions === 1 ? "round" : "rounds"}${b.package.hourly_rate_cents ? ` · overtime ${money(b.package.hourly_rate_cents)}/hr` : ""}`,
+                  `${b.package.includes_video ? "Photos + video" : "Photos"} · ${b.package.revisions} revision ${b.package.revisions === 1 ? "round" : "rounds"}${b.package.overtime_rate_cents ? ` · overtime ${money(Math.floor(b.package.overtime_rate_cents / 2))}/30 min after 15 free` : ""}`,
                 ],
               ].map(([k, v]) => (
                 <div key={String(k)} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3">
