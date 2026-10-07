@@ -102,7 +102,8 @@ sealed interface ClientBookingIntent {
     data object Refresh : ClientBookingIntent
     data class Loaded(val b: Booking) : ClientBookingIntent
     data class Failed(val m: String) : ClientBookingIntent
-    data class Sign(val name: String) : ClientBookingIntent
+    /** [hash] is the contract the client consented to; it's what gets signed. */
+    data class Sign(val name: String, val hash: String) : ClientBookingIntent
     data class SignFailed(val e: Throwable) : ClientBookingIntent
     data class Signed(val b: Booking) : ClientBookingIntent
     data object ToastShown : ClientBookingIntent
@@ -125,7 +126,9 @@ class ClientBookingStore : Store<ClientBookingState, ClientBookingIntent>(Client
             is ClientBookingIntent.Failed -> setState { copy(loading = false, error = intent.m) }
             is ClientBookingIntent.Sign -> {
                 val b = current.booking ?: return
-                val hash = b.contract.hash ?: return
+                val hash = intent.hash
+                // consent was given to a version that's since been replaced
+                if (hash != b.contract.hash) return
                 setState { copy(signing = true) }
                 io {
                     try { send(ClientBookingIntent.Signed(Api.signBooking(b.number, intent.name, hash))) } catch (e: Exception) { send(ClientBookingIntent.SignFailed(e)) }
@@ -163,12 +166,14 @@ fun ClientBookingScreen(
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var name by rememberSaveable { mutableStateOf("") }
-    var consent by rememberSaveable { mutableStateOf(false) }
+    // consent belongs to one contract version; a reload with new terms leaves it unchecked
+    var consentFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val consent = s.booking?.contract?.hash.let { it != null && it == consentFor }
 
     LaunchedEffect(s.toast) {
         s.toast?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show(); store.send(ClientBookingIntent.ToastShown) }
     }
-    LaunchedEffect(s.stale) { if (s.stale > 0) { consent = false; list.animateScrollToItem(0) } }
+    LaunchedEffect(s.stale) { if (s.stale > 0) { consentFor = null; list.animateScrollToItem(0) } }
     LaunchedEffect(s.signed) { if (s.signed > 0) list.scrollToItem(0) }
 
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + EditorialTopBarHeight
@@ -191,9 +196,9 @@ fun ClientBookingScreen(
                 b == null -> item { LoadingBlocks() }
                 b.cancelled -> cancelled(b)
                 !b.contract.signed -> unsigned(
-                    b, name, { name = it }, consent, { consent = it }, s.stale > 0, s.signing,
+                    b, name, { name = it }, consent, { consentFor = if (it) b.contract.hash else null }, s.stale > 0, s.signing,
                     onJump = { scope.launch { list.animateScrollToItem(list.layoutInfo.totalItemsCount - 1) } },
-                    onSign = { store.send(ClientBookingIntent.Sign(name.trim().replace(Regex("\\s+"), " "))) },
+                    onSign = { consentFor?.let { h -> store.send(ClientBookingIntent.Sign(name.trim().replace(Regex("\\s+"), " "), h)) } },
                 )
                 else -> signed(b, ctx, onOpenAlbum)
             }
