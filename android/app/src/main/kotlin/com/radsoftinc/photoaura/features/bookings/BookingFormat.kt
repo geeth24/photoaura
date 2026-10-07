@@ -114,11 +114,16 @@ fun packageLine(name: String?, hours: Double?, short: Boolean = false): String {
 
 fun plural(n: Int, word: String) = "$n ${if (n == 1) word else word + "s"}"
 
-/** "$1,350.00" style input back to cents; null when it isn't a positive amount. */
+// digits with at most one point and two decimals; commas only as thousands separators
+private val amountPattern = Regex("^(\\d+|\\d{1,3}(,\\d{3})+)?(\\.\\d{0,2})?$")
+
+/** "$1,350.00" style input back to cents; null for anything that isn't a clean positive amount ("12oops", "1.2.3", "1e3"). */
 fun parseCents(s: String): Long? {
-    val v = s.replace(Regex("[$,\\s]"), "").toBigDecimalOrNull() ?: return null
-    val cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).toLong()
-    return cents.takeIf { it > 0 }
+    val t = s.trim().removePrefix("$").trim()
+    if (t.isEmpty() || t == "." || !amountPattern.matches(t)) return null
+    val (whole, frac) = t.replace(",", "").split(".").let { it[0] to it.getOrElse(1) { "" } }
+    val cents = (whole.ifEmpty { "0" }.toBigInteger() * 100.toBigInteger() + frac.padEnd(2, '0').toBigInteger())
+    return cents.takeIf { it.signum() > 0 && it.bitLength() < 63 }?.toLong()
 }
 
 /** Bumped after a booking changes so lists and the home card reload. */
