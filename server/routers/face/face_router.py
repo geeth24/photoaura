@@ -458,7 +458,7 @@ async def get_face(
 async def update_face(
     face_id: str,
     face: dict,
-    current_user=Depends(get_current_user),
+    _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     session.query(FaceData).filter_by(external_id=face_id).update(

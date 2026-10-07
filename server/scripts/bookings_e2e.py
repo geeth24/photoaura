@@ -454,6 +454,10 @@ def main():
             check(r.status_code == 200 and f"{SLUG}/IMG_0001_v2.jpg" in before and f"{SLUG}/IMG_0001.jpg" in before
                   and not {f"{SLUG}/IMG_0001_v2.jpg", f"{SLUG}/IMG_0001.jpg"} & after, "deleting a photo removes it and its old versions")
             check(c.delete("/api/danger/delete", headers=C).status_code in (404, 405), "no wipe-everything endpoint")
+            check(c.put("/api/face/x", json={"name": "y"}, headers=C).status_code == 403
+                  and c.delete("/api/videos/revisions/cleanup", headers=C).status_code == 403
+                  and c.put("/api/videos/revisions/1/permanent?permanent=true", headers=C).status_code == 403,
+                  "clients can't rename people or touch video revisions")
 
             print("cancel")
             r = c.post("/api/bookings", json={**body, "client_user_id": client_id, "client": None,

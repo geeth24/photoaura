@@ -56,7 +56,7 @@ async def upload_video(
 
 @router.delete("/api/videos/revisions/cleanup")
 async def cleanup_old_revisions(
-    current_user=Depends(get_current_user), session: Session = Depends(get_session)
+    _admin=Depends(require_admin), session: Session = Depends(get_session)
 ):
     """Cleanup revisions older than 2 weeks"""
     try:
@@ -136,7 +136,7 @@ async def get_client_videos(
 async def set_revision_permanent(
     revision_id: int,
     permanent: bool,
-    current_user=Depends(get_current_user),
+    _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     try:
