@@ -36,6 +36,7 @@ from services.booking_service import (
     dollars,
     hours_text,
     local_date,
+    local_noon,
     long_date,
     render_contract,
     schedule_amounts,
@@ -731,11 +732,13 @@ def receive_payment(
     if body.amount_cents <= 0:
         raise HTTPException(status_code=400, detail="Enter the amount received.")
 
-    # a receipt is a studio calendar date, stored as that day's midnight
-    received_at = body.received_at or today_local()
-    if not isinstance(received_at, datetime):
-        received_at = datetime.combine(received_at, datetime.min.time())
-    if received_at.tzinfo:
+    # the dialog sends a plain date: today means now, an earlier day means noon that day
+    received_at = body.received_at
+    if received_at is None or (not isinstance(received_at, datetime) and received_at == today_local()):
+        received_at = _now()
+    elif not isinstance(received_at, datetime):
+        received_at = local_noon(received_at)
+    elif received_at.tzinfo:
         received_at = received_at.astimezone(timezone.utc).replace(tzinfo=None)
     was = b.status
     note = (body.note or "").strip() or None
@@ -1119,10 +1122,10 @@ def _invoice(session, b: Booking) -> dict:
         "total_cents": money["total_due"],
         "paid_cents": money["paid"],
         "balance_cents": _invoice_balance(b),
-        "paid_on": max(paid_dates).date() if paid_dates else None,
+        "paid_on": local_date(max(paid_dates)) if paid_dates else None,
         "received": [
             {
-                "date": datetime.fromisoformat(r["received_at"]).date() if r.get("received_at") else None,
+                "date": local_date(datetime.fromisoformat(r["received_at"])) if r.get("received_at") else None,
                 "description": p.label,
                 "method": METHODS.get(r.get("method") or "", "Other"),
                 "amount_cents": r["amount_cents"],

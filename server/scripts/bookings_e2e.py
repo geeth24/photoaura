@@ -285,8 +285,8 @@ def main():
             check(r["status"] == "signed" and r["money"]["paid"] == 0, "undo moves status back")
             r = c.post(f"/api/bookings/{num}/payments/{pay['retainer']}/receive",
                        json={"amount_cents": 7500, "method": "cash", "received_at": "2026-10-07"}, headers=A).json()
-            check(r["status"] == "booked" and r["payments"][0]["received_at"] == "2026-10-07T00:00:00Z",
-                  "receipt with a plain date")
+            check(r["status"] == "booked" and r["payments"][0]["received_at"] == "2026-10-07T17:00:00Z",
+                  "a back-dated receipt lands at noon in Dallas")
             c.post(f"/api/bookings/{num}/payments/{pay['retainer']}/undo", headers=A)
             r = c.post(f"/api/bookings/{num}/payments/{pay['retainer']}/receive",
                        json={"amount_cents": 5000, "method": "cash"}, headers=A).json()

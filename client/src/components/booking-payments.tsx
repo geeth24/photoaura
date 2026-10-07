@@ -4,7 +4,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { Loader2, Plus, Undo2, X } from "lucide-react"
 import { bookingsApi } from "@/lib/api"
-import { METHOD_LABEL, fmtDay, money } from "@/lib/bookings"
+import { METHOD_LABEL, money } from "@/lib/bookings"
 import type { Booking, BookingPayment, PaymentMethod } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,7 +45,8 @@ function received(p: BookingPayment) {
   if (!p.received_cents) return null
   return [
     p.received_cents < p.amount_cents ? `${money(p.received_cents)} received` : null,
-    p.received_at && fmtDay(p.received_at.slice(0, 10), "short"),
+    p.received_at &&
+      new Date(p.received_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     p.method && METHOD_LABEL[p.method],
   ]
     .filter(Boolean)
