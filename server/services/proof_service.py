@@ -11,7 +11,7 @@ import os
 import secrets
 from typing import Callable, Optional
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 from config import settings
 from db.base import session_scope
@@ -23,20 +23,9 @@ from utils.utils import hold_key
 
 AWS_BUCKET = settings.AWS_BUCKET
 LOCKED_DETAIL = "Downloads unlock once your final payment is received."
-MARK_TEXT = "Reactive Shots Studios"
-ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
-LOGO_PATH = os.path.join(ASSETS, "rs-logo-white.png")
-FONT_PATH = os.path.join(ASSETS, "blackmud.ttf")
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "rs-logo-white.png")
 _logo: Optional[Image.Image] = None
 PROOF_EDGE = 2048
-
-
-def _font(size: int):
-    # the studio's Blackmud wordmark, same as the site
-    try:
-        return ImageFont.truetype(FONT_PATH, size)
-    except OSError:
-        return ImageFont.load_default(size=size)
 
 
 def _logo_mark(w: int, h: int) -> Image.Image:
@@ -61,34 +50,11 @@ def _logo_mark(w: int, h: int) -> Image.Image:
 
 
 def make_proof(content: bytes) -> bytes:
-    """Downsized JPEG with the RS logo across the middle and the studio name in the corner."""
+    """Downsized JPEG with the RS logo across the middle."""
     img = ImageOps.exif_transpose(Image.open(io.BytesIO(content))).convert("RGB")
     img.thumbnail((PROOF_EDGE, PROOF_EDGE), Image.Resampling.LANCZOS)
     w, h = img.size
-
-    size = max(14, round(h * 0.034))
-    font = _font(size)
-    probe = ImageDraw.Draw(img)
-    left, top, right, bottom = probe.textbbox((0, 0), MARK_TEXT, font=font)
-    # very wide-and-short frames: keep the mark from running across the photo
-    if right - left > w * 0.6:
-        size = max(11, int(size * (w * 0.6) / (right - left)))
-        font = _font(size)
-        left, top, right, bottom = probe.textbbox((0, 0), MARK_TEXT, font=font)
-    margin = max(8, round(size * 1.1))
-    x = w - (right - left) - margin - left
-    y = h - (bottom - top) - margin - top
-
-    shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).text((x, y + max(1, size // 18)), MARK_TEXT, font=font, fill=(0, 0, 0, 120))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(max(1.0, size / 10)))
-    mark = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(mark).text((x, y), MARK_TEXT, font=font, fill=(255, 255, 255, 178))
-
-    out = img.convert("RGBA")
-    for layer in (_logo_mark(w, h), shadow, mark):
-        out = Image.alpha_composite(out, layer)
-    out = out.convert("RGB")
+    out = Image.alpha_composite(img.convert("RGBA"), _logo_mark(w, h)).convert("RGB")
     buf = io.BytesIO()
     out.save(buf, format="JPEG", quality=85, optimize=True)
     return buf.getvalue()
