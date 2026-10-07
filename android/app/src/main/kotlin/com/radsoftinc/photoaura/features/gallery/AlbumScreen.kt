@@ -51,6 +51,7 @@ import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.FaceSummary
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.core.SeenRevisions
+import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.RemoteImage
@@ -121,6 +122,7 @@ fun AlbumScreen(
     openActions: Boolean,
     viewer: ViewerHost,
     onBack: () -> Unit,
+    onOpenBooking: (String) -> Unit,
     store: AlbumStore = viewModel(key = "album-$slug"),
 ) {
     LaunchedEffect(slug) { store.send(AlbumIntent.Load(slug, title)) }
@@ -129,11 +131,13 @@ fun AlbumScreen(
     val frames = remember { TileFrames() }
     val scope = rememberCoroutineScope()
     var actions by remember { mutableStateOf(false) }
-    LaunchedEffect(openActions, s.detail != null) { if (openActions && s.detail != null) actions = true }
+    val locked = s.detail?.locked == true
+    // a proof gallery has nothing to save; the server would refuse it anyway
+    LaunchedEffect(openActions, s.detail != null) { if (openActions && s.detail != null && !locked) actions = true }
     LaunchedEffect(s.revision?.number) { SeenRevisions.markSeen(slug, s.revision) }
 
     // header rows before the first tile: title, the revision banner and faces when there are any
-    val headerCount = 1 + (if (s.revision != null) 1 else 0) + (if (s.faces.isNotEmpty()) 1 else 0)
+    val headerCount = 1 + (if (locked) 1 else 0) + (if (s.revision != null) 1 else 0) + (if (s.faces.isNotEmpty()) 1 else 0)
 
     Box(Modifier.fillMaxSize().background(EditorialTheme.colors.background)) {
     PhotoGrid(
@@ -165,10 +169,19 @@ fun AlbumScreen(
                         eyebrow = "Gallery",
                         subtitle = when {
                             n == null -> "Loading…"
+                            locked -> "${s.detail?.imageCount ?: n} ${if (n == 1) "photo" else "photos"} · watermarked preview"
                             face != null -> "Just ${face.name ?: "this person"} — $n ${if (n == 1) "photo" else "photos"}"
                             s.revisionOnly -> "$n updated ${if (n == 1) "photo" else "photos"}"
                             else -> "${s.detail?.imageCount ?: n} ${if (n == 1) "photo" else "photos"}"
                         },
+                    )
+                }
+            }
+            s.detail?.takeIf { it.locked }?.let { d ->
+                fullWidth("proof") {
+                    ProofBanner(
+                        d.bookingNumber, d.slug, studio = !Session.isClient, onOpenBooking = onOpenBooking,
+                        modifier = Modifier.padding(horizontal = EditorialSpacing.screenGutter).padding(bottom = EditorialSpacing.large),
                     )
                 }
             }
@@ -224,7 +237,7 @@ fun AlbumScreen(
 
     EditorialTopBar(
         onBack = onBack,
-        action = if (s.detail?.albumPhotos?.isNotEmpty() == true) {
+        action = if (!locked && s.detail?.albumPhotos?.isNotEmpty() == true) {
             { actions = true }
         } else null,
         actionIcon = Icons.Outlined.Download,
@@ -234,7 +247,7 @@ fun AlbumScreen(
 
     if (actions) {
         val d = s.detail
-        if (d != null) GalleryActionsSheet(d.albumName, d.slug, d.secret, d.albumPhotos) { actions = false }
+        if (d != null && !d.locked) GalleryActionsSheet(d.albumName, d.slug, d.secret, d.albumPhotos) { actions = false }
     }
 }
 

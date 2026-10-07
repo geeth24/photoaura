@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.EventNote
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.Home
@@ -45,6 +46,10 @@ import com.radsoftinc.photoaura.core.Api
 import com.radsoftinc.photoaura.core.Session
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.features.auth.LoginScreen
+import com.radsoftinc.photoaura.features.bookings.AdminBookingScreen
+import com.radsoftinc.photoaura.features.bookings.AdminBookingsScreen
+import com.radsoftinc.photoaura.features.bookings.ClientBookingScreen
+import com.radsoftinc.photoaura.features.bookings.ClientBookingsScreen
 import com.radsoftinc.photoaura.features.gallery.AlbumScreen
 import com.radsoftinc.photoaura.features.gallery.PhotoViewer
 import com.radsoftinc.photoaura.features.gallery.ViewerHost
@@ -117,6 +122,8 @@ private fun Splash() {
 private enum class Tab(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Outlined.Home),
     Photos("All Photos", Icons.Outlined.PhotoLibrary),
+    // invoices sit inside it for clients, the way the web pairs them
+    Bookings("Bookings", Icons.AutoMirrored.Outlined.EventNote),
     Profile("Profile", Icons.Outlined.AccountCircle),
 }
 
@@ -132,20 +139,28 @@ private fun MainTabs(viewer: ViewerHost) {
                 val openAlbum = { slug: String, name: String, actions: Boolean ->
                     nav.navigate("album/${Uri.encode(slug)}?name=${Uri.encode(name)}&actions=$actions")
                 }
+                val openBooking = { number: String -> nav.navigate("booking/${Uri.encode(number)}") }
+                // other studio roles can't reach the bookings API
+                val tabs = Tab.entries.filter { it != Tab.Bookings || Session.isClient || Session.isAdmin }
                 when (tab) {
                     Tab.Home -> if (Session.isClient) {
-                        HomeScreen(openAlbum, bottomBar)
+                        HomeScreen(openAlbum, openBooking, bottomBar)
                     } else {
                         GalleriesScreen({ slug, name -> openAlbum(slug, name, false) }, bottomBar)
                     }
                     Tab.Photos -> AllPhotosScreen(viewer, bottomBar)
+                    Tab.Bookings -> when {
+                        Session.isClient -> ClientBookingsScreen(openBooking, bottomBar)
+                        Session.isAdmin -> AdminBookingsScreen(openBooking, bottomBar)
+                        else -> LaunchedEffect(Unit) { tab = Tab.Home }
+                    }
                     Tab.Profile -> ProfileScreen(bottomBar)
                 }
                 NavigationBar(
                     containerColor = EditorialTheme.colors.surfaceElevated.copy(alpha = 0.96f),
                     modifier = Modifier.align(Alignment.BottomCenter),
                 ) {
-                    Tab.entries.forEach { t ->
+                    tabs.forEach { t ->
                         val label = if (t == Tab.Home && !Session.isClient) "Galleries" else t.label
                         val icon = if (t == Tab.Home && !Session.isClient) Icons.Outlined.Collections else t.icon
                         NavigationBarItem(
@@ -180,7 +195,20 @@ private fun MainTabs(viewer: ViewerHost) {
                 openActions = args.getBoolean("actions"),
                 viewer = viewer,
                 onBack = { nav.popBackStack() },
+                onOpenBooking = { nav.navigate("booking/${Uri.encode(it)}") },
             )
+        }
+        composable(
+            "booking/{number}",
+            arguments = listOf(navArgument("number") { type = NavType.StringType }),
+        ) { entry ->
+            val number = entry.arguments!!.getString("number")!!
+            val openAlbum = { slug: String, name: String -> nav.navigate("album/${Uri.encode(slug)}?name=${Uri.encode(name)}&actions=false") }
+            if (Session.isAdmin) {
+                AdminBookingScreen(number, onBack = { nav.popBackStack() }, onOpenAlbum = openAlbum)
+            } else {
+                ClientBookingScreen(number, onBack = { nav.popBackStack() }, onOpenAlbum = openAlbum)
+            }
         }
     }
 }

@@ -58,6 +58,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.DropdownMenu
@@ -489,7 +490,7 @@ private fun TopBar(
                     tint = if (favorite) Color(0xFF00A6FB) else Color.White, onClick = onFavorite)
             }
             PillIcon(Icons.Outlined.Info, "Info", onClick = onInfo)
-            DownloadMenu(photo)
+            if (photo.locked) LockedPill() else DownloadMenu(photo)
         }
     }
 }
@@ -572,6 +573,15 @@ private fun DownloadMenu(photo: Photo) {
             }
             DropdownMenuItem({ Text("Share…") }, { share() }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Send, null) })
         }
+    }
+}
+
+/** Stands in for save and share on a proof photo: the original isn't released until the final payment. */
+@Composable
+private fun LockedPill() {
+    val ctx = LocalContext.current
+    PillIcon(Icons.Outlined.Lock, "Downloads locked", tint = Color.White.copy(alpha = 0.7f)) {
+        android.widget.Toast.makeText(ctx, "Downloads unlock once your final payment is received.", android.widget.Toast.LENGTH_LONG).show()
     }
 }
 

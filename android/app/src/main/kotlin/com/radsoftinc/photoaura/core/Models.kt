@@ -30,6 +30,7 @@ data class AlbumSummary(
     val slug: String,
     val imageCount: Int = 0,
     val albumPhotos: List<Photo>? = null,
+    val locked: Boolean = false,
 ) {
     val coverImage: String? get() = albumPhotos?.firstOrNull()?.compressedImage
 }
@@ -43,6 +44,9 @@ data class AlbumDetail(
     // builds the shareable gallery link
     val secret: String? = null,
     val revision: AlbumRevision? = null,
+    // proof mode: watermarked previews until the booking's final payment
+    val locked: Boolean = false,
+    val bookingNumber: String? = null,
 )
 
 /** A batch of re-edits pushed after delivery. The delivery itself is version 1, so the first is number 2. */
@@ -73,6 +77,7 @@ data class Photo(
     val image: String,
     val compressedImage: String,
     val fileMetadata: PhotoMetadata,
+    val locked: Boolean = false,
 ) {
     val id: String get() = image
     val isVideo: Boolean get() = fileMetadata.contentType?.startsWith("video/") == true
@@ -154,6 +159,8 @@ data class HomeAlbum(
     val videoCount: Int = 0,
     val cover: String? = null,
     val revision: AlbumRevision? = null,
+    val locked: Boolean = false,
+    val bookingNumber: String? = null,
 ) {
     // the album screen takes a summary; counts are all it needs from us
     val summary: AlbumSummary get() = AlbumSummary(id, name, slug, photoCount + videoCount)
@@ -167,7 +174,9 @@ data class ClientFile(
     val size: Long? = null,
     val contentType: String? = null,
     val createdAt: String? = null,
+    // no url while its album is proof-locked
     val downloadUrl: String? = null,
+    val locked: Boolean = false,
 )
 
 @Serializable

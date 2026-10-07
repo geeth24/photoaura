@@ -24,6 +24,7 @@ object Session {
         private set
 
     val isClient: Boolean get() = user?.role == null || user?.role == "client"
+    val isAdmin: Boolean get() = user?.role == "admin"
 
     fun init(context: Context) {
         if (::prefs.isInitialized) return

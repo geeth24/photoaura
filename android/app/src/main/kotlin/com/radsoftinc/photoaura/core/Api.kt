@@ -158,6 +158,78 @@ object Api {
     fun zipUrl(slug: String, ticket: String) =
         "$BASE/album/$slug/download-all?ticket=${java.net.URLEncoder.encode(ticket, "UTF-8")}"
 
+    // MARK: bookings, client side
+
+    suspend fun myBookings(): List<BookingSummary> = client.get("$BASE/me/bookings") { auth() }.decode()
+
+    suspend fun myBooking(number: String): Booking = client.get("$BASE/me/bookings/${seg(number)}") { auth() }.decode()
+
+    @Serializable private data class SignBody(val fullName: String, val consent: Boolean, val contractHash: String)
+
+    /** 409 means the agreement changed since it was loaded (or it's already signed). */
+    suspend fun signBooking(number: String, fullName: String, contractHash: String): Booking =
+        client.post("$BASE/me/bookings/${seg(number)}/sign") {
+            auth(); contentType(ContentType.Application.Json); setBody(SignBody(fullName, true, contractHash))
+        }.decode()
+
+    suspend fun myInvoices(): List<MyInvoice> = client.get("$BASE/me/invoices") { auth() }.decode()
+
+    suspend fun myInvoicePdf(number: String): ByteArray = bytes("$BASE/me/bookings/${seg(number)}/invoice.pdf")
+
+    // the same route serves the admin and the booking's own client
+    suspend fun contractPdf(number: String, preview: Boolean = false): ByteArray =
+        bytes("$BASE/bookings/${seg(number)}/contract.pdf" + if (preview) "?preview=true" else "")
+
+    /** Dark map with a numbered pin per stop; needs the bearer token, so images load it with a header. */
+    fun staticMapUrl(stops: List<String>, w: Int = 640, h: Int = 240): String {
+        val q = stops.joinToString("&") { "stops=" + java.net.URLEncoder.encode(it, "UTF-8") }
+        return "$BASE/maps/static.png?$q&w=$w&h=$h"
+    }
+
+    // MARK: bookings, studio side
+
+    suspend fun bookings(): List<BookingSummary> = client.get("$BASE/bookings") { auth() }.decode()
+
+    suspend fun booking(number: String): Booking = client.get("$BASE/bookings/${seg(number)}") { auth() }.decode()
+
+    suspend fun sendBooking(number: String): Booking = postEmpty("$BASE/bookings/${seg(number)}/send")
+
+    @Serializable private data class ReceiveBody(val amountCents: Long, val method: String, val receivedAt: String, val note: String?)
+
+    /** receivedAt is a plain YYYY-MM-DD; the server reads today as now and earlier days as noon. */
+    suspend fun receivePayment(number: String, paymentId: Int, amountCents: Long, method: String, receivedAt: String, note: String?): Booking =
+        client.post("$BASE/bookings/${seg(number)}/payments/$paymentId/receive") {
+            auth(); contentType(ContentType.Application.Json); setBody(ReceiveBody(amountCents, method, receivedAt, note))
+        }.decode()
+
+    suspend fun undoPayment(number: String, paymentId: Int): Booking =
+        postEmpty("$BASE/bookings/${seg(number)}/payments/$paymentId/undo")
+
+    @Serializable private data class ChargeBody(val label: String, val amountCents: Long)
+
+    suspend fun addCharge(number: String, label: String, amountCents: Long): Booking =
+        client.post("$BASE/bookings/${seg(number)}/payments") {
+            auth(); contentType(ContentType.Application.Json); setBody(ChargeBody(label, amountCents))
+        }.decode()
+
+    suspend fun removeCharge(number: String, paymentId: Int): Booking =
+        client.delete("$BASE/bookings/${seg(number)}/payments/$paymentId") { auth() }.decode()
+
+    suspend fun markDelivered(number: String): Booking = postEmpty("$BASE/bookings/${seg(number)}/delivered")
+
+    suspend fun invoicePdf(number: String): ByteArray = bytes("$BASE/bookings/${seg(number)}/invoice.pdf")
+
+    private suspend fun postEmpty(url: String): Booking =
+        client.post(url) { auth(); contentType(ContentType.Application.Json); setBody(JsonObject(emptyMap())) }.decode()
+
+    private suspend fun bytes(url: String): ByteArray {
+        val r = client.get(url) { auth() }
+        r.check()
+        return r.body()
+    }
+
+    private fun seg(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
     // public and unauthenticated, so a failure here never signs anyone out
     suspend fun appConfig(): AppConfig {
         val r = client.get("$BASE/app-config")

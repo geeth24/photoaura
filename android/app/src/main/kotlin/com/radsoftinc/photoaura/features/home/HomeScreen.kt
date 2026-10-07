@@ -28,10 +28,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FolderZip
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.SaveAlt
@@ -40,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +68,7 @@ import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.editorialstyle.EditorialTypography
 import com.radsoftinc.editorialstyle.editorialPress
 import com.radsoftinc.photoaura.core.Api
+import com.radsoftinc.photoaura.core.BookingSummary
 import com.radsoftinc.photoaura.core.ClientFile
 import com.radsoftinc.photoaura.core.HomeAlbum
 import com.radsoftinc.photoaura.core.HomeSummary
@@ -73,29 +77,49 @@ import com.radsoftinc.photoaura.core.SeenRevisions
 import com.radsoftinc.photoaura.core.Store
 import com.radsoftinc.photoaura.core.friendly
 import com.radsoftinc.photoaura.ui.ActionCard
+import com.radsoftinc.photoaura.features.bookings.BookingCard
+import com.radsoftinc.photoaura.features.bookings.BookingSync
+import com.radsoftinc.photoaura.features.bookings.pickHomeBooking
 import com.radsoftinc.photoaura.ui.RemoteImage
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-data class HomeState(val summary: HomeSummary? = null, val loading: Boolean = true, val error: String? = null)
+data class HomeState(
+    val summary: HomeSummary? = null,
+    // something to sign or pay, else the next event
+    val booking: BookingSummary? = null,
+    val loading: Boolean = true,
+    val error: String? = null,
+)
 
 sealed interface HomeIntent {
     data object Load : HomeIntent
+
+    /** Loads once, then again only after a booking changed somewhere else. */
+    data class Sync(val version: Int) : HomeIntent
     data class Loaded(val s: HomeSummary) : HomeIntent
+    data class BookingLoaded(val b: BookingSummary?) : HomeIntent
     data class Failed(val m: String) : HomeIntent
 }
 
 class HomeStore : Store<HomeState, HomeIntent>(HomeState()) {
-    init { send(HomeIntent.Load) }
+    private var synced = -1
 
     override fun send(intent: HomeIntent) {
         when (intent) {
+            is HomeIntent.Sync -> if (intent.version != synced) {
+                synced = intent.version
+                send(HomeIntent.Load)
+            }
             HomeIntent.Load -> {
                 setState { copy(loading = true, error = null) }
                 io { try { send(HomeIntent.Loaded(Api.home())) } catch (e: Exception) { send(HomeIntent.Failed(e.friendly())) } }
+                // a studio without bookings still has a home
+                io { runCatching { send(HomeIntent.BookingLoaded(pickHomeBooking(Api.myBookings()))) } }
             }
             is HomeIntent.Loaded -> setState { copy(summary = intent.s, loading = false) }
+            is HomeIntent.BookingLoaded -> setState { copy(booking = intent.b) }
             is HomeIntent.Failed -> setState { copy(loading = false, error = intent.m) }
         }
     }
@@ -105,10 +129,12 @@ class HomeStore : Store<HomeState, HomeIntent>(HomeState()) {
 @Composable
 fun HomeScreen(
     onOpenAlbum: (slug: String, name: String, actions: Boolean) -> Unit,
+    onOpenBooking: (String) -> Unit,
     bottomPadding: androidx.compose.ui.unit.Dp,
     store: HomeStore = viewModel(),
 ) {
     val s by store.state.collectAsStateWithLifecycle()
+    LaunchedEffect(BookingSync.version) { store.send(HomeIntent.Sync(BookingSync.version)) }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val gutter = EditorialSpacing.screenGutter
     PullToRefreshBox(
@@ -126,6 +152,9 @@ fun HomeScreen(
             full { EditorialLargeTitle("Home", Modifier.padding(bottom = EditorialSpacing.small)) }
             val home = s.summary
             val newest = home?.albums?.firstOrNull()
+            s.booking?.let { b ->
+                if (home != null) full { BookingCard(b) { onOpenBooking(b.number) } }
+            }
             when {
                 s.loading && home == null -> {
                     full { EditorialSkeleton(Modifier.width(260.dp).height(80.dp)) }
@@ -136,6 +165,12 @@ fun HomeScreen(
                         Icons.Outlined.Warning, "Couldn't load",
                         subtitle = s.error, actionTitle = "Try again", onAction = { store.send(HomeIntent.Load) },
                     )
+                }
+                home != null && newest == null && s.booking != null -> full {
+                    Column(Modifier.padding(top = EditorialSpacing.large)) {
+                        Text(home.firstName?.let { "Hi $it." } ?: "Welcome.", style = EditorialTheme.typography.serif(34.sp), color = EditorialTheme.colors.textPrimary)
+                        Text("Your photos will live here.", style = EditorialTheme.typography.serif(34.sp), color = EditorialTheme.colors.textSecondary)
+                    }
                 }
                 home == null || newest == null -> full {
                     EditorialEmptyState(
@@ -149,11 +184,18 @@ fun HomeScreen(
                     full { Hero(newest, multiple = home.albums.size > 1) { onOpenAlbum(newest.slug, newest.name, false) } }
                     full { Spacer(Modifier.height(EditorialSpacing.large)) }
                     full {
-                        GetPhotos(
-                            newest,
-                            onSave = { onOpenAlbum(newest.slug, newest.name, true) },
-                            onBrowse = { onOpenAlbum(newest.slug, newest.name, false) },
-                        )
+                        if (newest.locked) {
+                            PreviewOnly(
+                                onBrowse = { onOpenAlbum(newest.slug, newest.name, false) },
+                                onPay = newest.bookingNumber?.let { n -> { onOpenBooking(n) } },
+                            )
+                        } else {
+                            GetPhotos(
+                                newest,
+                                onSave = { onOpenAlbum(newest.slug, newest.name, true) },
+                                onBrowse = { onOpenAlbum(newest.slug, newest.name, false) },
+                            )
+                        }
                     }
                     if (home.files.isNotEmpty()) {
                         full { Spacer(Modifier.height(EditorialSpacing.large)) }
@@ -164,9 +206,17 @@ fun HomeScreen(
                         full { Spacer(Modifier.height(EditorialSpacing.xLarge)) }
                         full { EditorialEyebrow("Earlier galleries", color = EditorialTheme.colors.textMuted) }
                         items(rest, key = { it.id }) { a ->
-                            EditorialPhotoCard(a.name, caption = counts(a), aspect = 4f / 5f, onClick = { onOpenAlbum(a.slug, a.name, false) }) {
-                                a.cover?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
-                                RevisionReady(a, Modifier.padding(EditorialSpacing.small))
+                            EditorialPhotoCard(
+                                a.name,
+                                caption = (if (a.locked) "Preview · " else "") + counts(a),
+                                aspect = 4f / 5f,
+                                onClick = { onOpenAlbum(a.slug, a.name, false) },
+                            ) {
+                                Box(Modifier.fillMaxSize()) {
+                                    a.cover?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
+                                    RevisionReady(a, Modifier.padding(EditorialSpacing.small))
+                                    if (a.locked) PreviewBadge(Modifier.align(Alignment.TopEnd).padding(EditorialSpacing.small))
+                                }
                             }
                         }
                     }
@@ -223,6 +273,7 @@ private fun Hero(a: HomeAlbum, multiple: Boolean, onClick: () -> Unit) {
     ) {
         a.cover?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
         RevisionReady(a, Modifier.padding(EditorialSpacing.large))
+        if (a.locked) PreviewBadge(Modifier.align(Alignment.TopEnd).padding(EditorialSpacing.large))
         Box(
             Modifier.fillMaxWidth().fillMaxHeight(0.6f).align(Alignment.BottomCenter)
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f), Color.Black.copy(alpha = 0.85f)))),
@@ -265,19 +316,53 @@ private fun GetPhotos(a: HomeAlbum, onSave: () -> Unit, onBrowse: () -> Unit) {
     }
 }
 
+/** A proof-locked gallery: browse the watermarked previews, or go pay the final to unlock them. */
+@Composable
+private fun PreviewOnly(onBrowse: () -> Unit, onPay: (() -> Unit)?) {
+    val c = EditorialTheme.colors
+    EditorialCard(padding = PaddingValues(EditorialSpacing.large), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Lock, null, Modifier.size(12.dp), tint = c.textMuted)
+            Spacer(Modifier.width(EditorialSpacing.xSmall))
+            EditorialEyebrow("Gallery preview", color = c.textMuted)
+        }
+        EditorialButton("Browse the previews", onBrowse, icon = Icons.Outlined.Collections)
+        if (onPay != null) {
+            EditorialButton("Final payment", onPay, style = EditorialButtonStyle.Secondary, icon = Icons.AutoMirrored.Outlined.ReceiptLong)
+        }
+        Text(
+            "These are watermarked previews. Full-resolution downloads unlock after your final payment.",
+            style = EditorialTheme.typography.hint, color = c.textMuted,
+        )
+    }
+}
+
+@Composable
+private fun PreviewBadge(modifier: Modifier) {
+    Row(
+        modifier.background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Lock, null, Modifier.size(10.dp), tint = Color.White)
+        Spacer(Modifier.width(4.dp))
+        Text("PREVIEW", style = EditorialTheme.typography.label(9.sp, 1.sp), color = Color.White)
+    }
+}
+
 @Composable
 private fun Files(files: List<ClientFile>) {
     val ctx = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         EditorialEyebrow("Ready to download", color = EditorialTheme.colors.textMuted)
         files.forEach { f ->
+            val locked = f.locked || f.downloadUrl == null
             ActionCard(
                 if (f.filename.endsWith(".zip", true)) Icons.Outlined.FolderZip else Icons.Outlined.Description,
                 f.filename,
-                listOfNotNull(f.albumName, f.size?.let(::bytes)).joinToString(" · "),
-                Icons.Outlined.Download,
-                trailingTint = EditorialTheme.colors.brand,
-                enabled = f.downloadUrl != null,
+                if (f.locked) "Unlocks after your final payment" else listOfNotNull(f.albumName, f.size?.let(::bytes)).joinToString(" · "),
+                if (locked) Icons.Outlined.Lock else Icons.Outlined.Download,
+                trailingTint = if (locked) EditorialTheme.colors.textFaint else EditorialTheme.colors.brand,
+                enabled = !locked,
             ) { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(f.downloadUrl))) }
         }
     }

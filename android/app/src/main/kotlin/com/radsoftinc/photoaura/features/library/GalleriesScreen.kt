@@ -2,6 +2,7 @@ package com.radsoftinc.photoaura.features.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -9,18 +10,24 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Warning
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.radsoftinc.editorialstyle.EditorialEmptyState
@@ -89,8 +96,23 @@ fun GalleriesScreen(onOpenAlbum: (String, String) -> Unit, bottomPadding: Dp, st
                 EditorialEmptyState(Icons.Outlined.PhotoLibrary, "No galleries", subtitle = "Upload a shoot from the web dashboard and it shows up here.")
             }
             else -> items(albums, key = { it.albumId }) { a ->
-                EditorialPhotoCard(a.albumName, caption = "${a.imageCount} photos", aspect = 4f / 5f, onClick = { onOpenAlbum(a.slug, a.albumName) }) {
-                    a.coverImage?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
+                EditorialPhotoCard(
+                    a.albumName,
+                    caption = (if (a.locked) "Preview · " else "") + "${a.imageCount} photos",
+                    aspect = 4f / 5f,
+                    onClick = { onOpenAlbum(a.slug, a.albumName) },
+                ) {
+                    Box(Modifier.fillMaxSize()) {
+                        a.coverImage?.let { RemoteImage(ImageUrls.upright(it, ImageUrls.TILE), Modifier.fillMaxSize()) }
+                        if (a.locked) {
+                            Icon(
+                                Icons.Outlined.Lock, "Proof preview",
+                                Modifier.align(Alignment.TopEnd).padding(EditorialSpacing.small)
+                                    .background(Color.Black.copy(alpha = 0.55f)).padding(5.dp).size(12.dp),
+                                tint = Color.White,
+                            )
+                        }
+                    }
                 }
             }
         }
