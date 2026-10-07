@@ -71,6 +71,7 @@ struct NextPaymentCard: View {
                         .font(EditorialTypography.sans(size: EditorialTypography.Size.subtitle))
                         .foregroundStyle(EditorialColors.textMuted)
                     EditorialCopyField("Send to", value: booking.paymentInstructions?.zelle ?? BookingFormat.zelle)
+                    EditorialCopyField("Or phone", value: booking.paymentInstructions?.zellePhone ?? BookingFormat.zellePhone)
                     EditorialCopyField("Memo", value: booking.paymentInstructions?.memo ?? booking.number)
                 }
             }

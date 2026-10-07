@@ -12,6 +12,7 @@ enum BookingFormat {
     static let consentText = "I agree to sign this agreement electronically, and that typing my name below is my signature."
     static let studioEmail = "geeth@reactiveshots.com"
     static let zelle = "zelle@reactiveshots.com"
+    static let zellePhone = "(972) 829-5173"
 
     // MARK: - money
 

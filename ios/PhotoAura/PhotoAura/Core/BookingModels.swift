@@ -112,6 +112,7 @@ struct BookingTimelineEntry: Decodable, Hashable {
 
 struct PaymentInstructions: Decodable, Hashable {
     let zelle: String
+    let zellePhone: String?
     let memo: String
     let methods: [String]?
 }

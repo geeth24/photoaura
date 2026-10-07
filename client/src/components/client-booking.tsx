@@ -21,7 +21,7 @@ import {
   Smartphone,
 } from "lucide-react"
 import { ApiError, bookingsApi } from "@/lib/api"
-import { ZELLE, downloadContract, fmtDay, fmtStamp, fmtTime, money } from "@/lib/bookings"
+import { ZELLE, ZELLE_PHONE, downloadContract, fmtDay, fmtStamp, fmtTime, money } from "@/lib/bookings"
 import type { Booking, BookingPayment, NextPayment } from "@/lib/types"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -494,6 +494,7 @@ function NextPaymentCard({ b, next }: { b: Booking; next: NonNullable<NextPaymen
   const { due, kind } = next
   const extras = kind === "final" || kind === "extra" ? b.money.extras : 0
   const zelle = b.payment_instructions?.zelle ?? ZELLE
+  const zellePhone = b.payment_instructions?.zelle_phone ?? ZELLE_PHONE
   const memo = b.payment_instructions?.memo ?? b.number
 
   return (
@@ -527,6 +528,7 @@ function NextPaymentCard({ b, next }: { b: Booking; next: NonNullable<NextPaymen
                 </p>
                 <div className="grid grid-cols-1 gap-2">
                   <CopyRow label="Send to" value={zelle} />
+                  <CopyRow label="Or phone" value={zellePhone} />
                   <CopyRow label="Memo" value={memo} />
                 </div>
               </div>

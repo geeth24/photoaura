@@ -11,6 +11,7 @@ TEMPLATE_PATH = os.path.join(CONTRACTS_DIR, "photography_services.md")
 LOGO_PATH = os.path.join(CONTRACTS_DIR, "rs-logo.png")
 
 ZELLE = "zelle@reactiveshots.com"
+ZELLE_PHONE = "(972) 829-5173"
 PAYMENT_METHODS = ["Zelle", "Cash", "Check"]
 METHODS = {"zelle": "Zelle", "cash": "Cash", "check": "Check", "other": "Other"}
 CONSENT_TEXT = (

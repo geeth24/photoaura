@@ -8,6 +8,7 @@ type Props = {
   albumName: string
   finalAmount: string
   zelle: string
+  zellePhone?: string
   memo: string
 }
 
@@ -21,6 +22,7 @@ export default function GalleryDeliveredEmail({
   albumName,
   finalAmount,
   zelle,
+  zellePhone,
   memo,
 }: Props) {
   const first = (fullName || "there").split(" ")[0]
@@ -48,7 +50,7 @@ export default function GalleryDeliveredEmail({
       <DetailRows
         rows={[
           ["Final payment", finalAmount, true],
-          ["Zelle to", zelle],
+          ["Zelle to", zellePhone ? `${zelle} or ${zellePhone}` : zelle],
           ["Memo", memo],
         ]}
       />

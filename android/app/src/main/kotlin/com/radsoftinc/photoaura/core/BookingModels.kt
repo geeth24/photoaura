@@ -125,6 +125,7 @@ data class BookingTimelineEntry(val at: String? = null, val label: String = "")
 @Serializable
 data class PaymentInstructions(
     val zelle: String? = null,
+    val zellePhone: String? = null,
     val memo: String? = null,
     val methods: List<String> = emptyList(),
 )

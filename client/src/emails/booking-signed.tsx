@@ -8,13 +8,14 @@ type Props = {
   eventDate: string
   retainer: string
   zelle: string
+  zellePhone?: string
   memo: string
 }
 
 export const bookingSignedSubject = (bookingNumber: string) => `Your agreement is signed — ${bookingNumber}`
 
 // the signed PDF rides along as an attachment
-export default function BookingSignedEmail({ fullName, link, bookingNumber, eventDate, retainer, zelle, memo }: Props) {
+export default function BookingSignedEmail({ fullName, link, bookingNumber, eventDate, retainer, zelle, zellePhone, memo }: Props) {
   const first = (fullName || "there").split(" ")[0]
 
   return (
@@ -29,7 +30,7 @@ export default function BookingSignedEmail({ fullName, link, bookingNumber, even
       <DetailRows
         rows={[
           ["Retainer due", retainer, true],
-          ["Zelle to", zelle],
+          ["Zelle to", zellePhone ? `${zelle} or ${zellePhone}` : zelle],
           ["Memo", memo],
         ]}
       />

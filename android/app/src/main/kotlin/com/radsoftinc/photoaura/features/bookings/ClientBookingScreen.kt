@@ -441,6 +441,7 @@ private fun NextPaymentCard(b: Booking, next: NextPayment, ctx: Context) {
     val type = EditorialTheme.typography
     val extras = if (next.closing) b.money.extras else 0
     val zelle = b.paymentInstructions?.zelle ?: ZELLE
+    val zellePhone = b.paymentInstructions?.zellePhone ?: ZELLE_PHONE
     val memo = b.paymentInstructions?.memo ?: b.number
     var copied by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(copied) { if (copied != null) { kotlinx.coroutines.delay(1600); copied = null } }
@@ -473,6 +474,7 @@ private fun NextPaymentCard(b: Booking, next: NextPayment, ctx: Context) {
                 Text("HOW TO PAY", style = type.label(10.sp, 2.5.sp), color = c.textMuted)
                 PayWay(Icons.Outlined.PhoneIphone, "Zelle", "— fastest", brand = true) {
                     EditorialCopyField("Send to", zelle, copied == "Send to", { copy("Send to", zelle) })
+                    EditorialCopyField("Or phone", zellePhone, copied == "Or phone", { copy("Or phone", zellePhone) })
                     EditorialCopyField("Memo", memo, copied == "Memo", { copy("Memo", memo) })
                 }
                 PayWay(Icons.Outlined.Payments, "Cash", "— in person, at your session or event.")

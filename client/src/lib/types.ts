@@ -297,7 +297,7 @@ export type Booking = {
   next_payment: NextPayment
   created_at: string
   // client shape only
-  payment_instructions?: { zelle: string; memo: string; methods: string[] }
+  payment_instructions?: { zelle: string; zelle_phone?: string; memo: string; methods: string[] }
 }
 
 export type BookingInput = {

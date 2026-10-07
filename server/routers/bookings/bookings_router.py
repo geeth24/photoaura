@@ -31,6 +31,7 @@ from services.booking_service import (
     PAYMENT_METHODS,
     SCHEDULE,
     ZELLE,
+    ZELLE_PHONE,
     contract_fields,
     contract_hash,
     dollars,
@@ -457,7 +458,7 @@ def _booking_json(session, b: Booking, admin: bool) -> dict:
     else:
         if album:
             out["album"] = {"slug": album.slug, "name": album.name, "locked": bool(album.proof_locked)}
-        out["payment_instructions"] = {"zelle": ZELLE, "memo": _memo(b), "methods": PAYMENT_METHODS}
+        out["payment_instructions"] = {"zelle": ZELLE, "zelle_phone": ZELLE_PHONE, "memo": _memo(b), "methods": PAYMENT_METHODS}
     return out
 
 
@@ -944,6 +945,7 @@ def mark_delivered(
                 "albumName": album.name,
                 "finalAmount": dollars(nxt["amount_cents"]),
                 "zelle": ZELLE,
+                "zellePhone": ZELLE_PHONE,
                 "memo": _memo(b),
             }, None)
     session.commit()
@@ -1304,6 +1306,7 @@ def sign_booking(
         "eventDate": long_date(b.event_date),
         "retainer": dollars(retainer.amount_cents if retainer else 0),
         "zelle": ZELLE,
+        "zellePhone": ZELLE_PHONE,
         "memo": f"{b.number} retainer",
     }
     messages = []

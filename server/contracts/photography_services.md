@@ -1,5 +1,5 @@
 <!--
-version: 2026-10-06.3
+version: 2026-10-07
 Master contract. {{field}} is filled per booking; {{#video}}…{{/video}} only shows on
 packages that include video, {{^video}}…{{/video}} only on photo-only ones.
 Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, **bold**.
@@ -41,7 +41,7 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 - **Late Payment:** If the final payment is not received within 30 days of gallery delivery, the Photographer may suspend access to the gallery until the balance is paid. Full-resolution files are not released until payment is received in full.
 - **Overtime:** The first 15 minutes past the contracted end time are complimentary. If the Client asks the Photographer to stay longer, additional coverage is subject to Photographer availability, billed at ${{overtime_half_hour}} per 30 minutes, and added to the final payment.
 
-**Accepted Payment Methods:** Zelle, cash, or check. Zelle: zelle@reactiveshots.com. Please include your booking number ({{booking_number}}) in the Zelle memo.
+**Accepted Payment Methods:** Zelle, cash, or check. Zelle: zelle@reactiveshots.com or (972) 829-5173. Please include your booking number ({{booking_number}}) in the Zelle memo.
 
 ## 3. Rescheduling & Cancellation
 

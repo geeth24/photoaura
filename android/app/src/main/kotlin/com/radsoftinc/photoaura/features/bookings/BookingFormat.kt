@@ -88,6 +88,7 @@ fun stepsDone(s: BookingStatus): Int = when (s) {
 
 const val CONSENT_TEXT = "I agree to sign this agreement electronically, and that typing my name below is my signature."
 const val ZELLE = "zelle@reactiveshots.com"
+const val ZELLE_PHONE = "(972) 829-5173"
 
 fun splitStops(location: String?): List<String> =
     location.orEmpty().split("\n").map { it.trim() }.filter { it.isNotEmpty() }

@@ -95,6 +95,7 @@ export const EVENT_TYPES = [
 ]
 
 export const ZELLE = "zelle@reactiveshots.com"
+export const ZELLE_PHONE = "(972) 829-5173"
 
 function saveFile(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob)
