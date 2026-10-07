@@ -557,7 +557,6 @@ async def delete_album(
 
         session.query(UserAlbumPermission).filter_by(album_id=album_id).delete()
         session.query(AlbumCategory).filter_by(album_id=album_id).delete()
-        hold_token = album.hold_token
 
         # capture filenames before deleting the rows (objects expire after)
         filenames = [
@@ -574,16 +573,18 @@ async def delete_album(
         session.commit()
 
         # best-effort S3 cleanup, batched (delete_objects takes up to 1000 keys)
-        keys = [{"Key": f"{album_slug}/{fn}"} for fn in filenames]
+        # everything under the album's folder: earlier revisions, video posters
+        # and held originals aren't in file_metadata
+        listed = {f"{album_slug}/{fn}" for fn in filenames}
+        try:
+            for page in s3_client.get_paginator("list_objects_v2").paginate(
+                Bucket=AWS_BUCKET, Prefix=f"{album_slug}/"
+            ):
+                listed.update(o["Key"] for o in page.get("Contents", []))
+        except Exception as e:
+            logging.error(f"album delete: listing the album folder failed: {e}")
+        keys = [{"Key": k} for k in sorted(listed)]
         keys += [{"Key": f"faces/{fid}.jpg"} for fid in orphaned]
-        if hold_token:
-            try:
-                for page in s3_client.get_paginator("list_objects_v2").paginate(
-                    Bucket=AWS_BUCKET, Prefix=f"{album_slug}/_hold/{hold_token}/"
-                ):
-                    keys += [{"Key": o["Key"]} for o in page.get("Contents", [])]
-            except Exception as e:
-                logging.error(f"album delete: listing held originals failed: {e}")
         for i in range(0, len(keys), 1000):
             try:
                 s3_client.delete_objects(

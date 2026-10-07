@@ -478,6 +478,7 @@ def main():
             print("cleanup")
             c.delete(f"/api/album/delete/{SLUG}/", headers=A)
             leftover = keys(f"{SLUG}/")
+            check(leftover == [], f"deleting the album clears its folder, old versions too {leftover}")
             for key in leftover + [k for k in contract_keys if k]:
                 s3_client.delete_object(Bucket=BUCKET, Key=key)
             with session_scope() as s:
