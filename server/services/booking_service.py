@@ -156,7 +156,12 @@ def render_contract(fields: dict, flags: dict) -> tuple:
         show = on if m.group(1) == "#" else not on
         return m.group(3) if show else ""
 
-    body = _SECTION.sub(section, body)
+    # blocks can nest ({{#video}} inside {{^private}}), so expand until nothing's left
+    while True:
+        expanded = _SECTION.sub(section, body)
+        if expanded == body:
+            break
+        body = expanded
 
     def field(m):
         key = m.group(1)

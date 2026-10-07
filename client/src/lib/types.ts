@@ -285,7 +285,11 @@ export type Booking = {
     pdf_url: string | null
     // the snapshot that was sent / signed; null on a draft
     markdown: string | null
+    rendered_at?: string | null
+    // sent before the master template last changed
+    outdated?: boolean
   }
+  private_photos?: boolean
   album: { id?: number; slug: string; name: string; locked: boolean } | null
   details_for_client: string | null
   notes_internal?: string | null
@@ -317,6 +321,7 @@ export type BookingInput = {
   includes_video?: boolean
   hourly_rate_cents?: number
   revisions?: number
+  private_photos?: boolean
   details_for_client?: string
   notes_internal?: string
 }

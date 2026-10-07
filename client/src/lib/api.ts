@@ -336,6 +336,8 @@ export const bookingsApi = {
   update: (number: string, body: Partial<BookingInput>) =>
     apiFetch<Booking>(`/bookings/${number}`, { method: "PATCH", body: JSON.stringify(body) }),
   send: (number: string) => post<Booking & { email_sent: boolean }>(`/bookings/${number}/send`),
+  revise: (number: string, note?: string) =>
+    post<Booking & { email_sent: boolean }>(`/bookings/${number}/revise`, { note }),
   receive: (
     number: string,
     paymentId: number,

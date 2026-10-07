@@ -279,6 +279,16 @@ export function BookingDetail({ number }: { number: string }) {
                 onConfirm={() => act("send", () => bookingsApi.send(b.number), `Agreement sent to ${b.client.email}`)}
               />
             )}
+            {b.status === "sent" && (
+              <ReviseDialog
+                first={first}
+                email={b.client.email}
+                busy={busy === "revise"}
+                onSend={(note) =>
+                  act("revise", () => bookingsApi.revise(b.number, note), `Updated agreement sent to ${b.client.email}`)
+                }
+              />
+            )}
           </div>
         )}
       </motion.div>
@@ -297,6 +307,23 @@ export function BookingDetail({ number }: { number: string }) {
         </div>
       ) : (
         <BookingSteps status={b.status} />
+      )}
+
+      {b.status === "sent" && b.contract.outdated && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-brand/40 bg-brand/5 px-5 py-4">
+          <p className="text-sm text-text-secondary">
+            <span className="text-text-primary">The agreement template changed</span> since this was sent. Send the
+            revised agreement so {first} signs the current terms.
+          </p>
+          <ReviseDialog
+            first={first}
+            email={b.client.email}
+            busy={busy === "revise"}
+            onSend={(note) =>
+              act("revise", () => bookingsApi.revise(b.number, note), `Updated agreement sent to ${b.client.email}`)
+            }
+          />
+        </div>
       )}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
@@ -909,5 +936,75 @@ function CancelBooking({ booking: b, onDone }: { booking: Booking; onDone: (b: B
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  )
+}
+
+// re-issues the unsigned agreement from the latest template and current terms, then emails the client
+function ReviseDialog({
+  first,
+  email,
+  busy,
+  onSend,
+}: {
+  first: string
+  email: string
+  busy: boolean
+  onSend: (note?: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState("")
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+      <DialogTrigger
+        render={
+          <button className={outline} disabled={busy}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSignature className="size-3.5" />}
+            Send revised agreement
+          </button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-2xl font-normal tracking-tight">Send the revised agreement?</DialogTitle>
+          <DialogDescription>
+            Rebuilds {first}&apos;s agreement from the current terms and template and emails {email} to review and sign
+            it again. The earlier version can&apos;t be signed anymore.
+          </DialogDescription>
+        </DialogHeader>
+        <label className="grid gap-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted">
+            What changed (optional)
+          </span>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Updated the photo usage so nothing is shared without your permission, as we discussed."
+            rows={3}
+          />
+          <span className="text-[12px] text-text-muted">Shown in the email above the button.</span>
+        </label>
+        <DialogFooter>
+          <DialogClose
+            render={
+              <Button variant="outline" disabled={busy}>
+                Cancel
+              </Button>
+            }
+          />
+          <Button
+            disabled={busy}
+            onClick={async () => {
+              await onSend(note.trim() || undefined)
+              setOpen(false)
+              setNote("")
+            }}
+          >
+            {busy && <Loader2 className="size-3.5 animate-spin" />}
+            Send to {first}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -368,6 +368,8 @@ class Booking(Base):
     package_name: Mapped[Optional[str]] = mapped_column(String(255))
     hours: Mapped[Optional[float]] = mapped_column(Float)
     includes_video: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    # studio only uses the photos with the client's permission
+    private_photos: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
     revisions: Mapped[Optional[int]] = mapped_column(Integer)
     hourly_rate_cents: Mapped[Optional[int]] = mapped_column(Integer)
     total_fee_cents: Mapped[int] = mapped_column(Integer, server_default="0", default=0)

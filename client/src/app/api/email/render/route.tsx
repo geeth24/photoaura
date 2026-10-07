@@ -8,6 +8,7 @@ import NewVideoEmail, { newVideoSubject } from "@/emails/new-video"
 import AlbumRevisionEmail, { albumRevisionSubject } from "@/emails/album-revision"
 import BookingInviteEmail, { bookingInviteSubject } from "@/emails/booking-invite"
 import BookingSignedEmail, { bookingSignedSubject } from "@/emails/booking-signed"
+import BookingRevisedEmail, { bookingRevisedSubject } from "@/emails/booking-revised"
 import PaymentReceivedEmail, { paymentReceivedSubject } from "@/emails/payment-received"
 import GalleryDeliveredEmail, { galleryDeliveredSubject } from "@/emails/gallery-delivered"
 import GalleryUnlockedEmail, { galleryUnlockedSubject } from "@/emails/gallery-unlocked"
@@ -42,6 +43,10 @@ const templates = {
   "booking-invite": {
     component: BookingInviteEmail,
     subject: () => bookingInviteSubject(),
+  },
+  "booking-revised": {
+    component: BookingRevisedEmail,
+    subject: (p: { bookingNumber: string }) => bookingRevisedSubject(p.bookingNumber),
   },
   "booking-signed": {
     component: BookingSignedEmail,

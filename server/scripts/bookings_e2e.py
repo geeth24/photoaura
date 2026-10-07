@@ -168,6 +168,10 @@ def main():
                 check(s.query(User).filter_by(user_email=f"priya-{RUN}@example.test").first() is None,
                       "preview wrote nothing")
             vid = c.post("/api/bookings/preview", json={**body, "package_key": "event-photo-video"}, headers=A).json()
+            pv_md = c.post("/api/bookings/preview", json={**body, "package_key": "event-photo-video", "private_photos": True},
+                           headers=A).json()["contract_markdown"]
+            check("share photographs and video from this event" in pv_md and "{{" not in pv_md,
+                  "nested video wording inside the private clause")
             check("VIDEOGRAPHY" in vid["contract_markdown"] and "highlight video" in vid["contract_markdown"],
                   "video sections render")
 
@@ -236,6 +240,17 @@ def main():
 
             r = c.patch(f"/api/bookings/{num}", json={"hours": 5}, headers=A).json()
             check(r["money"]["total_fee"] == 75000 and r["contract"]["hash"] != first_hash, "edit re-renders contract")
+            r = c.patch(f"/api/bookings/{num}", json={"private_photos": True}, headers=A).json()
+            md = r["contract"]["markdown"]
+            check(r["private_photos"] and "only use, publish, or share photographs from this event" in md
+                  and "may opt out" not in md and "{{" not in md, "private photos rewrites portfolio use")
+            check(r["contract"]["outdated"] is False, "a fresh snapshot isn't outdated")
+            rendered.clear()
+            r = c.post(f"/api/bookings/{num}/revise", json={"note": "Photos stay private, as discussed."}, headers=A).json()
+            rv = emails("booking-revised")
+            check(r["status"] == "sent" and r["email_sent"] and len(rv) == 1
+                  and rv[0]["note"] == "Photos stay private, as discussed." and rv[0]["bookingNumber"] == num,
+                  f"revised agreement emailed {rv}")
             r = c.post(f"/api/me/bookings/{num}/sign",
                        json={"full_name": "Priya Sharma", "consent": True, "contract_hash": first_hash}, headers=P)
             check(r.status_code == 409, "stale hash -> 409")
@@ -276,6 +291,7 @@ def main():
             check(c.get(f"/api/bookings/{num}/contract.pdf", headers=C).status_code == 404, "stranger can't")
             r = c.patch(f"/api/bookings/{num}", json={"hours": 6}, headers=A)
             check(r.status_code == 409, "terms locked after signing")
+            check(c.post(f"/api/bookings/{num}/revise", json={}, headers=A).status_code == 409, "no revising a signed agreement")
             r = c.patch(f"/api/bookings/{num}", json={"notes_internal": "vip"}, headers=A)
             check(r.status_code == 200, "internal notes still editable")
 

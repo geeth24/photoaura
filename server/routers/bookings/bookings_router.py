@@ -41,6 +41,7 @@ from services.booking_service import (
     long_date,
     overtime_rate,
     render_contract,
+    template_version,
     schedule_amounts,
     today_local,
 )
@@ -56,7 +57,7 @@ KIND_ORDER = {"retainer": 0, "event_day": 1, "final": 2, "extra": 3}
 CONTRACT_FIELDS = {
     "client_user_id", "client", "client_phone", "event_type", "event_date", "start_time",
     "end_time", "location", "package_key", "package_name", "hours", "total_fee_cents",
-    "includes_video", "hourly_rate_cents", "revisions",
+    "includes_video", "hourly_rate_cents", "revisions", "private_photos",
 }
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -92,6 +93,7 @@ class BookingIn(BaseModel):
     includes_video: Optional[bool] = None
     hourly_rate_cents: Optional[int] = None
     revisions: Optional[int] = None
+    private_photos: Optional[bool] = None
     details_for_client: Optional[str] = None
     notes_internal: Optional[str] = None
 
@@ -320,6 +322,8 @@ def _apply(b: Booking, data: dict):
         b.revisions = pkg["revisions"]
         b.package_name = f"{pkg['category']} — {pkg['name']}"
 
+    if "private_photos" in data:
+        b.private_photos = bool(data["private_photos"])
     if "hourly_rate_cents" in data:
         b.hourly_rate_cents = data["hourly_rate_cents"]
     if pkg["pricing"] == "hourly":
@@ -350,7 +354,7 @@ def _apply(b: Booking, data: dict):
 def _render(session, b: Booking, agreement_on: Optional[date] = None, client=None) -> tuple:
     _, name, email = client or _client_of(session, b)
     fields = contract_fields(b, name, email, b.number, agreement_on or today_local())
-    return render_contract(fields, {"video": bool(b.includes_video)})
+    return render_contract(fields, {"video": bool(b.includes_video), "private": bool(b.private_photos)})
 
 
 def _snapshot_contract(session, b: Booking):
@@ -393,6 +397,9 @@ def _payment_json(b: Booking, p: BookingPayment) -> dict:
 def _timeline(b: Booking) -> list:
     events = [(b.created_at, "Booking created")]
     events += [(b.sent_at, "Contract sent"), (b.signed_at, "Contract signed")]
+    # re-rendered after sending: an edit or a revised agreement
+    if b.sent_at and b.contract_rendered_at and (b.contract_rendered_at - b.sent_at).total_seconds() > 60:
+        events.append((b.contract_rendered_at, "Agreement revised"))
     events += [(p.received_at, f"{p.label} received") for p in _payments(b)]
     events += [
         (b.delivered_at, "Gallery delivered"),
@@ -415,6 +422,9 @@ def _booking_json(session, b: Booking, admin: bool) -> dict:
         "signed_name": b.signed_name,
         "pdf_url": f"/api/bookings/{b.number}/contract.pdf" if signed else None,
         "markdown": b.contract_markdown,
+        "rendered_at": _iso(b.contract_rendered_at),
+        # sent before the master template last changed, so it can be re-sent
+        "outdated": b.status == "sent" and bool(b.contract_version) and b.contract_version != template_version(),
     }
     out = {
         "number": b.number,
@@ -437,6 +447,7 @@ def _booking_json(session, b: Booking, admin: bool) -> dict:
             "overtime_rate_cents": overtime_rate(b.package_key, b.includes_video, b.hourly_rate_cents),
             "fee_overridden": bool(b.fee_overridden),
         },
+        "private_photos": bool(b.private_photos),
         "money": _money(b),
         "payments": [_payment_json(b, p) for p in _payments(b)],
         "next_payment": _next_payment(b),
@@ -596,11 +607,11 @@ def preview_booking(
     existing = (
         session.query(Booking).filter(func.upper(Booking.number) == number.upper()).first() if number else None
     )
-    b = Booking(includes_video=False, fee_overridden=False, total_fee_cents=0)
+    b = Booking(includes_video=False, private_photos=False, fee_overridden=False, total_fee_cents=0)
     if existing:
         for col in ("client_phone", "event_type", "event_date", "start_time", "end_time", "location",
                     "package_key", "package_name", "hours", "includes_video", "revisions",
-                    "hourly_rate_cents", "total_fee_cents", "fee_overridden"):
+                    "hourly_rate_cents", "total_fee_cents", "fee_overridden", "private_photos"):
             setattr(b, col, getattr(existing, col))
     with session.no_autoflush:
         _apply(b, data)
@@ -630,7 +641,7 @@ def create_booking(
         raise HTTPException(status_code=400, detail="Pick a client or add a new one.")
     if not data.get("event_date"):
         raise HTTPException(status_code=400, detail="Add the event date.")
-    b = Booking(status="draft", includes_video=False, fee_overridden=False, total_fee_cents=0)
+    b = Booking(status="draft", includes_video=False, private_photos=False, fee_overridden=False, total_fee_cents=0)
     _apply(b, data)
     u, _, _ = _resolve_client(session, data, create=True)
     b.client_user_id = u.id
@@ -712,6 +723,42 @@ def send_booking(number: str, _admin=Depends(require_admin), session: Session = 
         "packageName": b.package_name,
         "totalDue": dollars(_money(b)["total_due"]),
         "retainer": dollars(amounts["retainer"]),
+    })
+    return {**_booking_json(session, b, admin=True), "email_sent": sent}
+
+
+class ReviseIn(BaseModel):
+    note: Optional[str] = None
+
+
+@router.post("/api/bookings/{number}/revise")
+def revise_booking(
+    number: str,
+    body: ReviseIn,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Re-issue an unsigned agreement from the latest template and the booking's
+    current terms, and email the client to review it again."""
+    b = _get(session, number)
+    if b.status != "sent":
+        detail = "Send the agreement first." if b.status == "draft" else "This agreement is already signed."
+        raise HTTPException(status_code=409, detail=detail)
+    u, name, email = _client_of(session, b)
+    if not u or not email:
+        raise HTTPException(status_code=400, detail="Add the client email before sending.")
+    _snapshot_contract(session, b)
+    _, _, link = _client_link(session, b)
+    session.commit()
+
+    sent = email_service.send_template(email, "booking-revised", {
+        "fullName": name or "there",
+        "link": link,
+        "bookingNumber": b.number,
+        "eventType": b.event_type,
+        "eventDate": long_date(b.event_date),
+        "totalDue": dollars(_money(b)["total_due"]),
+        "note": (body.note or "").strip() or None,
     })
     return {**_booking_json(session, b, admin=True), "email_sent": sent}
 

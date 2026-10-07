@@ -108,6 +108,7 @@ export function BookingForm({ initial }: { initial?: Booking }) {
   )
   const [fee, setFee] = useState(initial?.package.fee_overridden ? toDollars(initial.money.total_fee) : "")
   const [video, setVideo] = useState(initial?.package.includes_video ?? false)
+  const [privatePhotos, setPrivatePhotos] = useState(initial?.private_photos ?? false)
   const [revisions, setRevisions] = useState(initial ? String(initial.package.revisions) : "1")
   // only shown (and sent) for flat packages; hourly ones bill overtime at their own rate
   const [overtimeRate, setOvertimeRate] = useState(toDollars(initial?.package.hourly_rate_cents))
@@ -164,6 +165,7 @@ export function BookingForm({ initial }: { initial?: Booking }) {
       package_key: packageKey,
       details_for_client: details.trim(),
       notes_internal: notes.trim(),
+      private_photos: privatePhotos,
     }
     // the API parses this as a date, so a half-filled form leaves it out
     if (date) b.event_date = date
@@ -183,6 +185,7 @@ export function BookingForm({ initial }: { initial?: Booking }) {
     }
     return b
   }, [
+    privatePhotos,
     phone,
     eventType,
     date,
@@ -550,6 +553,15 @@ export function BookingForm({ initial }: { initial?: Booking }) {
                 )}
               </div>
             )}
+            <div className="flex items-center justify-between gap-4 border border-border-default px-4 py-3">
+              <div>
+                <p className="text-sm text-text-primary">Keep photos private</p>
+                <p className="text-[12px] text-text-muted">
+                  The agreement says you only use or share their photos with their permission
+                </p>
+              </div>
+              <Switch checked={privatePhotos} onCheckedChange={setPrivatePhotos} disabled={locked} />
+            </div>
             {pkg && (
               <p className={hint}>
                 {pkg.includes_video || (custom && video) ? "Photo + video" : "Photos only"} ·{" "}

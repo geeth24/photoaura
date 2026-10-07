@@ -1,5 +1,5 @@
 <!--
-version: 2026-10-07
+version: 2026-10-07.2
 Master contract. {{field}} is filled per booking; {{#video}}…{{/video}} only shows on
 packages that include video, {{^video}}…{{/video}} only on photo-only ones.
 Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, **bold**.
@@ -62,11 +62,12 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 
 - The Photographer retains all copyrights and ownership rights in the photographs{{#video}} and video{{/video}}.
 - Upon full payment, the Client receives a non-exclusive, non-transferable license for personal, non-commercial use, including social media posting, personal printing, and sharing with friends and family.
+- Nothing in this Agreement limits the Client's personal use and sharing of their own photographs{{#video}} and video{{/video}}.
 - Commercial, advertising, publication, resale, or brand use requires prior written permission and may require a separate license and fee.
 
-## 6. Model Release & Minors
+## 6. Portfolio Use & Minors
 
-The Client grants Reactive Shots Studios permission to use selected photographs{{#video}} and video{{/video}} from the event for portfolio, website, social media, studio samples, and promotional purposes. The Client may opt out by notifying the Photographer in writing before the event.
+{{^private}}The Client grants Reactive Shots Studios permission to use selected photographs{{#video}} and video{{/video}} from the event for portfolio, website, social media, studio samples, and promotional purposes. The Client may opt out by notifying the Photographer in writing before the event.{{/private}}{{#private}}Reactive Shots Studios will only use, publish, or share photographs{{#video}} and video{{/video}} from this event, including for portfolio, website, social media, or promotional purposes, with the Client's prior written permission. Email is sufficient.{{/private}}
 
 The Client confirms that they are the parent or legal guardian of, or have permission from the parent or legal guardian of, any minors they ask to be photographed. The Client may request in writing that images featuring minors are not used for promotional purposes.
 
