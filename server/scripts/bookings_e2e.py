@@ -245,7 +245,8 @@ def main():
             r = c.patch(f"/api/bookings/{num}", json={"private_photos": True}, headers=A).json()
             md = r["contract"]["markdown"]
             check(r["private_photos"] and "only use, publish, or share photographs from this event" in md
-                  and "may opt out" not in md and "{{" not in md, "private photos rewrites portfolio use")
+                  and "may opt out" not in md and "images featuring minors are not used" not in md and "{{" not in md,
+                  "private photos rewrites portfolio use")
             check(r["contract"]["outdated"] is False, "a fresh snapshot isn't outdated")
             rendered.clear()
             r = c.post(f"/api/bookings/{num}/revise", json={"note": "Photos stay private, as discussed."}, headers=A).json()

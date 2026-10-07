@@ -1,5 +1,5 @@
 <!--
-version: 2026-10-07.3
+version: 2026-10-07.4
 Master contract. {{field}} is filled per booking; {{#video}}…{{/video}} only shows on
 packages that include video, {{^video}}…{{/video}} only on photo-only ones.
 Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, **bold**.
@@ -68,7 +68,7 @@ Reactive Shots Studios ("Photographer") agrees to provide professional {{^video}
 
 {{^private}}The Client grants Reactive Shots Studios permission to use selected photographs{{#video}} and video{{/video}} from the event for portfolio, website, social media, studio samples, and promotional purposes. The Client may opt out by notifying the Photographer in writing before the event.{{/private}}{{#private}}Reactive Shots Studios will only use, publish, or share photographs{{#video}} and video{{/video}} from this event, including for portfolio, website, social media, or promotional purposes, with the Client's prior written permission. Email is sufficient.{{/private}}
 
-The Client confirms that they are the parent or legal guardian of, or have permission from the parent or legal guardian of, any minors they ask to be photographed. The Client may request in writing that images featuring minors are not used for promotional purposes.
+The Client confirms that they are the parent or legal guardian of, or have permission from the parent or legal guardian of, any minors they ask to be photographed.{{^private}} The Client may request in writing that images featuring minors are not used for promotional purposes.{{/private}}
 
 ## 7. Liability
 
