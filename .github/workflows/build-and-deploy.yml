@@ -11,7 +11,8 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "client/**", "face-service/**", "ios/**"]
+    # later patterns win: the contract template is markdown but ships in the image
+    paths: ["**", "!**.md", "server/contracts/**", "!client/**", "!face-service/**", "!ios/**", "!android/**", "!marketing/**"]
   workflow_dispatch:
 
 concurrency:
