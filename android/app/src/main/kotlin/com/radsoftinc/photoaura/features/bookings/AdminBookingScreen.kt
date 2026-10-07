@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
@@ -374,7 +372,7 @@ fun AdminBookingScreen(
                 if (b.contract.signed) "Exactly what ${b.contract.signedName} signed on ${fmtStamp(b.contract.signedAt)}." else "This is what the client reads before signing.",
                 style = EditorialTheme.typography.subtitle, color = EditorialTheme.colors.textSecondary,
             )
-            ContractView(b.contract.markdown.orEmpty(), Modifier.verticalScroll(rememberScrollState()))
+            ContractView(b.contract.markdown.orEmpty())
         }
     }
 }
