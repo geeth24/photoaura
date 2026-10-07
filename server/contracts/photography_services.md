@@ -1,5 +1,5 @@
 <!--
-version: 2026-10-06.2
+version: 2026-10-06.3
 Master contract. {{field}} is filled per booking; {{#video}}…{{/video}} only shows on
 packages that include video, {{^video}}…{{/video}} only on photo-only ones.
 Markdown subset: "# " title, "## " headings, "- " bullets, "  - " sub-bullets, **bold**.
@@ -74,14 +74,6 @@ The Client confirms that they are the parent or legal guardian of, or have permi
 
 The Photographer is not responsible for missed or limited coverage caused by circumstances beyond reasonable control, including venue restrictions, interference by guests or vendors, weather, acts of God, illness, equipment malfunction despite reasonable backup precautions, or other unforeseen events. To the maximum extent permitted by law, the Photographer’s total liability under this Agreement is limited to the amount actually paid by the Client under this Agreement.
 
-## 8. General Terms
-
-**Governing Law:** This Agreement is governed by the laws of the State of Texas. Any dispute will be resolved in the courts of Dallas County, Texas.
-
-**Entire Agreement:** This Agreement is the entire agreement between the parties and replaces any earlier discussions. Changes must be agreed in writing; email is sufficient.
-
-**Severability:** If any part of this Agreement is found to be unenforceable, the rest of the Agreement remains in effect.
-
-## 9. Signatures
+## 8. Signatures
 
 By signing below, the Client acknowledges that they have read, understood, and agreed to all terms of this Agreement. Electronic signatures and electronically transmitted copies will be treated as originals.
