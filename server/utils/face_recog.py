@@ -488,8 +488,10 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                 continue
 
             embedding = face["embedding"]
-            match = _match_person(session, embedding)
-            chip_worthy = is_chip_worthy(face)
+            # a crop that reads as not a face is kept, but parked with nobody
+            junk = _p(face, "not_face") >= CORE_NOT_FACE_MAX
+            match = None if junk else _match_person(session, embedding)
+            chip_worthy = is_chip_worthy(face) and not junk
 
             # a weak crop that matches nobody YET is parked unassigned (no link)
             # rather than dropped — a person's frontal anchor may only be
@@ -656,7 +658,9 @@ def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset(), crowd=N
         centre = _unit(np.mean(list(vecs.values()), axis=0))
         # a face half behind someone else still makes the person, just not the thumbnail
         clear = [i for i in worthy if _clear_of_others(stored[i])]
-        pool = [i for i in clear if _natural(stored[i])] or clear or worthy or members
+        # a slightly soft, relaxed, unobstructed face beats a sharp one half behind someone
+        soft = [i for i in members if _natural(stored[i]) and _min_px(stored[i]) >= CHIP2_MIN_PX]
+        pool = [i for i in clear if _natural(stored[i])] or clear or soft or worthy or members
         scores = {i: face_score(stored[i], float(vecs[i] @ centre)) for i in pool}
         best = max(pool, key=scores.get)
         held = [i for i in pool if i in current]
@@ -899,7 +903,11 @@ def _recluster_faces():
         current = {emb for emb, _ in old_chip.values() if emb}
         people_plan, leftovers = _plan_people(clusters, by_id, keep, current, crowd)
         # turned heads, soft frames and lone faces join someone only on a clear vote
-        satellites = [i for i in node_ids if i not in core] + leftovers
+        # crops that read as not a face (backs of heads, hands, paintings) join nobody
+        satellites = [
+            i for i in [i for i in node_ids if i not in core] + leftovers
+            if _p(stored[i], "not_face") < CORE_NOT_FACE_MAX
+        ]
         attached = _attach(satellites, people_plan, by_id)
 
         # wipe old identities; embeddings stay, face_id gets rewritten.
