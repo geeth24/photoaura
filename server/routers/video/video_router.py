@@ -2,10 +2,11 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session
-from db.models import Video, VideoRevision
+from db.models import User, Video, VideoRevision
 from services.aws_service import s3_client
 from datetime import datetime, timedelta
 from dependencies import get_current_user, require_admin
+from utils.utils import access_user_id
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -90,6 +91,13 @@ async def get_client_videos(
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    me = session.query(User).filter_by(user_name=current_user.user_name).first()
+    if not me:
+        raise HTTPException(status_code=401, detail="Unknown user")
+    # family members share their primary account's videos
+    if me.role != "admin" and client_id not in (me.id, access_user_id(session, me.id)):
+        raise HTTPException(status_code=403, detail="Not your videos")
+
     try:
         rows = (
             session.query(
