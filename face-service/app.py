@@ -28,6 +28,8 @@ _MODEL = os.environ.get("FACE_MODEL", "buffalo_l")
 _DET_SIZES = [
     int(s) for s in os.environ.get("FACE_DET_SIZES", "640,1280").split(",") if s.strip()
 ]
+# smaller detections are dropped by the backend anyway; skip the other models on them
+_MIN_PX = int(os.environ.get("FACE_MIN_PX", "40"))
 _face = FaceAnalysis(
     name=_MODEL,
     root=os.environ.get("INSIGHTFACE_ROOT", "~/.insightface"),
@@ -70,6 +72,9 @@ def _analyze(arr):
     bboxes, kpss = _detect(arr)
     faces = []
     for i in range(bboxes.shape[0]):
+        x1, y1, x2, y2 = bboxes[i, :4]
+        if min(x2 - x1, y2 - y1) < _MIN_PX:
+            continue
         face = Face(bbox=bboxes[i, :4], kps=kpss[i], det_score=bboxes[i, 4])
         for task, model in _face.models.items():
             if task != "detection":
@@ -94,8 +99,9 @@ def _sharpness(arr, bbox):
 
 
 def _blur(arr, kps):
-    """Focus on the aligned face, shrunk to 56px so sensor grain averages out,
-    normalized by contrast. Sharp faces land ~60-250, out-of-focus ones < ~25."""
+    """Focus on the aligned face, shrunk to 56px and normalized by contrast.
+    High-ISO grain doesn't fool it the way the raw Laplacian was fooled. Sharp
+    faces land ~60-250, out-of-focus ones < ~25."""
     aligned = face_align.norm_crop(arr, kps, 112)
     gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY).astype(np.float64)
     gray = cv2.resize(gray, (56, 56), interpolation=cv2.INTER_AREA)
@@ -105,12 +111,15 @@ def _blur(arr, kps):
 # insightface 2d106: 33-42 and 87-96 are the eyes (38, 88 pupils; 35/39 and
 # 89/93 corners), 52 and 61 the mouth corners, 53/71 the outer lip midpoints,
 # 60/62 the inner ones
-def _landmark_agreement(kps, lmk):
-    """How far the detector's 5 points sit from the 106-point mesh, in eye
-    widths. Real faces ~0.06; ears, backs of heads and hands > 1."""
-    iod = float(np.linalg.norm(kps[1] - kps[0])) + 1e-6
+def _landmark_agreement(kps, lmk, bbox):
+    """How far the detector's 5 points sit from the 106-point mesh, as a share
+    of the face's size. Frontal faces ~0.03 (99% under 0.21), profiles similar;
+    ears, backs of heads and hands run higher. Face size, not eye distance:
+    the eyes nearly touch on a profile, which made real profiles look like junk."""
+    x1, y1, x2, y2 = bbox
+    size = float(np.sqrt(max(1.0, (x2 - x1) * (y2 - y1))))
     pairs = ((kps[0], lmk[38]), (kps[1], lmk[88]), (kps[3], lmk[52]), (kps[4], lmk[61]))
-    return float(np.mean([np.linalg.norm(a - b) for a, b in pairs]) / iod)
+    return float(np.mean([np.linalg.norm(a - b) for a, b in pairs]) / size)
 
 
 def _expression(lmk):
@@ -175,7 +184,7 @@ def describe(arr):
             "landmark_agreement": None,
         }
         if lmk is not None:
-            face["landmark_agreement"] = _landmark_agreement(f.kps, lmk)
+            face["landmark_agreement"] = _landmark_agreement(f.kps, lmk, f.bbox)
             face.update(_expression(lmk))
         out.append(face)
     return out

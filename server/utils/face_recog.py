@@ -64,10 +64,11 @@ def _is_subject(bbox, biggest_px):
     return px >= TAG_MIN_PX and px >= TAG_REL_MIN * biggest_px
 
 # Gates, loosest to strictest:
-#  - INDEX: is it a face at all? Ears, backs of heads, hands and blurry blobs
-#    used to get through and form "people" of their own. Turned heads still pass.
-#  - CORE: clear enough to say who someone is. Only these build people; the
-#    rest join a person on a confident vote, or stay unassigned.
+#  - INDEX: is it a face at all? Drops only the clear junk; turned heads and
+#    soft frames still pass so they can tag their photos.
+#  - CORE: clear enough to say who someone is. Only these build people, so
+#    ears, hands and blobs that slip through can't form "people" of their own;
+#    the rest join a person on a confident vote, or stay unassigned.
 #  - CHIP: good enough to be the thumbnail, and the bar for minting a new
 #    person from a single upload.
 # Faces stored before the face service sent quality signals use the old rules
@@ -76,13 +77,13 @@ INDEX_DET_MIN = float(os.environ.get("FACE_INDEX_DET_MIN", "0.60"))
 INDEX_SHARP_MIN = float(os.environ.get("FACE_INDEX_SHARP_MIN", "18"))  # old rows only
 INDEX_MIN_PX = int(os.environ.get("FACE_INDEX_MIN_PX", "55"))
 
-# the detector's 5 points vs the 106-point mesh, in eye widths: real faces sit
-# ~0.06, profiles 0.3-1, ears and backs of heads well past 1
-JUNK_AGREE = float(os.environ.get("FACE_JUNK_AGREE", "1.0"))
+# the detector's 5 points vs the 106-point mesh, as a share of face size:
+# frontal faces and profiles sit under ~0.21, ears and backs of heads run higher
+JUNK_AGREE = float(os.environ.get("FACE_JUNK_AGREE", "0.30"))
 JUNK_NORM = float(os.environ.get("FACE_JUNK_NORM", "13"))
-JUNK_BLUR = float(os.environ.get("FACE_JUNK_BLUR", "15"))
+JUNK_BLUR = float(os.environ.get("FACE_JUNK_BLUR", "8"))  # mush; soft faces stay, non-core
 
-CORE_AGREE = float(os.environ.get("FACE_CORE_AGREE", "0.3"))
+CORE_AGREE = float(os.environ.get("FACE_CORE_AGREE", "0.10"))
 CORE_YAW_MAX = float(os.environ.get("FACE_CORE_YAW_MAX", "45"))
 CORE_PITCH_MAX = float(os.environ.get("FACE_CORE_PITCH_MAX", "30"))
 CORE_BLUR = float(os.environ.get("FACE_CORE_BLUR", "25"))
@@ -105,9 +106,15 @@ CHIP2_EYES_MIN = float(os.environ.get("FACE_CHIP_EYES_MIN", "0.22"))
 CHIP2_GAZE_MAX = float(os.environ.get("FACE_CHIP_GAZE_MAX", "0.06"))
 
 # a non-core face joins a person when its 3 closest faces there average this
-# similarity and beat the runner-up person by the margin
+# similarity and beat the runner-up person by the margin. With fewer than 3
+# faces to vote, the bar is the old single-match one.
 ATTACH_SIM = float(os.environ.get("FACE_ATTACH_SIM", "0.45"))
+ATTACH_SIM_FEW = float(os.environ.get("FACE_ATTACH_SIM_FEW", "0.56"))
 ATTACH_MARGIN = float(os.environ.get("FACE_ATTACH_MARGIN", "0.08"))
+
+# keep the current thumbnail unless a new pick beats it by this much, so
+# near-identical burst frames don't swap the chip (and its URL) every upload
+CHIP_STICKY = float(os.environ.get("FACE_CHIP_STICKY", "5"))
 
 # faces scored with the expression signals outrank ones stored before them
 # (the old score topped out ~195) until every album is re-detected
@@ -160,7 +167,7 @@ def should_index(face):
         if (face.get("emb_norm") or JUNK_NORM) < JUNK_NORM:
             return False, "not a face"
         if face["blur"] < JUNK_BLUR:
-            return False, "out of focus"
+            return False, "mush"
         return True, ""
     sharp = face.get("sharpness")
     if sharp is not None and sharp < INDEX_SHARP_MIN:
@@ -169,15 +176,16 @@ def should_index(face):
 
 
 def is_core(face):
-    """Clear enough to define who someone is."""
+    """Clear enough to define who someone is. Old rows all count, as they did
+    before the signals existed."""
+    if not _has_signals(face):
+        return True
     if abs(face.get("yaw") or 0) > CORE_YAW_MAX:
         return False
     if abs(face.get("pitch") or 0) > CORE_PITCH_MAX:
         return False
     if _min_px(face) < CORE_MIN_PX:
         return False
-    if not _has_signals(face):
-        return True
     return (
         face["landmark_agreement"] <= CORE_AGREE
         and face["blur"] >= CORE_BLUR
@@ -532,13 +540,14 @@ def _chinese_whispers(node_ids, adjacency, iterations=25):
     return labels
 
 
-def _plan_people(clusters, by_id, keep=frozenset()):
+def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset()):
     """Turn clusters of core faces into people. A cluster becomes a person when
     one of its faces is chip-worthy, when two or more clean faces agree, or when
     it holds a face in `keep` (admin merges, pinned covers). Faces stored
     before the quality signals can't vouch for each other, since ears and
     blobs passed as clean back then. Its thumbnail is the best-scoring
-    chip-worthy face, else the best face it has. Returns
+    chip-worthy face, else the best face it has, but a face in `current`
+    (today's thumbnails) stays unless beaten by CHIP_STICKY. Returns
     ([(member_ids, chip_face_id)] biggest first, leftover face ids)."""
     kept, leftovers = [], []
     for members in sorted(clusters.values(), key=len, reverse=True):
@@ -550,24 +559,28 @@ def _plan_people(clusters, by_id, keep=frozenset()):
             continue
         vecs = {i: _unit(by_id[i].embedding) for i in members}
         centre = _unit(np.mean(list(vecs.values()), axis=0))
-        best = max(
-            worthy or members,
-            key=lambda i: face_score(stored[i], float(vecs[i] @ centre)),
-        )
+        pool = worthy or members
+        scores = {i: face_score(stored[i], float(vecs[i] @ centre)) for i in pool}
+        best = max(pool, key=scores.get)
+        held = [i for i in pool if i in current]
+        if held and scores[best] - scores[held[0]] < CHIP_STICKY:
+            best = held[0]
         kept.append((list(members), best))
     return kept, leftovers
 
 
 def _attach(face_ids, kept, by_id):
-    """Give each face to the person whose 3 closest faces it matches best, when
-    that's clear (ATTACH_SIM, and ATTACH_MARGIN over the runner-up) and that
-    person isn't already in the photo. Extends kept's member lists; returns how
-    many faces joined someone."""
+    """Give each face to the person whose closest faces it matches best: their
+    top 3 must average ATTACH_SIM (ATTACH_SIM_FEW for people with fewer than 3
+    faces) and beat every other person by ATTACH_MARGIN. If that best person is
+    already in the photo, the face is someone else and joins nobody. Extends
+    kept's member lists; returns how many faces joined someone."""
     if not kept or not face_ids:
         return 0
     people = [np.array([_unit(by_id[i].embedding) for i in m]) for m, _ in kept]
+    few = np.array([len(m) < 3 for m, _ in kept])
     in_photo = [{by_id[i].photo_id for i in m} for m, _ in kept]
-    scored = []
+    picks = []
     # chunked so a big library never builds one huge similarity matrix
     for start in range(0, len(face_ids), 500):
         chunk = face_ids[start:start + 500]
@@ -578,21 +591,22 @@ def _attach(face_ids, kept, by_id):
             t = min(3, sims.shape[1])
             S[:, k] = np.partition(sims, -t, axis=1)[:, -t:].mean(axis=1)
         for row, i in enumerate(chunk):
-            scored.append((float(S[row].max()), i, S[row]))
+            order = np.argsort(S[row])[::-1]
+            best = float(S[row, order[0]])
+            runner_up = float(S[row, order[1]]) if len(order) > 1 else 0.0
+            bar = ATTACH_SIM_FEW if few[order[0]] else ATTACH_SIM
+            if best >= bar and best - runner_up >= ATTACH_MARGIN:
+                picks.append((best, i, int(order[0])))
 
     joined = 0
     # most confident first, so a photo's clearest match claims the person
-    for _, i, row in sorted(scored, key=lambda t: -t[0]):
+    for _, i, k in sorted(picks, key=lambda t: -t[0]):
         photo = by_id[i].photo_id
-        eligible = [k for k in np.argsort(row)[::-1] if photo not in in_photo[k]][:2]
-        if not eligible:
+        if photo in in_photo[k]:
             continue
-        best = row[eligible[0]]
-        runner_up = row[eligible[1]] if len(eligible) > 1 else -1.0
-        if best >= ATTACH_SIM and best - runner_up >= ATTACH_MARGIN:
-            kept[eligible[0]][0].append(i)
-            in_photo[eligible[0]].add(photo)
-            joined += 1
+        kept[k][0].append(i)
+        in_photo[k].add(photo)
+        joined += 1
     return joined
 
 
@@ -779,7 +793,8 @@ def _recluster_faces():
         for fid, lbl in labels.items():
             clusters.setdefault(lbl, []).append(fid)
         keep = {fe.id for fe in faces if fe.manual_group} | set(pinned)
-        people_plan, leftovers = _plan_people(clusters, by_id, keep)
+        current = {emb for emb, _ in old_chip.values() if emb}
+        people_plan, leftovers = _plan_people(clusters, by_id, keep, current)
         # turned heads, soft frames and lone faces join someone only on a clear vote
         satellites = [i for i in node_ids if i not in core] + leftovers
         attached = _attach(satellites, people_plan, by_id)
@@ -805,8 +820,10 @@ def _recluster_faces():
 
             # reuse the person id this cluster mostly came from -> stable ids +
             # we can skip re-cropping an unchanged chip. fall back to a new id.
+            # clean faces decide who this is; attached ones only tag along
+            voters = [i for i in members if i in core] or members
             tally = {}
-            for i in members:
+            for i in voters:
                 oid = old_face_of.get(i)
                 if oid:
                     tally[oid] = tally.get(oid, 0) + 1
@@ -818,7 +835,7 @@ def _recluster_faces():
             used_ids.add(external_id)
 
             inherited = next(
-                (old_names[old_face_of[i]] for i in members
+                (old_names[old_face_of[i]] for i in voters
                  if old_face_of.get(i) in old_names),
                 None,
             ) if old_names else None
@@ -830,7 +847,8 @@ def _recluster_faces():
             elif old_scores.get(external_id, 0) >= COVER_LOCK and prev_emb is None:
                 score, key_emb, chip_key = COVER_LOCK, None, prev_key
             else:
-                score = face_score(best_face)
+                # a fallback pick mustn't keep a better upload from taking over
+                score = face_score(best_face) if is_chip_worthy(best_face) else 0.0
                 if prev_emb == best_id:
                     key_emb, chip_key = best_id, prev_key
                 else:
