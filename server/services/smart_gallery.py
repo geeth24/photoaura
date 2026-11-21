@@ -5,6 +5,7 @@ the studio's manual choices being lost."""
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
@@ -691,6 +692,30 @@ def highlight_filenames(session, album_id):
     return [m.filename for m in sorted(rows, key=lambda m: (capture_time(m), m.id))]
 
 
+def _label_vector(label):
+    """The vocabulary vector behind an automatic label ("Food 2" is Food), or
+    None for a studio name or a "Moment N" fallback."""
+    vocab = moment_vocab()
+    if not vocab or not label:
+        return None
+    labels, vectors = vocab
+    base = re.sub(r" \d+$", "", label)
+    return vectors[labels.index(base)] if base in labels else None
+
+
+def _cover(items, label, custom):
+    """The better half of the moment by combined score, then the photo that
+    looks most like its label, so a "Sweets and snacks" card shows sweets."""
+    ranked = sorted(items, key=lambda x: (x[2].combined if x[2].combined is not None else -1.0, -x[1]), reverse=True)
+    vec = None if custom else _label_vector(label)
+    if vec is None:
+        return ranked[0]
+    top = [x for x in ranked[: max(1, (len(ranked) + 1) // 2)] if x[2].clip is not None]
+    if not top:
+        return ranked[0]
+    return max(top, key=lambda x: float(np.asarray(x[2].clip, dtype=np.float32) @ vec))
+
+
 def moments_json(session, album_id, studio=False):
     """The album's moments for the API, in time order, built from the photos
     that are visible: a hidden photo never shows, and the range, count and cover
@@ -716,9 +741,9 @@ def moments_json(session, album_id, studio=False):
         items = sorted(by_key.get(row.key, []), key=lambda x: (x[0], x[1]))
         if not items:
             continue
-        # the cover is the best combined score, leaving out what the review flags
+        # leave out what the review flags, then match the cover to the label
         sound = [x for x in items if x[2].review_reason is None or x[2].review_override == "keep"]
-        cover = max(sound or items, key=lambda x: (x[2].combined if x[2].combined is not None else -1.0, -x[1]))
+        cover = _cover(sound or items, row.label, row.label_custom)
         entry = {
             "key": row.key,
             "label": row.label,
