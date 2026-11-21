@@ -16,14 +16,25 @@ function roleFromToken(token?: string): string | null {
 const PROTECTED = ["/dashboard", "/albums", "/bookings", "/photos", "/downloads", "/users", "/faces", "/website", "/profile", "/ops"]
 const ADMIN_ONLY = ["/dashboard", "/photos", "/downloads", "/users", "/faces", "/website", "/ops"]
 
+// the access cookie expires an hour in, the refresh cookie lasts months. With
+// only the refresh cookie left, the role is unknown here, so don't guess:
+// send the browser through /auth/refresh, which swaps it for a fresh access
+// token and returns to `next`, where the checks below run on the real role.
+function viaRefresh(request: NextRequest, next: string) {
+  const url = new URL("/auth/refresh", request.url)
+  url.searchParams.set("next", next)
+  return NextResponse.redirect(url)
+}
+
 export function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value
+  const hasRefresh = !!request.cookies.get("refresh_token")?.value
   const role = roleFromToken(token)
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
 
   if (PROTECTED.some((p) => pathname.startsWith(p))) {
     if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url))
+      return hasRefresh ? viaRefresh(request, pathname + search) : NextResponse.redirect(new URL("/login", request.url))
     }
     // clients can't reach admin-only areas
     if (role === "client" && ADMIN_ONLY.some((p) => pathname.startsWith(p))) {
@@ -39,6 +50,8 @@ export function proxy(request: NextRequest) {
     const home = role === "client" ? "/albums" : "/dashboard"
     return NextResponse.redirect(new URL(home, request.url))
   }
+  // signed in but the access cookie lapsed: skip the login form
+  if (pathname === "/login" && hasRefresh) return viaRefresh(request, "/dashboard")
 
   return NextResponse.next()
 }

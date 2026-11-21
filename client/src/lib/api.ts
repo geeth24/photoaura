@@ -1,3 +1,4 @@
+import { canRefresh, ensureFreshToken, refreshSession } from "@/lib/auth-refresh"
 import { clearSession, previewReturnPath, restoreAdminSession } from "@/lib/session"
 import type {
   AppConfig,
@@ -27,31 +28,23 @@ function getToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const token = getToken()
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
-  }
+// sends an authed request; on a 401 it refreshes the session once and retries.
+// Returns the response for the caller to read, or ends the session and throws.
+async function authedFetch(url: string, build: (token: string | null) => RequestInit): Promise<Response> {
+  await ensureFreshToken()
+  let token = getToken()
+  let res = await fetch(url, build(token))
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
+  if (res.status === 401 && canRefresh()) {
+    // a sibling request may have refreshed already; then the new token is enough
+    const refreshed = getToken() !== token ? "ok" : await refreshSession()
+    if (refreshed === "ok") {
+      token = getToken()
+      res = await fetch(url, build(token))
+    } else if (refreshed === "unavailable") {
+      throw new ApiError("Couldn't refresh your session. Check your connection.", 401)
+    }
   }
-
-  // don't set content-type for FormData
-  if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json"
-  }
-
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-    // always hit the live API — face groupings change after a recluster, so a
-    // cached /faces would show stale people/photos
-    cache: "no-store",
-  })
 
   if (res.status === 401) {
     // an expired preview token puts the admin back where they were
@@ -63,6 +56,35 @@ export async function apiFetch<T>(
     }
     throw new Error("Unauthorized")
   }
+  return res
+}
+
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const res = await authedFetch(`${API_URL}${path}`, (token) => {
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
+    }
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+
+    // don't set content-type for FormData
+    if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json"
+    }
+
+    return {
+      ...options,
+      headers,
+      // always hit the live API — face groupings change after a recluster, so a
+      // cached /faces would show stale people/photos
+      cache: "no-store",
+    }
+  })
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }))
@@ -82,11 +104,10 @@ export class ApiError extends Error {
 
 // authed file download (e.g. a contract PDF) — a plain link can't carry the bearer token
 export async function apiBlob(path: string): Promise<Blob> {
-  const token = getToken()
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const res = await authedFetch(`${API_URL}${path}`, (token) => ({
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     cache: "no-store",
-  })
+  }))
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }))
     throw new ApiError(typeof error.detail === "string" ? error.detail : "Download failed", res.status)
@@ -98,11 +119,10 @@ export async function apiStream(
   path: string,
   onLine: (data: Record<string, unknown>) => void
 ) {
-  const token = getToken()
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await authedFetch(`${API_URL}${path}`, (token) => ({
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }))
 
   const reader = res.body?.getReader()
   if (!reader) return
@@ -327,8 +347,25 @@ export function uploadAlbum(
   })
 }
 
-// fetch can't report upload progress, so multipart posts go through xhr
-function postWithProgress<T>(
+// fetch can't report upload progress, so multipart posts go through xhr.
+// A long upload can outlive the access token, so a 401 refreshes and retries once.
+async function postWithProgress<T>(
+  path: string,
+  form: FormData,
+  onProgress?: (pct: number) => void,
+): Promise<T> {
+  await ensureFreshToken()
+  try {
+    return await sendWithProgress<T>(path, form, onProgress)
+  } catch (e) {
+    if (e instanceof RequestError && e.status === 401 && canRefresh() && (await refreshSession()) === "ok") {
+      return sendWithProgress<T>(path, form, onProgress)
+    }
+    throw e
+  }
+}
+
+function sendWithProgress<T>(
   path: string,
   form: FormData,
   onProgress?: (pct: number) => void,
