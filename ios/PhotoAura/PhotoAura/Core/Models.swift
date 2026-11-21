@@ -56,8 +56,83 @@ struct AlbumDetail: Decodable, Hashable {
     // proof mode: the server refuses originals and zips until it's paid
     let locked: Bool?
     let bookingNumber: String?
+    // smart gallery: filenames of the curated subset, nil until published
+    let highlights: [String]?
+    // time-ordered groups of the album, nil until published
+    let moments: [AlbumMoment]?
 
     var isLocked: Bool { locked == true }
+
+    enum CodingKeys: String, CodingKey {
+        case albumName, slug, imageCount, albumPhotos, secret, `public`, revision, locked, bookingNumber
+        case highlights, moments
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        albumName = try c.decode(String.self, forKey: .albumName)
+        slug = try c.decode(String.self, forKey: .slug)
+        imageCount = try c.decode(Int.self, forKey: .imageCount)
+        albumPhotos = try c.decode([Photo].self, forKey: .albumPhotos)
+        secret = try c.decodeIfPresent(String.self, forKey: .secret)
+        `public` = try c.decodeIfPresent(Bool.self, forKey: .public)
+        revision = try c.decodeIfPresent(AlbumRevision.self, forKey: .revision)
+        locked = try c.decodeIfPresent(Bool.self, forKey: .locked)
+        bookingNumber = try c.decodeIfPresent(String.self, forKey: .bookingNumber)
+        // the smart fields are extras; a bad shape must not take the album down
+        highlights = try? c.decodeIfPresent([String].self, forKey: .highlights)
+        let lossy = try? c.decodeIfPresent([Lossy<AlbumMoment>].self, forKey: .moments)
+        moments = lossy?.compactMap(\.value)
+    }
+}
+
+// one stretch of the album's timeline ("Cake cutting"), photos in capture order
+struct AlbumMoment: Decodable, Hashable, Identifiable {
+    let key: String
+    let label: String
+    let start: String?
+    let end: String?
+    let count: Int?
+    let cover: String?
+    let filenames: [String]
+
+    var id: String { key }
+
+    enum CodingKeys: String, CodingKey { case key, label, start, end, count, cover, filenames }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = try c.decode(String.self, forKey: .key)
+        label = (try? c.decodeIfPresent(String.self, forKey: .label)).flatMap { $0.isEmpty ? nil : $0 } ?? "Moment"
+        start = try? c.decodeIfPresent(String.self, forKey: .start)
+        end = try? c.decodeIfPresent(String.self, forKey: .end)
+        count = try? c.decodeIfPresent(Int.self, forKey: .count)
+        cover = try? c.decodeIfPresent(String.self, forKey: .cover)
+        filenames = (try? c.decodeIfPresent([String].self, forKey: .filenames)) ?? []
+    }
+
+    /// "4:12 PM–4:40 PM", read off the timestamps' own clock so the offset
+    /// they carry can't shift it to the viewer's zone.
+    var timeRange: String? {
+        guard let from = Self.clock(start) else { return nil }
+        guard let to = Self.clock(end), to != from else { return from }
+        return "\(from)–\(to)"
+    }
+
+    private static func clock(_ iso: String?) -> String? {
+        guard let iso, let t = iso.firstIndex(of: "T") else { return nil }
+        let parts = iso[iso.index(after: t)...].split(separator: ":")
+        guard parts.count >= 2, let h = Int(parts[0].prefix(2)), let m = Int(parts[1].prefix(2)),
+              (0..<24).contains(h), (0..<60).contains(m) else { return nil }
+        let hour = h % 12 == 0 ? 12 : h % 12
+        return "\(hour):\(String(format: "%02d", m)) \(h < 12 ? "AM" : "PM")"
+    }
+}
+
+// decodes one array element without failing the whole array
+struct Lossy<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
 }
 
 // one numbered re-edit of a delivered album; the delivery itself is version 1

@@ -65,7 +65,7 @@ struct AlbumView: View {
                     albumName: store.state.title,
                     slug: store.state.slug,
                     secret: store.state.detail?.secret,
-                    photos: store.state.photos
+                    photos: store.state.filteredPhotos
                 )
             }
         }
@@ -135,6 +135,17 @@ private struct AlbumContent: View {
                             .padding(.horizontal, EditorialSpacing.screenGutter)
                         }
 
+                        if store.state.showsScopes {
+                            EditorialSegmentedControl(
+                                items: store.state.scopes.map { ($0.title, $0) },
+                                selection: Binding(
+                                    get: { store.state.scope },
+                                    set: { store.send(.selectScope($0)) }
+                                )
+                            )
+                            .padding(.horizontal, EditorialSpacing.screenGutter)
+                        }
+
                         if !store.state.faces.isEmpty {
                             facesStrip
                         }
@@ -164,6 +175,11 @@ private struct AlbumContent: View {
             return "\(revision.title) — \(n) updated \(photos)"
         }
         let total = store.state.detail?.imageCount ?? n
+        switch store.state.scope {
+        case .highlights: return "\(n) \(n == 1 ? "highlight" : "highlights") of \(total) \(total == 1 ? "photo" : "photos")"
+        case .moments: return "\(store.state.visibleMoments.count) moments, \(n) \(photos)"
+        case .all: break
+        }
         return "\(total) \(total == 1 ? "photo" : "photos")"
     }
 
@@ -203,6 +219,17 @@ private struct AlbumContent: View {
         }
     }
 
+    private var momentSections: [PhotoGridSection] {
+        store.state.visibleMoments.map { group in
+            let muted = [group.moment.timeRange, "\(group.photos.count)"]
+                .compactMap { $0 }
+                .map { " · \($0)" }
+                .joined()
+            let line = Text("\(Text(group.moment.label).foregroundStyle(EditorialColors.textPrimary))\(Text(muted).foregroundStyle(EditorialColors.textMuted))")
+            return PhotoGridSection(id: group.id, header: line, photos: group.photos)
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         if store.state.isLoading && !store.state.hasLoadedOnce {
@@ -223,7 +250,11 @@ private struct AlbumContent: View {
             )
             .padding(.horizontal, EditorialSpacing.screenGutter)
         } else {
-            PhotoGrid(photos: store.state.photos, frames: frames, onOpen: onOpen)
+            if store.state.scope == .moments {
+                PhotoGrid(sections: momentSections, frames: frames, onOpen: onOpen)
+            } else {
+                PhotoGrid(photos: store.state.photos, frames: frames, onOpen: onOpen)
+            }
         }
     }
 }
