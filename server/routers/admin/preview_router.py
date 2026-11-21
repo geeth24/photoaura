@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session
 from db.models import User
-from dependencies import require_admin
+from dependencies import TOKEN_TYPE_ACCESS, require_admin
 
 router = APIRouter()
 
@@ -42,6 +42,7 @@ def start_preview(
             "role": "client",
             "preview": True,
             "admin_id": me.id,
+            "typ": TOKEN_TYPE_ACCESS,
             "exp": expires,
         },
         settings.SECRET_KEY,
