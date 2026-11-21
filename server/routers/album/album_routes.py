@@ -1,7 +1,6 @@
 from typing import Optional
 from fastapi import HTTPException, APIRouter, Depends
 from fastapi.responses import StreamingResponse
-import os
 import io
 import re
 import zipfile
@@ -28,7 +27,7 @@ from db.models import (
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
-from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, hold_key, slugify
+from utils.utils import access_user_id, create_album_photos_json, capture_time, hold_key
 from utils.face_recog import chip_key_of
 from dependencies import is_admin_caller, oauth2_optional, require_admin, get_current_user, verify_token
 from services.proof_service import LOCKED_DETAIL
@@ -273,6 +272,31 @@ async def set_album_visibility(
     album.public = body.public
     session.commit()
     return {"slug": album_slug, "public": bool(album.public)}
+
+
+class RenameBody(BaseModel):
+    name: str
+
+
+@router.patch("/api/album/{album_slug}/name")
+async def rename_album(
+    album_slug: str,
+    body: RenameBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Change the display name only; slug, S3 keys and share links stay put (admin)."""
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Album name can't be empty")
+    if len(name) > 255:
+        raise HTTPException(status_code=400, detail="Album name must be 255 characters or fewer")
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    album.name = name
+    session.commit()
+    return {"slug": album.slug, "album_name": album.name}
 
 
 @router.get("/api/album/{album_slug}/download/{filename:path}")
@@ -657,75 +681,6 @@ async def delete_album(
         logging.error(f"Error deleting album: {e}")
         session.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.put("/api/album/")
-async def update_album(
-    album_name: str,
-    album_new_name: str,
-    shared: bool,
-    upload: bool,
-    slug: str,
-    user_id: int = None,
-    action: str = None,
-    _admin=Depends(require_admin),
-    session: Session = Depends(get_session),
-):
-    old_slug = slug.lower()
-    new_slug = slugify(album_new_name)
-
-    try:
-        session.query(Album).filter_by(slug=old_slug).update(
-            {
-                "name": album_new_name,
-                "shared": shared,
-                "upload": upload,
-                "location": os.path.join(settings.DATA_DIR, new_slug),
-                "slug": new_slug,
-            }
-        )
-        session.commit()
-
-        if old_slug != new_slug:
-            try:
-                objects_to_rename = s3_client.list_objects_v2(
-                    Bucket=AWS_BUCKET, Prefix=f"{old_slug}/"
-                )
-                for obj in objects_to_rename.get("Contents", []):
-                    old_key = obj["Key"]
-                    new_key = new_slug + old_key[len(old_slug):]
-                    s3_client.copy_object(
-                        Bucket=AWS_BUCKET,
-                        CopySource=f"{AWS_BUCKET}/{old_key}",
-                        Key=new_key,
-                    )
-                    s3_client.delete_object(Bucket=AWS_BUCKET, Key=old_key)
-            except ClientError as e:
-                raise HTTPException(
-                    status_code=500, detail=f"Failed to rename album in S3: {e}"
-                )
-
-        if user_id is not None:
-            if action == "update":
-                album = session.query(Album).filter_by(name=album_new_name).first()
-                if album:
-                    add_album_to_user(user_id, album.id)
-
-            elif action == "delete":
-                album = session.query(Album).filter_by(name=album_name).first()
-                if album:
-                    session.query(UserAlbumPermission).filter_by(
-                        user_id=user_id, album_id=album.id
-                    ).delete()
-                    session.commit()
-
-        return {"message": "Album updated successfully."}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Database error: {e}")
-        session.rollback()
-        raise HTTPException(status_code=500, detail="Database update failed")
 
 
 @router.get("/api/shared-albums/")
