@@ -6,6 +6,7 @@ import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import type { User } from "@/lib/types"
 import { Input } from "@/components/ui/input"
+import { ViewAsClientButton } from "@/components/view-as-client-button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
@@ -269,6 +270,8 @@ export default function UsersPage() {
                   Albums
                 </span>
               </div>
+
+              {u.role === "client" && <ViewAsClientButton userId={u.id} compact />}
 
               <button
                 onClick={() => handleSendLink(u.id)}

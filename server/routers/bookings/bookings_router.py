@@ -1100,7 +1100,11 @@ def contract_pdf(
             pdf = s3_client.get_object(Bucket=AWS_BUCKET, Key=b.pdf_key)["Body"].read()
         except Exception as e:
             print(f"booking {b.number}: reading the stored PDF failed: {e}")
-    if pdf is None:
+    if pdf is None and current_user.preview:
+        # a preview never writes, so render without storing
+        _, name, email = _client_of(session, b)
+        pdf = render_pdf(b, b.contract_markdown, name, email)
+    elif pdf is None:
         pdf = _store_pdf(session, b)
         session.commit()
     return _pdf_response(pdf, f"{b.number}-agreement.pdf")

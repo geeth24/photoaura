@@ -6,6 +6,7 @@ import Image from "next/image"
 import { motion } from "motion/react"
 import { toast } from "sonner"
 import { apiFetch, bookingsApi } from "@/lib/api"
+import { usePreview } from "@/context/auth-context"
 import { downloadAlbumZip } from "@/lib/download"
 import { seenRevision } from "@/lib/revision-seen"
 import type { MyBookingSummary, Revision } from "@/lib/types"
@@ -142,7 +143,12 @@ export function ClientHome() {
     Promise.all([homeReq, bookingsReq]).finally(() => setLoading(false))
   }, [])
 
+  const { isPreview } = usePreview()
   const zip = async (slug: string) => {
+    if (isPreview) {
+      toast.info("Downloads are off while previewing")
+      return
+    }
     setZipping(slug)
     try {
       await downloadAlbumZip(slug)
@@ -407,6 +413,8 @@ export function ClientHome() {
 }
 
 export function GalleryGrid({ albums }: { albums: HomeAlbum[] }) {
+  const { isPreview, showAsPaid } = usePreview()
+  const asPaid = isPreview && showAsPaid
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {albums.map((a) => (
@@ -434,9 +442,9 @@ export function GalleryGrid({ albums }: { albums: HomeAlbum[] }) {
           <div className="p-4">
             <p className="truncate text-sm font-medium text-text-primary">{a.name}</p>
             <p className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted">
-              {a.locked && <Lock className="size-3 shrink-0" />}
+              {a.locked && !asPaid && <Lock className="size-3 shrink-0" />}
               <span className="truncate">
-                {a.locked && "Preview · "}
+                {a.locked && !asPaid && "Preview · "}
                 {plural(a.photo_count, "photo")}
                 {a.video_count > 0 && ` · ${plural(a.video_count, "video")}`}
               </span>
@@ -478,12 +486,14 @@ function GetPhotos({
   zipping: boolean
   onZip: () => void
 }) {
+  const { isPreview, showAsPaid } = usePreview()
+  const asPaid = isPreview && showAsPaid
   const primary =
     "flex h-14 items-center justify-center gap-2.5 bg-brand px-8 text-[12px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:opacity-60 sm:min-w-[240px]"
   const secondary =
     "flex h-14 items-center justify-center gap-2.5 border border-border-default px-8 text-[12px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary sm:min-w-[240px]"
 
-  if (album.locked) {
+  if (album.locked && !asPaid) {
     return (
       <div className="border border-border-subtle bg-surface-elevated p-5 sm:p-6">
         <p className={`${eyebrow} flex items-center gap-2`}>

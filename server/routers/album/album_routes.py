@@ -29,7 +29,7 @@ from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, capture_time, hold_key
 from utils.face_recog import chip_key_of
-from dependencies import is_admin_caller, oauth2_optional, require_admin, get_current_user, verify_token
+from dependencies import is_admin_caller, oauth2_optional, preview_is_valid, require_admin, get_current_user, verify_token
 from services.proof_service import LOCKED_DETAIL
 
 from routers.revisions.revisions_router import latest_revision
@@ -62,6 +62,8 @@ def _viewer(session, token):
     try:
         data = verify_token(token, HTTPException(status_code=401))
     except HTTPException:
+        return None
+    if data.preview and not preview_is_valid(session, data):
         return None
     return session.query(User).filter_by(user_name=data.user_name).first()
 
@@ -409,6 +411,42 @@ async def set_favorite(
         session.delete(existing)
     session.commit()
     return {"filename": body.filename, "favorite": body.favorite}
+
+
+@router.get("/api/album/{album_slug}/preview-originals")
+async def preview_originals(
+    album_slug: str,
+    current_user=Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Presigned full-resolution URLs for a proof-locked album's held originals,
+    keyed by the proof filename. Only an admin-minted preview token gets them
+    (the "Show as paid" view); a real client or admin session is refused."""
+    if not current_user.preview:
+        raise HTTPException(status_code=403, detail="Only available in a client preview")
+    album, _ = _album_for_user(album_slug, current_user, session)
+    if not album.proof_locked or not album.hold_token:
+        return {"originals": {}}
+    held = (
+        session.query(FileMetadata)
+        .filter(
+            FileMetadata.album_id == album.id,
+            FileMetadata.held.is_(True),
+            FileMetadata.original_filename.isnot(None),
+            ~FileMetadata.content_type.like("video/%"),
+        )
+        .all()
+    )
+    return {
+        "originals": {
+            m.filename: s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": AWS_BUCKET, "Key": hold_key(album.slug, album.hold_token, m.original_filename)},
+                ExpiresIn=1800,
+            )
+            for m in held
+        }
+    }
 
 
 @router.get("/api/album/{album_slug}/favorites/summary")

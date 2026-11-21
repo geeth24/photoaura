@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 
+from starlette.requests import HTTPConnection
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -19,12 +20,16 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_session():
-    """FastAPI dependency: yields a session, commits on success, rolls back on error."""
+def get_session(request: HTTPConnection):
+    """FastAPI dependency: yields a session, commits on success, rolls back on error.
+    A read-only request (a preview token) never commits, even from a GET handler."""
     session = SessionLocal()
     try:
         yield session
-        session.commit()
+        if getattr(request.state, "read_only", False):
+            session.rollback()
+        else:
+            session.commit()
     except Exception:
         session.rollback()
         raise

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { useRouter, useSearchParams } from "next/navigation"
-import { apiFetch, deletePhoto, getUploadStatus, type UploadStatus } from "@/lib/api"
+import { apiFetch, deletePhoto, getPreviewOriginals, getUploadStatus, type UploadStatus } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
 import { isVideo, type Album, type AlbumFace, type Photo } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -80,7 +80,7 @@ export function AlbumView({
   initialPhoto?: string
 }) {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, isPreview, showAsPaid } = useAuth()
   const isAdmin = !!user && user.role !== "client"
   const [album, setAlbum] = useState<Album | null>(null)
   useDocumentTitle(album?.album_name)
@@ -216,8 +216,33 @@ export function AlbumView({
 
   const latestRevision = album?.revision?.number ?? 0
   useEffect(() => {
-    if (latestRevision) markRevisionSeen(albumSlug, latestRevision)
-  }, [albumSlug, latestRevision])
+    if (latestRevision && !isPreview) markRevisionSeen(albumSlug, latestRevision)
+  }, [albumSlug, latestRevision, isPreview])
+
+  // "Show as paid" in a preview: the gallery as it looks once unlocked, with the held originals
+  const asPaid = isPreview && showAsPaid
+  const albumLocked = !!album?.locked
+  const locked = albumLocked && !asPaid
+  const [originals, setOriginals] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!asPaid || !albumLocked) return
+    let live = true
+    getPreviewOriginals(albumSlug)
+      .then((r) => live && setOriginals(r.originals))
+      .catch(() => live && toast.error("Couldn't load the full-resolution files"))
+    return () => {
+      live = false
+    }
+  }, [asPaid, albumLocked, albumSlug])
+
+  const photos = useMemo(() => {
+    const all = album?.album_photos ?? []
+    if (!asPaid || !albumLocked) return all
+    return all.map((p) => {
+      const url = originals[p.file_metadata.filename]
+      return url ? { ...p, image: url, compressed_image: url } : p
+    })
+  }, [album, asPaid, albumLocked, originals])
 
   const handleDeletePhoto = useCallback(
     async (filename: string) => {
@@ -274,6 +299,10 @@ export function AlbumView({
 
   const handleDownloadAll = async () => {
     if (zipping) return
+    if (isPreview) {
+      toast.info("Downloads are off while previewing")
+      return
+    }
     setZipping(true)
     try {
       await downloadAlbumZip(albumSlug)
@@ -357,17 +386,17 @@ export function AlbumView({
         ? new Set(faces.find((f) => f.face_id === selectedFace)?.filenames ?? [])
         : null
     const revisionScoped = revisionFilter
-      ? album.album_photos.filter((p) =>
+      ? photos.filter((p) =>
           revisionFilter.filenames
             ? revisionFilter.filenames.has(p.file_metadata.filename)
             : p.file_metadata.revision_number === revisionFilter.number,
         )
-      : album.album_photos
+      : photos
     const faceScoped = selectedFilenames
       ? revisionScoped.filter((p) => selectedFilenames.has(p.file_metadata.filename))
       : revisionScoped
     // photos / videos tabs — only when the album actually has video
-    const hasVideos = album.album_photos.some((p) => isVideo(p))
+    const hasVideos = photos.some((p) => isVideo(p))
     const videoCount = faceScoped.filter((p) => isVideo(p)).length
     const photoCount = faceScoped.length - videoCount
     const mediaScoped = !hasVideos
@@ -379,7 +408,7 @@ export function AlbumView({
     // the viewer swipes stills only; videos open their own player
     const stills = visiblePhotos.filter((p) => !isVideo(p))
     return { hasVideos, videoCount, photoCount, visiblePhotos, stills }
-  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter])
+  }, [album, photos, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter])
 
   const stillsRef = useRef<Photo[]>([])
   stillsRef.current = view?.stills ?? []
@@ -578,7 +607,7 @@ export function AlbumView({
             <>
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] uppercase tracking-[0.2em] text-text-muted">
                 <span>{countLabel}</span>
-                {album.locked && (
+                {locked && (
                   <>
                     <span className="h-3 w-px bg-border-default" />
                     <span className="flex items-center gap-1.5 text-brand">
@@ -601,7 +630,7 @@ export function AlbumView({
                 )}
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                {!album.locked && !isEmpty && downloadAllButton}
+                {!locked && !isEmpty && downloadAllButton}
                 {shareMenu}
                 {picksButton}
               </div>
@@ -623,7 +652,7 @@ export function AlbumView({
               )}
               {picksButton}
               {/* clients asked for this: every original in one zip */}
-              {album.locked ? (
+              {locked ? (
                 <span className="flex items-center gap-1.5 border border-brand/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-brand">
                   <Lock className="size-3" />
                   Preview
@@ -636,7 +665,7 @@ export function AlbumView({
           )}
 
           {/* phones can't get a zip into the camera roll — offer the share sheet */}
-          {!album.locked && !isEmpty && <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />}
+          {!locked && !isEmpty && !isPreview && <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />}
         </div>
 
         {isAdmin && (
@@ -794,7 +823,7 @@ export function AlbumView({
         )}
       </div>
 
-      {album.locked && <ProofBanner bookingNumber={album.booking_number} albumSlug={albumSlug} studio={isAdmin} />}
+      {locked && <ProofBanner bookingNumber={album.booking_number} albumSlug={albumSlug} studio={isAdmin} />}
       {album.revision && (
         <RevisionBanner
           revision={album.revision}
@@ -888,7 +917,7 @@ export function AlbumView({
           onDelete={isAdmin ? handleDeletePhoto : undefined}
           onSetCover={isAdmin && selectedFace ? handleSetCover : undefined}
           favorites={favorites}
-          onToggleFavorite={toggleFavorite}
+          onToggleFavorite={isPreview ? undefined : toggleFavorite}
         />
       )}
 
@@ -900,13 +929,13 @@ export function AlbumView({
         urlFor={photoUrl}
         closeUrl={`/albums/${albumSlug}${query}`}
         favorites={favorites}
-        onToggleFavorite={toggleFavorite}
+        onToggleFavorite={isPreview ? undefined : toggleFavorite}
         slug={albumSlug}
-        canDownload={!album.locked}
+        canDownload={!locked}
       />
       <VideoViewer
         photo={video}
-        canDownload={!album.locked}
+        canDownload={!locked}
         onClose={() => {
           setVideo(null)
           if (initialPhoto) window.history.replaceState(window.history.state, "", `/albums/${albumSlug}`)

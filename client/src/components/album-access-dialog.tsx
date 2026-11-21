@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { ViewAsClientButton } from "@/components/view-as-client-button"
 import {
   Dialog,
   DialogClose,
@@ -153,6 +154,7 @@ export function AlbumAccessDialog({ albumSlug, albumName, trigger, open: control
                         </p>
                       )}
                     </div>
+                    <ViewAsClientButton userId={personId(m)} compact className="h-8" />
                     <button
                       onClick={() => revoke(personId(m))}
                       disabled={busy === personId(m)}
