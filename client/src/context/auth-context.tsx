@@ -3,14 +3,17 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import type { User, LoginResponse } from "@/lib/types"
-import { startPreviewRequest } from "@/lib/api"
+import { apiFetch, startPreviewRequest } from "@/lib/api"
+import { canRefresh, ensureFreshToken, onSessionRefreshed, revokeRefreshTokens } from "@/lib/auth-refresh"
 import {
   claimsOf,
   clearSession,
   getCookie,
+  grantOf,
   deleteCookie,
   dropAdminStash,
   inPreview,
+  maxAgeFor,
   previewReturnPath,
   restoreAdminSession,
   saveSession,
@@ -25,7 +28,7 @@ type AuthContextType = {
   login: (username: string, password: string) => Promise<void>
   requestMagicLink: (email: string) => Promise<void>
   verifyMagic: (linkToken: string) => Promise<User>
-  logout: () => void
+  logout: () => Promise<void>
   isLoading: boolean
   // an admin looking at the app as one client, read-only
   isPreview: boolean
@@ -73,25 +76,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (restored) window.location.replace(previewReturnPath())
       return restored
     }
+    // the access token is gone, expired or nearly so: trade the refresh token
+    // for a new one. A failure has already cleared the session.
+    const renew = () =>
+      ensureFreshToken().then((outcome) => {
+        const fresh = getCookie("token")
+        const freshUser = getCookie("user")
+        if (outcome === "ok" && fresh && freshUser) {
+          setToken(fresh)
+          setUser(JSON.parse(freshUser))
+        }
+        setIsLoading(false)
+      })
+    const decoded = claimsOf(savedToken)
+    const live = !!decoded?.exp && decoded.exp * 1000 > Date.now()
+
+    if (!live && canRefresh()) {
+      renew()
+      return
+    }
 
     if (savedToken && savedUser) {
       try {
-        const decoded = claimsOf(savedToken)
-        if (decoded?.exp && decoded.exp * 1000 > Date.now()) {
+        if (live && decoded?.exp) {
           setToken(savedToken)
           setUser(JSON.parse(savedUser))
           // refresh from the server so role/name changes (e.g. promoted to
           // admin) take effect without forcing a re-login
-          const age = decoded.exp - Math.floor(Date.now() / 1000)
-          fetch(`${API_BASE}/me`, {
-            headers: { Authorization: `Bearer ${savedToken}` },
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((fresh: User | null) => {
-              if (fresh) {
-                setUser(fresh)
-                setCookie("user", JSON.stringify(fresh), age)
-              }
+          apiFetch<User>("/me")
+            .then((fresh) => {
+              setUser(fresh)
+              // read the cookie again: this request may have refreshed the session
+              setCookie("user", JSON.stringify(fresh), maxAgeFor(getCookie("token") ?? savedToken))
             })
             .catch(() => {})
         } else {
@@ -111,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dropAdminStash()
     setToken(data.access_token)
     setUser(data.user)
-    saveSession(data.access_token, data.user)
+    saveSession(data.access_token, data.user, undefined, grantOf(data))
   }
 
   const login = async (username: string, password: string) => {
@@ -166,8 +182,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer)
   }, [isPreview, token])
 
+  // follows refreshes that happen inside apiFetch
+  useEffect(
+    () =>
+      onSessionRefreshed((data) => {
+        setToken(data.access_token)
+        // same user, same object, so effects keyed on it don't refetch
+        setUser((prev) => (JSON.stringify(prev) === JSON.stringify(data.user) ? prev : data.user))
+      }),
+    [],
+  )
+
   // signs out of everything, including an admin session kept aside for a preview
-  const logout = () => {
+  const logout = async () => {
+    await revokeRefreshTokens()
     setUser(null)
     setToken(null)
     clearSession()

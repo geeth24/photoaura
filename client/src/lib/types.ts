@@ -136,9 +136,12 @@ export type DashboardStats = {
 }
 
 export type LoginResponse = {
-  message: string
+  message?: string
   access_token: string
   token_type: string
+  // absent when the server predates refresh tokens
+  refresh_token?: string
+  refresh_expires_in?: number
   user: User
 }
 

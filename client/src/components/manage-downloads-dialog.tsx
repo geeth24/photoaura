@@ -52,15 +52,6 @@ const personId = (p: Person) => p.user_id ?? p.id ?? 0
 const personLabel = (p: Person) =>
   p.full_name?.trim() || p.user_email || `User ${personId(p)}`
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null
-  const m = document.cookie.match(/(?:^|; )token=([^;]*)/)
-  return m ? decodeURIComponent(m[1]) : null
-}
-
 function fmtSize(bytes: number | null): string {
   if (!bytes) return ""
   const mb = bytes / 1024 / 1024
@@ -123,15 +114,7 @@ export function ManageDownloadsDialog({
       form.append("file", file)
       form.append("user_id", String(selectedUser))
       if (albumId) form.append("album_id", String(albumId))
-      const res = await fetch(`${API_URL}/client-files`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${getToken()}` },
-        body: form,
-      })
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}))
-        throw new Error(e.detail || "Upload failed")
-      }
+      await apiFetch("/client-files", { method: "POST", body: form })
       toast.success("File attached")
       setFile(null)
       fetchAll()
