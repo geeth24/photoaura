@@ -145,12 +145,14 @@ async def get_album_by_category(
         "id": album.id,
         "name": album.name,
         "slug": album.slug,
-        "location": album.location,
+        # these responses are public (the portfolio site reads them): never
+        # hand out a share secret or a server path
+        "location": None,
         "date": album.date,
         "image_count": len(album_photos),
         "shared": album.shared,
         "upload": album.upload,
-        "secret": album.secret,
+        "secret": None,
         "album_photos": album_photos,
     }
 
@@ -186,12 +188,12 @@ async def get_albums_by_category(
             "id": album.id if album else category.id,
             "name": album.name if album else category.name,
             "slug": album.slug if album else category.slug,
-            "location": album.location if album else None,
+            "location": None,
             "date": album.date if album else None,
             "image_count": len(album_photos),
             "shared": album.shared if album else True,
             "upload": album.upload if album else False,
-            "secret": album.secret if album else None,
+            "secret": None,
             "album_photos": album_photos,
         }
         out.append({
