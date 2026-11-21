@@ -21,10 +21,19 @@ import { toast } from "sonner"
 type Props = {
   albumSlug: string
   albumName: string
+  // set open to drive it from elsewhere (a menu item); no default button then
+  trigger?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function InviteClientDialog({ albumSlug, albumName }: Props) {
-  const [open, setOpen] = useState(false)
+export function InviteClientDialog({ albumSlug, albumName, trigger, open: controlledOpen, onOpenChange }: Props) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = (o: boolean) => {
+    setInternalOpen(o)
+    onOpenChange?.(o)
+  }
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [userName, setUserName] = useState("")
@@ -57,14 +66,18 @@ export function InviteClientDialog({ albumSlug, albumName }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
-            <UserPlus className="size-3.5" />
-            Invite client
-          </button>
-        }
-      />
+      {trigger !== undefined ? (
+        <DialogTrigger render={trigger as React.ReactElement} />
+      ) : controlledOpen === undefined ? (
+        <DialogTrigger
+          render={
+            <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
+              <UserPlus className="size-3.5" />
+              Invite client
+            </button>
+          }
+        />
+      ) : null}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Invite a client</DialogTitle>
