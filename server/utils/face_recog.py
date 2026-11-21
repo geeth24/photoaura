@@ -105,6 +105,10 @@ CHIP2_MIN_PX = int(os.environ.get("FACE_CHIP_MIN_PX", "110"))
 CHIP2_BLUR = float(os.environ.get("FACE_CHIP_BLUR", "40"))
 CHIP2_EYES_MIN = float(os.environ.get("FACE_CHIP_EYES_MIN", "0.22"))
 CHIP2_GAZE_MAX = float(os.environ.get("FACE_CHIP_GAZE_MAX", "0.06"))
+# a crop this much covered by another face shows someone else: a head in
+# front, or the person cheek to cheek beside them
+CHIP_CROWD_MAX = float(os.environ.get("FACE_CHIP_CROWD_MAX", "0.10"))
+CROWD_PENALTY = 60.0
 
 # a non-core face joins a person when its 3 closest faces there average this
 # similarity and beat the runner-up person by the margin. With fewer than 3
@@ -150,6 +154,36 @@ def _min_px(face):
 
 def _has_signals(face):
     return face.get("landmark_agreement") is not None and face.get("blur") is not None
+
+
+def crowd_of(box, others, pad=0.2):
+    """Share of this face's thumbnail crop (the box padded like _crop) that the
+    most overlapping other face in the photo covers."""
+    if not box:
+        return 0.0
+    x1, y1, x2, y2 = box
+    w, h = x2 - x1, y2 - y1
+    px1, py1, px2, py2 = x1 - w * pad, y1 - h * pad, x2 + w * pad, y2 + h * pad
+    area = (px2 - px1) * (py2 - py1)
+    if area <= 0:
+        return 0.0
+    worst = 0.0
+    for o in others:
+        if not o:
+            continue
+        ix = min(px2, o[2]) - max(px1, o[0])
+        iy = min(py2, o[3]) - max(py1, o[1])
+        if ix > 0 and iy > 0:
+            worst = max(worst, ix * iy / area)
+    return worst
+
+
+def _crowds(faces_boxes):
+    """crowd_of for each (id, box) against the rest of its photo's boxes."""
+    out = {}
+    for i, (fid, box) in enumerate(faces_boxes):
+        out[fid] = crowd_of(box, [b for j, (_, b) in enumerate(faces_boxes) if j != i])
+    return out
 
 
 def _pose_of(face):
@@ -223,6 +257,11 @@ def is_chip_worthy(face):
     return True
 
 
+def _clear_of_others(face):
+    """No other face covers much of this one's thumbnail crop."""
+    return (face.get("crowd") or 0) <= CHIP_CROWD_MAX
+
+
 def face_score(face, typical=None):
     """Higher = better key photo. With expression signals: a smile counts most,
     then facing the camera, focus, size, open eyes and looking into the lens,
@@ -246,7 +285,7 @@ def face_score(face, typical=None):
         return SCORED_BASE + (
             30 * smile + 20 * frontal + 15 * sharp + 10 * size
             + 10 * eyes + 5 * look + 10 * typ
-        )
+        ) - CROWD_PENALTY * (face.get("crowd") or 0)
 
     # old rows: facing the camera dominates; size is capped so a big
     # looking-away close-up can't beat a smaller head-on shot
@@ -260,6 +299,7 @@ def face_score(face, typical=None):
     return (
         frontal * 100 + size * 25 + sharp * 20
         + (face.get("det_score") or 0) * 15 + eyes * 35
+        - CROWD_PENALTY * (face.get("crowd") or 0)
     )
 
 
@@ -380,6 +420,8 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
     faces = result.get("faces", [])
     if not faces:
         return "No faces detected."
+    for fid, value in _crowds([(i, f.get("bbox")) for i, f in enumerate(faces)]).items():
+        faces[fid]["crowd"] = value
 
     # one image fetch for the key-face crops
     img = ImageOps.exif_transpose(
@@ -507,12 +549,13 @@ def _unit(v):
     return v / n if n else v
 
 
-def _stored_face(fe):
+def _stored_face(fe, crowd=0.0):
     """Rebuild a face dict (for the gates and face_score) from a stored row."""
     p = fe.pose or {}
     return {
         "bbox": (fe.bbox or {}).get("box"),
         "det_score": fe.det_score,
+        "crowd": crowd,
         **{k: p.get(k) for k in SIGNALS},
     }
 
@@ -544,7 +587,7 @@ def _chinese_whispers(node_ids, adjacency, iterations=25):
     return labels
 
 
-def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset()):
+def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset(), crowd=None):
     """Turn clusters of core faces into people. A cluster becomes a person when
     one of its faces is chip-worthy, when two or more clean faces agree, or when
     it holds a face in `keep` (admin merges, pinned covers). Faces stored
@@ -555,7 +598,7 @@ def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset()):
     ([(member_ids, chip_face_id)] biggest first, leftover face ids)."""
     kept, leftovers = [], []
     for members in sorted(clusters.values(), key=len, reverse=True):
-        stored = {i: _stored_face(by_id[i]) for i in members}
+        stored = {i: _stored_face(by_id[i], (crowd or {}).get(i, 0.0)) for i in members}
         worthy = [i for i in members if is_chip_worthy(stored[i])]
         vouched = sum(_has_signals(stored[i]) for i in members) >= 2
         if not (worthy or vouched or any(i in keep for i in members)):
@@ -563,7 +606,8 @@ def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset()):
             continue
         vecs = {i: _unit(by_id[i].embedding) for i in members}
         centre = _unit(np.mean(list(vecs.values()), axis=0))
-        pool = worthy or members
+        # a face half behind someone else still makes the person, just not the thumbnail
+        pool = [i for i in worthy if _clear_of_others(stored[i])] or worthy or members
         scores = {i: face_score(stored[i], float(vecs[i] @ centre)) for i in pool}
         best = max(pool, key=scores.get)
         held = [i for i in pool if i in current]
@@ -702,7 +746,13 @@ def _recluster_faces():
             return "No faces to cluster."
         by_id = {fe.id: fe for fe in faces}
         node_ids = list(by_id.keys())
-        stored = {fe.id: _stored_face(fe) for fe in faces}
+        by_photo = {}
+        for fe in faces:
+            by_photo.setdefault(fe.photo_id, []).append((fe.id, (fe.bbox or {}).get("box")))
+        crowd = {}
+        for boxes in by_photo.values():
+            crowd.update(_crowds(boxes))
+        stored = {fe.id: _stored_face(fe, crowd.get(fe.id, 0.0)) for fe in faces}
 
         # each photo's biggest face, the yardstick for background faces
         biggest = {}
@@ -798,7 +848,7 @@ def _recluster_faces():
             clusters.setdefault(lbl, []).append(fid)
         keep = {fe.id for fe in faces if fe.manual_group} | set(pinned)
         current = {emb for emb, _ in old_chip.values() if emb}
-        people_plan, leftovers = _plan_people(clusters, by_id, keep, current)
+        people_plan, leftovers = _plan_people(clusters, by_id, keep, current, crowd)
         # turned heads, soft frames and lone faces join someone only on a clear vote
         satellites = [i for i in node_ids if i not in core] + leftovers
         attached = _attach(satellites, people_plan, by_id)
@@ -820,7 +870,7 @@ def _recluster_faces():
         jobs = []  # chips to crop after commit
         # biggest clusters first so they claim their original person id
         for members, best_id in people_plan:
-            best_face = _stored_face(by_id[best_id])
+            best_face = _stored_face(by_id[best_id], crowd.get(best_id, 0.0))
 
             # reuse the person id this cluster mostly came from -> stable ids +
             # we can skip re-cropping an unchanged chip. fall back to a new id.
