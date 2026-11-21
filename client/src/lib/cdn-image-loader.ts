@@ -13,7 +13,7 @@
 
 type LoaderArgs = { src: string; width: number; quality?: number }
 
-const CDN = "https://aura-cdn.reactiveshots.com"
+export const CDN = "https://aura-cdn.reactiveshots.com"
 const BUCKET = "photoaura"
 // pull the S3 key out of a thumbor-style URL: .../fit-in/720x0/[filters:.../]<key>
 const THUMBOR = /\/fit-in\/\d+x0\/(?:filters:[^/]+\/)?(.+)$/

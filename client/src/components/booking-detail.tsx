@@ -67,6 +67,7 @@ import {
   UndoReceiptButton,
 } from "@/components/booking-payments"
 import { InvoiceButton } from "@/components/invoice-button"
+import { ViewAsClientButton } from "@/components/view-as-client-button"
 import { cn } from "@/lib/utils"
 import { StopsList, StopsMap, splitStops } from "@/components/location-stops"
 
@@ -477,12 +478,15 @@ export function BookingDetail({ number }: { number: string }) {
                 </a>
               )}
             </div>
-            <Link
-              href={`/users/${b.client.user_id}`}
-              className="mt-4 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted hover:text-brand"
-            >
-              Client profile <ArrowUpRight className="size-3" />
-            </Link>
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+              <ViewAsClientButton userId={b.client.user_id} />
+              <Link
+                href={`/users/${b.client.user_id}`}
+                className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted hover:text-brand"
+              >
+                Client profile <ArrowUpRight className="size-3" />
+              </Link>
+            </div>
           </Card>
 
           <Card title="Event" icon={MapPin}>

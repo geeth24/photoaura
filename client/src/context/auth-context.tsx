@@ -3,6 +3,20 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import type { User, LoginResponse } from "@/lib/types"
+import { startPreviewRequest } from "@/lib/api"
+import {
+  claimsOf,
+  clearSession,
+  getCookie,
+  deleteCookie,
+  dropAdminStash,
+  inPreview,
+  previewReturnPath,
+  restoreAdminSession,
+  saveSession,
+  setCookie,
+  startPreviewSession,
+} from "@/lib/session"
 import { toast } from "sonner"
 
 type AuthContextType = {
@@ -13,6 +27,12 @@ type AuthContextType = {
   verifyMagic: (linkToken: string) => Promise<User>
   logout: () => void
   isLoading: boolean
+  // an admin looking at the app as one client, read-only
+  isPreview: boolean
+  showAsPaid: boolean
+  setShowAsPaid: (on: boolean) => void
+  startPreview: (userId: number) => Promise<void>
+  exitPreview: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -20,43 +40,44 @@ const AuthContext = createContext<AuthContextType | null>(null)
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
 
-// cookie lifetime derived from the JWT's own expiry
-function maxAgeFor(jwt: string): number {
-  try {
-    const exp = JSON.parse(atob(jwt.split(".")[1])).exp as number
-    return Math.max(60, exp - Math.floor(Date.now() / 1000))
-  } catch {
-    return 3600
+function leavePreview() {
+  // another tab may already have exited; its restored admin session must survive
+  if (!inPreview()) {
+    window.location.assign(previewReturnPath())
+  } else if (restoreAdminSession()) {
+    window.location.assign(previewReturnPath())
+  } else {
+    clearSession()
+    window.location.assign("/login")
   }
-}
-
-function setCookie(name: string, value: string, maxAge: number) {
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; samesite=lax`
-}
-
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
-  return match ? decodeURIComponent(match[1]) : null
-}
-
-function deleteCookie(name: string) {
-  document.cookie = `${name}=; path=/; max-age=0`
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showAsPaid, setShowAsPaid] = useState(false)
   const router = useRouter()
+  const isPreview = !!claimsOf(token)?.preview
 
   useEffect(() => {
     const savedToken = getCookie("token")
     const savedUser = getCookie("user")
+    const dropSession = () => {
+      deleteCookie("token")
+      deleteCookie("user")
+    }
+    // a preview that ran out of time hands the admin session back
+    const backToAdmin = () => {
+      const restored = restoreAdminSession()
+      if (restored) window.location.replace(previewReturnPath())
+      return restored
+    }
 
     if (savedToken && savedUser) {
       try {
-        const decoded = JSON.parse(atob(savedToken.split(".")[1]))
-        if (decoded.exp * 1000 > Date.now()) {
+        const decoded = claimsOf(savedToken)
+        if (decoded?.exp && decoded.exp * 1000 > Date.now()) {
           setToken(savedToken)
           setUser(JSON.parse(savedUser))
           // refresh from the server so role/name changes (e.g. promoted to
@@ -74,23 +95,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
             .catch(() => {})
         } else {
-          deleteCookie("token")
-          deleteCookie("user")
+          // restore first: it needs the expired preview token still in place
+          if (!backToAdmin()) dropSession()
         }
       } catch {
-        deleteCookie("token")
-        deleteCookie("user")
+        dropSession()
       }
+    } else {
+      backToAdmin()
     }
     setIsLoading(false)
   }, [])
 
   const setSession = (data: LoginResponse) => {
-    const age = maxAgeFor(data.access_token)
+    dropAdminStash()
     setToken(data.access_token)
     setUser(data.user)
-    setCookie("token", data.access_token, age)
-    setCookie("user", JSON.stringify(data.user), age)
+    saveSession(data.access_token, data.user)
   }
 
   const login = async (username: string, password: string) => {
@@ -130,16 +151,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (data as LoginResponse).user
   }
 
+  const startPreview = async (userId: number) => {
+    const data = await startPreviewRequest(userId)
+    startPreviewSession(data.access_token, data.user)
+    // full load so nothing from the admin session lingers in memory
+    window.location.assign("/albums")
+  }
+
+  useEffect(() => {
+    const exp = claimsOf(token)?.exp
+    if (!isPreview || !exp) return
+    // setTimeout overflows past ~24 days; a real preview token is far shorter
+    const timer = setTimeout(leavePreview, Math.min(Math.max(0, exp * 1000 - Date.now()), 2 ** 31 - 1))
+    return () => clearTimeout(timer)
+  }, [isPreview, token])
+
+  // signs out of everything, including an admin session kept aside for a preview
   const logout = () => {
     setUser(null)
     setToken(null)
-    deleteCookie("token")
-    deleteCookie("user")
+    clearSession()
     router.push("/login")
   }
 
+  // another tab entering or leaving a preview makes this one stale
+  useEffect(() => {
+    const onFocus = () => {
+      if (!!token && inPreview() !== isPreview) window.location.reload()
+    }
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [token, isPreview])
+
   return (
-    <AuthContext value={{ user, token, login, requestMagicLink, verifyMagic, logout, isLoading }}>
+    <AuthContext
+      value={{
+        user,
+        token,
+        login,
+        requestMagicLink,
+        verifyMagic,
+        logout,
+        isLoading,
+        isPreview,
+        showAsPaid,
+        setShowAsPaid,
+        startPreview,
+        exitPreview: leavePreview,
+      }}
+    >
       {children}
     </AuthContext>
   )
@@ -149,4 +209,10 @@ export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) throw new Error("useAuth must be used within AuthProvider")
   return context
+}
+
+// share pages render the same viewers without a provider, so this never throws
+export function usePreview() {
+  const context = useContext(AuthContext)
+  return { isPreview: context?.isPreview ?? false, showAsPaid: context?.showAsPaid ?? false }
 }

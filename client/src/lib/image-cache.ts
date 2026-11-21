@@ -3,6 +3,8 @@
 // so on reload a "seen" image can skip the blur placeholder and pop straight in
 // from cache instead of fading from blur every time.
 
+import { CDN } from "@/lib/cdn-image-loader"
+
 const KEY = "pa-seen-img"
 const CAP = 8000 // keep the store bounded
 let seen: Set<string> | null = null
@@ -24,7 +26,8 @@ export function hasSeenImage(src?: string | null): boolean {
 }
 
 export function markImageSeen(src?: string | null): void {
-  if (typeof window === "undefined" || !src) return
+  // only CDN URLs: a presigned S3 URL is short-lived and must not be kept
+  if (typeof window === "undefined" || !src || !src.startsWith(CDN)) return
   const s = load()
   if (s.has(src)) return
   s.add(src)

@@ -6,7 +6,8 @@ import { useAuth } from "@/context/auth-context"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ClientTabBar, ClientTopNav, ProfileLink, useClientNav } from "@/components/client-nav"
-import { LogOut } from "lucide-react"
+import { PreviewBanner } from "@/components/preview-banner"
+import { EyeOff, LogOut } from "lucide-react"
 
 // clients get a light top bar (tabs at the bottom on phones); the studio keeps its sidebar
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -36,32 +37,46 @@ function StudioShell({ children }: { children: React.ReactNode }) {
 }
 
 function ClientShell({ children }: { children: React.ReactNode }) {
-  const { logout } = useAuth()
+  const { logout, isPreview, exitPreview } = useAuth()
   const { items, pathname } = useClientNav()
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
-      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-6 border-b border-border-subtle bg-surface/80 px-5 backdrop-blur-xl sm:px-8">
-        <div className="flex h-full items-center gap-6 lg:gap-10">
-          <Link href="/albums" className="flex items-center gap-2.5">
-            <Image src="/images/logo.png" alt="" width={26} height={26} />
-            <span className="text-[11px] font-medium uppercase tracking-[0.3em] text-text-primary">
-              PhotoAura
-            </span>
-          </Link>
-          <ClientTopNav items={items} pathname={pathname} />
-        </div>
-        <div className="flex items-center gap-1">
-          <ProfileLink pathname={pathname} />
-          <button
-            onClick={logout}
-            aria-label="Sign out"
-            className="flex size-9 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-          >
-            <LogOut className="size-[17px]" />
-          </button>
-        </div>
-      </header>
+      <div className="sticky top-0 z-20">
+        <PreviewBanner />
+        <header className="flex h-14 shrink-0 items-center justify-between gap-6 border-b border-border-subtle bg-surface/80 px-5 backdrop-blur-xl sm:px-8">
+          <div className="flex h-full items-center gap-6 lg:gap-10">
+            <Link href="/albums" className="flex items-center gap-2.5">
+              <Image src="/images/logo.png" alt="" width={26} height={26} />
+              <span className="text-[11px] font-medium uppercase tracking-[0.3em] text-text-primary">
+                PhotoAura
+              </span>
+            </Link>
+            <ClientTopNav items={items} pathname={pathname} />
+          </div>
+          <div className="flex items-center gap-1">
+            <ProfileLink pathname={pathname} />
+            {isPreview && (
+              <button
+                onClick={exitPreview}
+                aria-label="Exit preview"
+                className="flex h-9 items-center gap-1.5 px-2 text-[10px] font-medium uppercase tracking-[0.2em] text-brand transition-colors hover:text-text-primary"
+              >
+                <EyeOff className="size-[17px]" />
+                <span className="max-sm:hidden">Exit preview</span>
+              </button>
+            )}
+            <button
+              onClick={logout}
+              aria-label={isPreview ? "Sign out of both sessions" : "Sign out"}
+              title={isPreview ? "Signs out of the preview and your admin session" : undefined}
+              className="flex size-9 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+            >
+              <LogOut className="size-[17px]" />
+            </button>
+          </div>
+        </header>
+      </div>
       {/* bottom padding clears the phone tab bar */}
       <main className="min-w-0 flex-1 overflow-x-hidden px-5 pb-28 pt-8 sm:px-8 md:pb-8 lg:px-12">
         <div className="mx-auto w-full max-w-6xl">{children}</div>

@@ -1,3 +1,4 @@
+import { clearSession, previewReturnPath, restoreAdminSession } from "@/lib/session"
 import type {
   AppConfig,
   AppPlatform,
@@ -14,6 +15,7 @@ import type {
   Revision,
   RevisionPreview,
   RevisionWithFiles,
+  User,
 } from "@/lib/types"
 import { BATCH_RETRIES, planBatches } from "@/lib/upload-batches"
 
@@ -52,9 +54,13 @@ export async function apiFetch<T>(
   })
 
   if (res.status === 401) {
-    document.cookie = "token=; path=/; max-age=0"
-    document.cookie = "user=; path=/; max-age=0"
-    window.location.href = "/login"
+    // an expired preview token puts the admin back where they were
+    if (restoreAdminSession()) {
+      window.location.href = previewReturnPath()
+    } else {
+      clearSession()
+      window.location.href = "/login"
+    }
     throw new Error("Unauthorized")
   }
 
@@ -405,6 +411,20 @@ export function resendRevisionEmail(slug: string, number: number) {
 
 export function getPhotoVersions(photoId: number) {
   return apiFetch<PhotoVersion[]>(`/photo/${photoId}/versions`)
+}
+
+export type PreviewSession = {
+  access_token: string
+  expires_in: number
+  user: User
+}
+
+export function startPreviewRequest(userId: number) {
+  return apiFetch<PreviewSession>(`/admin/preview/${userId}`, { method: "POST" })
+}
+
+export function getPreviewOriginals(slug: string) {
+  return apiFetch<{ originals: Record<string, string> }>(`/album/${slug}/preview-originals`)
 }
 
 export function getAppConfig() {

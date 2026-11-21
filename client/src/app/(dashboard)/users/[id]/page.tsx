@@ -7,6 +7,7 @@ import { motion } from "motion/react"
 import { apiFetch } from "@/lib/api"
 import type { UserDetail, NotifyKind, FamilyMember } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ViewAsClientButton } from "@/components/view-as-client-button"
 import {
   ArrowLeft,
   Mail,
@@ -161,6 +162,7 @@ export default function UserDetailPage({
             {lastLoginLabel(user.last_login_at)}
           </span>
         </div>
+        {user.role === "client" && <ViewAsClientButton userId={user.id} className="mt-4 h-10 px-4" />}
         {user.parent && (
           <Link
             href={`/users/${user.parent.id}`}

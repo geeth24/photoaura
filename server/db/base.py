@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from starlette.requests import HTTPConnection
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config import settings
@@ -19,12 +20,33 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_session():
-    """FastAPI dependency: yields a session, commits on success, rolls back on error."""
+# a preview request is read-only below the handlers too: the transaction itself
+# is READ ONLY, and an explicit commit raises instead of quietly writing
+@event.listens_for(SessionLocal, "after_begin")
+def _read_only_transaction(session, transaction, connection):
+    request = session.info.get("request")
+    if request is not None and getattr(request.state, "read_only", False):
+        connection.execute(text("SET TRANSACTION READ ONLY"))
+
+
+@event.listens_for(SessionLocal, "before_commit")
+def _no_commit_when_read_only(session):
+    request = session.info.get("request")
+    if request is not None and getattr(request.state, "read_only", False):
+        raise RuntimeError("read-only request tried to commit")
+
+
+def get_session(request: HTTPConnection):
+    """FastAPI dependency: yields a session, commits on success, rolls back on error.
+    A read-only request (a preview token) never commits, even from a GET handler."""
     session = SessionLocal()
+    session.info["request"] = request
     try:
         yield session
-        session.commit()
+        if getattr(request.state, "read_only", False):
+            session.rollback()
+        else:
+            session.commit()
     except Exception:
         session.rollback()
         raise

@@ -20,6 +20,7 @@ from routers.websocket.websocket_router import router as websocket_router
 from routers.video.video_router import router as video_router
 from routers.client_files.client_files_router import router as client_files_router
 from routers.admin.ops_router import router as ops_router
+from routers.admin.preview_router import router as preview_router
 from routers.revisions.revisions_router import router as revisions_router
 from routers.app_config.app_config_router import router as app_config_router
 from routers.places.places_router import router as places_router
@@ -54,6 +55,7 @@ app.include_router(face_router)
 app.include_router(video_router)
 app.include_router(client_files_router)
 app.include_router(ops_router)
+app.include_router(preview_router)
 app.include_router(revisions_router)
 app.include_router(app_config_router)
 app.include_router(places_router)

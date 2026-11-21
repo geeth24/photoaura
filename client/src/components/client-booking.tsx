@@ -21,6 +21,7 @@ import {
   Smartphone,
 } from "lucide-react"
 import { ApiError, bookingsApi } from "@/lib/api"
+import { usePreview } from "@/context/auth-context"
 import { ZELLE, ZELLE_PHONE, downloadContract, fmtDay, fmtStamp, fmtTime, money } from "@/lib/bookings"
 import type { Booking, BookingPayment, NextPayment } from "@/lib/types"
 import { useDocumentTitle } from "@/lib/use-document-title"
@@ -171,13 +172,14 @@ function Unsigned({
   onChanged: () => Promise<void>
   onSigned: (b: Booking) => void
 }) {
+  const { isPreview } = usePreview()
   const first = b.client.full_name.split(" ")[0]
   const [name, setName] = useState("")
   const [consent, setConsent] = useState(false)
   const [signing, setSigning] = useState(false)
   const [stale, setStale] = useState(false)
   const pay = (k: BookingPayment["kind"]) => b.payments.find((p) => p.kind === k)?.amount_cents ?? 0
-  const ready = !!name.trim() && consent && !!b.contract.hash && !!b.contract.markdown
+  const ready = !!name.trim() && consent && !!b.contract.hash && !!b.contract.markdown && !isPreview
 
   const sign = async () => {
     if (!ready || !b.contract.hash) return
@@ -314,7 +316,9 @@ function Unsigned({
 
           <div className="flex flex-col gap-4 border-t border-border-subtle pt-6 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-sm text-[12px] leading-relaxed text-text-muted">
-              We keep your name, the time, and your IP address with the signed copy. You&apos;ll get the PDF by email.
+              {isPreview
+                ? "Signing is off while previewing."
+                : "We keep your name, the time, and your IP address with the signed copy. You'll get the PDF by email."}
             </p>
             <button
               onClick={sign}
@@ -340,6 +344,8 @@ const HEADLINE: Partial<Record<Booking["status"], [string, string]>> = {
 }
 
 function Signed({ b }: { b: Booking }) {
+  const { isPreview, showAsPaid } = usePreview()
+  const albumLocked = !!b.album?.locked && !(isPreview && showAsPaid)
   const [downloading, setDownloading] = useState(false)
   const [title, sub] = HEADLINE[b.status] ?? ["Your booking", ""]
 
@@ -392,13 +398,13 @@ function Signed({ b }: { b: Booking }) {
                     <Images className="size-5" />
                   </span>
                   <div className="min-w-0">
-                    <p className={micro}>{b.album.locked ? "Gallery preview" : "Your gallery"}</p>
+                    <p className={micro}>{albumLocked ? "Gallery preview" : "Your gallery"}</p>
                     <p className="mt-1 truncate font-heading text-2xl tracking-tight text-text-primary">
                       {b.album.name}
                     </p>
                     <p className="mt-1 flex items-center gap-1.5 text-[13px] text-text-muted">
-                      {b.album.locked && <Lock className="size-3" />}
-                      {b.album.locked
+                      {albumLocked && <Lock className="size-3" />}
+                      {albumLocked
                         ? "Full-resolution downloads unlock after your final payment."
                         : "Full resolution, ready to download."}
                     </p>

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-// best-effort role read from the JWT (edge runtime, base64url)
+// best-effort role read from the JWT (edge runtime, base64url); a preview token is a client
 function roleFromToken(token?: string): string | null {
   if (!token) return null
   try {
     const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")
-    return JSON.parse(atob(part)).role ?? null
+    const claims = JSON.parse(atob(part))
+    return claims.preview ? "client" : (claims.role ?? null)
   } catch {
     return null
   }
