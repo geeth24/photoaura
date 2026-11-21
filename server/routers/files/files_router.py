@@ -32,12 +32,50 @@ from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
 import asyncio
 import io
+from concurrent.futures import ThreadPoolExecutor
 import zipfile
 import mimetypes
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
+
+# one S3 PUT is a single stream and tops out near 90 Mbps to us-east-1 from
+# here; several at once fill the uplink
+S3_PUT_CONCURRENCY = int(os.environ.get("S3_PUT_CONCURRENCY", "6"))
+_put_pool = ThreadPoolExecutor(max_workers=S3_PUT_CONCURRENCY, thread_name_prefix="s3-put")
+
+
+class _ParallelPuts:
+    """An upload's S3 writes, at most S3_PUT_CONCURRENCY in flight so the
+    photo bytes waiting on them stay bounded."""
+
+    def __init__(self):
+        self.futures = []
+
+    def put(self, key, body, content_type):
+        self.futures.append(
+            _put_pool.submit(
+                s3_client.put_object,
+                Bucket=AWS_BUCKET, Key=key, Body=body, ContentType=content_type,
+            )
+        )
+
+    async def room(self):
+        while True:
+            pending = [f for f in self.futures if not f.done()]
+            if len(pending) < S3_PUT_CONCURRENCY:
+                return
+            await asyncio.wait(
+                [asyncio.wrap_future(f) for f in pending],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+    async def finish(self):
+        if self.futures:
+            await asyncio.wait([asyncio.wrap_future(f) for f in self.futures])
+        for f in self.futures:
+            f.result()
 
 _IMAGE_EXTS = {
     ".jpg", ".jpeg", ".png", ".heic", ".heif",
@@ -119,6 +157,7 @@ def _store_one_file(
     face_detection: bool,
     face_targets: list,
     keys: list,
+    put=None,
 ):
     """Save a single file to S3 + record metadata. Shared by the multi-file
     upload and the zip upload so both run the identical pipeline.
@@ -158,12 +197,15 @@ def _store_one_file(
         s3_filename, face_key = proof_service.store_held(album, filename, content, content_type, stored_name)
     else:
         stored_name = filename
-        s3_client.put_object(
-            Bucket=AWS_BUCKET,
-            Key=s3_filename,
-            Body=content,
-            ContentType=content_type,
-        )
+        if put:
+            put(s3_filename, content, content_type)
+        else:
+            s3_client.put_object(
+                Bucket=AWS_BUCKET,
+                Key=s3_filename,
+                Body=content,
+                ContentType=content_type,
+            )
 
     try:
         if is_video:
@@ -343,7 +385,9 @@ async def create_upload_files(
     video_targets = []  # (s3_key, meta_id) to transcode to web-friendly mp4
 
     # stage 1: save each file to S3 + (for images) record metadata + blur.
-    # This is the only work that needs the request body, so it stays inline.
+    # This is the only work that needs the request body, so it stays inline,
+    # but off the event loop so other requests keep moving.
+    puts = _ParallelPuts()
     for i, file in enumerate(files):
         ctype = file.content_type or _guess_content_type(file.filename)
         if (ctype or "").startswith("video/"):
@@ -353,12 +397,15 @@ async def create_upload_files(
                 await _store_video_file(file, file.filename, ctype, album, session)
             )
         else:
+            await puts.room()
             content = await file.read()
-            _store_one_file(
+            await asyncio.to_thread(
+                _store_one_file,
                 content, file.filename, ctype, album,
-                session, face_detection, face_targets, keys,
+                session, face_detection, face_targets, keys, puts.put,
             )
         await _notify("saving", i + 1, total)
+    await puts.finish()
 
     # keep image_count exact (= actual stored rows), regardless of new/append
     album.image_count = (
@@ -538,15 +585,19 @@ async def create_upload_zip(
     keys = []
 
     # stage 1: extract + store each entry
+    puts = _ParallelPuts()
     for i, name in enumerate(entries):
+        await puts.room()
         content = zf.read(name)
         filename = os.path.basename(name)
         ctype = _guess_content_type(filename)
-        _store_one_file(
+        await asyncio.to_thread(
+            _store_one_file,
             content, filename, ctype, album,
-            session, face_detection, face_targets, keys,
+            session, face_detection, face_targets, keys, puts.put,
         )
         await _notify("saving", i + 1, total)
+    await puts.finish()
 
     album.image_count = (
         session.query(FileMetadata).filter_by(album_id=album.id).count()
