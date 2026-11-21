@@ -1,0 +1,11 @@
+{
+  "classes": {
+    "relaxed": ["a person with a gentle smile", "a person smiling softly at the camera", "a happy person with a natural relaxed smile", "a person with a closed-mouth smile"],
+    "open_mouth": ["a person laughing with their mouth wide open", "a person talking with their mouth open", "a person in the middle of saying something", "a person shouting with an open mouth"],
+    "hand": ["a person with their hand on their face", "a person touching their face with their fingers", "a person covering their mouth with their hand", "a person resting their chin on their hand"],
+    "neutral": ["a person with a neutral expression", "a person with a serious face", "a person not smiling"],
+    "eating": ["a person eating food", "a person drinking from a cup", "a person with food in their mouth"],
+    "not_face": ["the back of a person's head", "a blurry out of focus smudge", "a painting of a face on a wall", "a statue or idol of a face"]
+  },
+  "templates": ["a close-up photo of {}.", "a cropped photo of the face of {}."]
+}
