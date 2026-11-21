@@ -22,6 +22,7 @@ from services.reel_service import (
     MAX_REEL_PHOTOS,
     MUSIC_KEY_RE,
     MUSIC_PREFIX,
+    highlight_reel_filenames,
     poster_key,
     public_url,
     start_reel_job,
@@ -36,9 +37,14 @@ MUSIC_LIST_LIMIT = 200
 
 
 class ReelRequest(BaseModel):
-    filenames: List[str] = Field(min_length=1, max_length=MAX_REEL_PHOTOS)
+    # left out: picked from the album's Highlights
+    filenames: Optional[List[str]] = Field(default=None, min_length=1, max_length=MAX_REEL_PHOTOS)
     aspect: str
     music_key: Optional[str] = None
+
+
+class ReelPublish(BaseModel):
+    published: bool
 
 
 def _album(session: Session, slug: str) -> Album:
@@ -63,6 +69,7 @@ def _reel_json(row: AlbumReel) -> dict:
         "id": row.id,
         "aspect": row.aspect,
         "status": status,
+        "published": bool(row.published),
         "duration": row.duration,
         "width": width,
         "height": height,
@@ -96,7 +103,15 @@ def create_reel(
             raise HTTPException(status_code=422, detail="Unknown music track")
 
     album = _album(session, slug)
-    filenames = list(dict.fromkeys(body.filenames))
+    if body.filenames is None:
+        filenames = highlight_reel_filenames(session, album.id)
+        if not filenames:
+            raise HTTPException(
+                status_code=400,
+                detail="This album has no Highlights yet. Score it first, or pick the photos for the reel.",
+            )
+    else:
+        filenames = list(dict.fromkeys(body.filenames))
     rows = {
         m.filename: m
         for m in session.query(FileMetadata).filter(
@@ -137,6 +152,25 @@ def list_reels(
         if not j["finished"]
     ]
     return {"reels": [_reel_json(r) for r in rows], "jobs": jobs}
+
+
+@router.patch("/api/album/{slug}/reels/{reel_id}")
+def publish_reel(
+    slug: str,
+    reel_id: int,
+    body: ReelPublish,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    album = _album(session, slug)
+    row = session.query(AlbumReel).filter_by(id=reel_id, album_id=album.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Reel not found")
+    if row.status != "ready":
+        raise HTTPException(status_code=409, detail="Only a finished reel can be published")
+    row.published = body.published
+    session.commit()
+    return _reel_json(row)
 
 
 @router.delete("/api/album/{slug}/reels/{reel_id}")

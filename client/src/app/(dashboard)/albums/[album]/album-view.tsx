@@ -11,6 +11,7 @@ import { UploadAlbumDialog } from "@/components/upload-album-dialog"
 import { AlbumFaces } from "@/components/album-faces"
 import { PhotoGrid } from "@/components/photo-grid"
 import { MomentsView, type MomentGroup } from "@/components/moments-view"
+import { ReelsStrip } from "@/components/reels-strip"
 import { SmartGalleryPanel } from "@/components/smart-gallery-panel"
 import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { InviteClientDialog } from "@/components/invite-client-dialog"
@@ -511,6 +512,7 @@ export function AlbumView({
 
   const { hasVideos, videoCount, photoCount, visiblePhotos, momentGroups } = view!
   const isEmpty = album.album_photos.length === 0
+  const reels = !isAdmin && mediaTab === "photos" && !isEmpty && view!.scope !== "moments" ? album.reels ?? [] : []
   const smartTab = isAdmin && !isEmpty && !!album.highlights?.length
   const countLabel = `${album.image_count} ${album.image_count === 1 ? "photo" : "photos"}`
 
@@ -938,6 +940,8 @@ export function AlbumView({
           ))}
         </div>
       ) : null}
+
+      {reels.length > 0 && <ReelsStrip reels={reels} albumSlug={albumSlug} canDownload={!locked} />}
 
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center border border-dashed border-border-default px-6 py-24 text-center">

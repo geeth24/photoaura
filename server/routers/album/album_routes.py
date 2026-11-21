@@ -32,6 +32,7 @@ from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, hold_key, json_response, timed_album_photos
 from utils.face_recog import chip_key_of
 from services import smart_gallery
+from services.reel_service import album_reels_json
 from dependencies import (
     TOKEN_TYPE_TICKET,
     decode_token,
@@ -197,6 +198,8 @@ def get_album(
         "highlights": highlights,
         "moments": moments,
         "smart_published": bool(album.smart_published),
+        # publishing a reel is its own switch, apart from smart_published
+        "reels": album_reels_json(session, album.id, published_only=not admin),
     })
 
 
@@ -329,6 +332,7 @@ async def view_shared_album(
         "locked": bool(album.proof_locked),
         "highlights": smart_gallery.highlight_filenames(session, album.id) if album.smart_published else None,
         "moments": smart_gallery.moments_json(session, album.id) if album.smart_published else None,
+        "reels": album_reels_json(session, album.id, published_only=True),
     }
 
 
