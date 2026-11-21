@@ -109,6 +109,17 @@ CHIP2_GAZE_MAX = float(os.environ.get("FACE_CHIP_GAZE_MAX", "0.06"))
 # front, or the person cheek to cheek beside them
 CHIP_CROWD_MAX = float(os.environ.get("FACE_CHIP_CROWD_MAX", "0.10"))
 CROWD_PENALTY = 60.0
+# thumbnails prefer a relaxed natural smile, read off the face crop by the face
+# service ("expr" class probabilities); then any clear face; then the rest
+THUMB_RELAXED_MIN = float(os.environ.get("FACE_THUMB_RELAXED_MIN", "0.5"))
+THUMB_OPEN_MAX = float(os.environ.get("FACE_THUMB_OPEN_MAX", "0.15"))
+THUMB_MOUTH_GAP_MAX = float(os.environ.get("FACE_THUMB_MOUTH_GAP_MAX", "0.35"))
+THUMB_EATING_MAX = float(os.environ.get("FACE_THUMB_EATING_MAX", "0.2"))
+THUMB_HAND_MAX = float(os.environ.get("FACE_THUMB_HAND_MAX", "0.06"))
+THUMB_NOT_FACE_MAX = float(os.environ.get("FACE_THUMB_NOT_FACE_MAX", "0.3"))
+THUMB_EDGE_MAX = float(os.environ.get("FACE_THUMB_EDGE_MAX", "0.05"))
+# paintings, idols and backs of heads read as "not a face" and don't build people
+CORE_NOT_FACE_MAX = float(os.environ.get("FACE_CORE_NOT_FACE_MAX", "0.5"))
 
 # a non-core face joins a person when its 3 closest faces there average this
 # similarity and beat the runner-up person by the margin. With fewer than 3
@@ -133,6 +144,7 @@ COVER_LOCK = 1_000_000.0
 SIGNALS = (
     "yaw", "pitch", "roll", "sharpness", "eye_open",
     "blur", "emb_norm", "landmark_agreement", "smile", "gaze", "kps",
+    "mouth_gap", "edge_cut", "expr",
 )
 
 
@@ -186,6 +198,15 @@ def _crowds(faces_boxes):
     return out
 
 
+def _has_expr(face):
+    return bool(face.get("expr"))
+
+
+def _p(face, cls):
+    """A face-crop class probability from the face service, 0 when absent."""
+    return float((face.get("expr") or {}).get(cls) or 0.0)
+
+
 def _pose_of(face):
     return {k: face.get(k) for k in SIGNALS}
 
@@ -220,6 +241,8 @@ def is_core(face):
     if abs(face.get("pitch") or 0) > CORE_PITCH_MAX:
         return False
     if _min_px(face) < CORE_MIN_PX:
+        return False
+    if _p(face, "not_face") >= CORE_NOT_FACE_MAX:
         return False
     return (
         face["landmark_agreement"] <= CORE_AGREE
@@ -258,8 +281,26 @@ def is_chip_worthy(face):
 
 
 def _clear_of_others(face):
-    """No other face covers much of this one's thumbnail crop."""
-    return (face.get("crowd") or 0) <= CHIP_CROWD_MAX
+    """Nothing in the way: no other face over the crop, no hand on the face,
+    not a painting or the back of a head, not cut off by the photo's edge."""
+    return (
+        (face.get("crowd") or 0) <= CHIP_CROWD_MAX
+        and _p(face, "hand") < THUMB_HAND_MAX
+        and _p(face, "not_face") < THUMB_NOT_FACE_MAX
+        and (face.get("edge_cut") or 0) < THUMB_EDGE_MAX
+    )
+
+
+def _natural(face):
+    """A relaxed natural smile: the first choice for a thumbnail."""
+    return (
+        _has_expr(face)
+        and _p(face, "relaxed") >= THUMB_RELAXED_MIN
+        and _p(face, "open_mouth") < THUMB_OPEN_MAX
+        and _p(face, "eating") < THUMB_EATING_MAX
+        and (face.get("mouth_gap") or 0) < THUMB_MOUTH_GAP_MAX
+        and _clear_of_others(face)
+    )
 
 
 def face_score(face, typical=None):
@@ -282,10 +323,17 @@ def face_score(face, typical=None):
         look = 1.0 if gz is None else float(np.clip(1 - gz / CHIP2_GAZE_MAX, 0, 1))
         smile = face.get("smile") or 0.0
         typ = 0.7 if typical is None else typical
-        return SCORED_BASE + (
-            30 * smile + 20 * frontal + 15 * sharp + 10 * size
-            + 10 * eyes + 5 * look + 10 * typ
-        ) - CROWD_PENALTY * (face.get("crowd") or 0)
+        base = 20 * frontal + 15 * sharp + 10 * size + 10 * eyes + 5 * look + 10 * typ
+        if _has_expr(face):
+            # the landmark smile also rises with an open mouth, so it counts for less
+            expr = (
+                15 * smile + 25 * _p(face, "relaxed") - 25 * _p(face, "open_mouth")
+                - 40 * _p(face, "hand") - 40 * _p(face, "not_face") - 20 * _p(face, "eating")
+                - 40 * (face.get("edge_cut") or 0)
+            )
+        else:
+            expr = 30 * smile
+        return SCORED_BASE + base + expr - CROWD_PENALTY * (face.get("crowd") or 0)
 
     # old rows: facing the camera dominates; size is capped so a big
     # looking-away close-up can't beat a smaller head-on shot
@@ -607,7 +655,8 @@ def _plan_people(clusters, by_id, keep=frozenset(), current=frozenset(), crowd=N
         vecs = {i: _unit(by_id[i].embedding) for i in members}
         centre = _unit(np.mean(list(vecs.values()), axis=0))
         # a face half behind someone else still makes the person, just not the thumbnail
-        pool = [i for i in worthy if _clear_of_others(stored[i])] or worthy or members
+        clear = [i for i in worthy if _clear_of_others(stored[i])]
+        pool = [i for i in clear if _natural(stored[i])] or clear or worthy or members
         scores = {i: face_score(stored[i], float(vecs[i] @ centre)) for i in pool}
         best = max(pool, key=scores.get)
         held = [i for i in pool if i in current]

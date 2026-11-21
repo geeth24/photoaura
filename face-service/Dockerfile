@@ -7,7 +7,7 @@ FROM python:3.11-slim AS clip-export
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision \
     && pip install --no-cache-dir open_clip_torch==4.2.2 onnx onnxconverter-common onnxruntime numpy pillow
 ADD https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac+logos+ava1-l14-linearMSE.pth /aesthetic.pth
-COPY export_clip.py /export_clip.py
+COPY export_clip.py face_expr_vocab.json /
 RUN python /export_clip.py /out /aesthetic.pth
 
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
@@ -31,7 +31,7 @@ RUN pip3 install --no-cache-dir \
 RUN python3 -c "from insightface.utils.storage import ensure_available; ensure_available('models','buffalo_l', root='/root/.insightface')"
 
 # CLIP image tower + aesthetic head, exported above; no PyTorch in this image
-COPY --from=clip-export /out/clip_visual.onnx /out/aesthetic.npz /models/
+COPY --from=clip-export /out/clip_visual.onnx /out/aesthetic.npz /out/face_text.npy /out/face_text.json /models/
 ENV CLIP_DIR=/models PHOTO_SCORES=1
 
 COPY app.py photo_scores.py /app/

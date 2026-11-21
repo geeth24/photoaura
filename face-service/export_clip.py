@@ -2,8 +2,12 @@
 and the LAION aesthetic head to numpy, so the runtime image needs no PyTorch.
 
     python export_clip.py OUT_DIR AESTHETIC_PTH [--fp32]
+
+Also writes face_text.npy/json: one text vector per class in face_expr_vocab.json
+(relaxed smile, open mouth, hand on face...), used to judge thumbnail crops.
 """
 
+import json
 import os
 import sys
 
@@ -50,6 +54,25 @@ def main(out, pth, fp32):
             print("clip onnx: fp32")
     b = ort.InferenceSession(path, providers=["CPUExecutionProvider"]).run(None, {"image": x.numpy()})[0]
     print("exported cosine vs torch", float((b * ref).sum() / (np.linalg.norm(b) * np.linalg.norm(ref))))
+
+    vocab_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "face_expr_vocab.json")
+    if os.path.exists(vocab_path):
+        with open(vocab_path) as f:
+            vocab = json.load(f)
+        tok = open_clip.get_tokenizer("ViT-L-14-quickgelu")
+        names, vecs = [], []
+        for name, phrases in vocab["classes"].items():
+            prompts = [t.format(p) for p in phrases for t in vocab["templates"]]
+            with torch.no_grad():
+                e = model.encode_text(tok(prompts)).float()
+            e = e / e.norm(dim=-1, keepdim=True)
+            m = e.mean(dim=0)
+            vecs.append((m / m.norm()).numpy())
+            names.append(name)
+        np.save(os.path.join(out, "face_text.npy"), np.stack(vecs).astype(np.float32))
+        with open(os.path.join(out, "face_text.json"), "w") as f:
+            json.dump(names, f)
+        print("face text classes:", names)
 
     state = torch.load(pth, map_location="cpu")
     np.savez(os.path.join(out, "aesthetic.npz"), **{k.replace("layers.", ""): v.numpy() for k, v in state.items()})

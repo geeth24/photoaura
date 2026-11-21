@@ -32,6 +32,8 @@ _DET_SIZES = [
 ]
 # smaller detections are dropped by the backend anyway; skip the other models on them
 _MIN_PX = int(os.environ.get("FACE_MIN_PX", "40"))
+# faces smaller than this can't be a thumbnail, so they skip the crop checks
+_THUMB_CHECK_PX = int(os.environ.get("FACE_THUMB_CHECK_PX", "80"))
 _face = FaceAnalysis(
     name=_MODEL,
     root=os.environ.get("INSIGHTFACE_ROOT", "~/.insightface"),
@@ -171,6 +173,26 @@ def _expression(lmk):
     }
 
 
+def _thumb_crop(arr, bbox, pad=0.2):
+    """The face padded like the backend's thumbnail crop, and the share of that
+    padded box that falls outside the photo."""
+    h, w = arr.shape[:2]
+    x1, y1, x2, y2 = bbox
+    bw, bh = x2 - x1, y2 - y1
+    px1, py1, px2, py2 = x1 - bw * pad, y1 - bh * pad, x2 + bw * pad, y2 + bh * pad
+    area = (px2 - px1) * (py2 - py1)
+    inside = max(0, min(px2, w) - max(px1, 0)) * max(0, min(py2, h) - max(py1, 0))
+    cx1, cy1, cx2, cy2 = max(0, int(px1)), max(0, int(py1)), min(w, int(px2)), min(h, int(py2))
+    crop = Image.fromarray(np.ascontiguousarray(arr[cy1:cy2, cx1:cx2, ::-1]))
+    return crop, float(1 - inside / area) if area > 0 else 0.0
+
+
+def _mouth_gap(lmk):
+    """Inner lip gap as a share of mouth width: ~0.1-0.25 for a smile with
+    teeth, 0.3+ when the mouth hangs open mid-word or mid-laugh."""
+    return float(np.linalg.norm(lmk[62] - lmk[60]) / (np.linalg.norm(lmk[61] - lmk[52]) + 1e-6))
+
+
 def describe(arr):
     """Every face in a BGR image as the dict /embed returns."""
     out = []
@@ -195,10 +217,20 @@ def describe(arr):
             "smile": None,
             "gaze": None,
             "landmark_agreement": None,
+            "mouth_gap": None,
+            "edge_cut": None,
+            "expr": None,
         }
         if lmk is not None:
             face["landmark_agreement"] = _landmark_agreement(f.kps, lmk, f.bbox)
             face.update(_expression(lmk))
+            face["mouth_gap"] = _mouth_gap(lmk)
+        if min(x2 - x1, y2 - y1) >= _THUMB_CHECK_PX:
+            try:
+                crop, face["edge_cut"] = _thumb_crop(arr, [x1, y1, x2, y2])
+                face["expr"] = photo_scores.face_expression(crop)
+            except Exception as e:
+                print(f"face crop check failed: {e}")
         out.append(face)
     return out
 

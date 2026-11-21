@@ -13,6 +13,8 @@ _STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
 
 _session = None
 _mlp = None
+_face_text = None
+_face_names = None
 
 
 def enabled():
@@ -32,6 +34,32 @@ def load(providers=None):
     # LAION improved-aesthetic-predictor (MIT): linear layers only, dropout is off at inference
     _mlp = [(w[f"{i}.weight"], w[f"{i}.bias"]) for i in (0, 2, 4, 6, 7)]
     _session = session
+    _load_face_text()
+
+
+def _load_face_text():
+    global _face_text, _face_names
+    try:
+        import json
+
+        _face_text = np.load(os.path.join(_DIR, "face_text.npy")).astype(np.float32)
+        with open(os.path.join(_DIR, "face_text.json")) as f:
+            _face_names = json.load(f)
+    except OSError:
+        _face_text, _face_names = None, None
+
+
+def face_expression(crop):
+    """Zero-shot class probabilities for a face crop (relaxed smile, open mouth,
+    hand on face, neutral, eating, not a face), or None without the vectors."""
+    if _session is None or _face_text is None:
+        return None
+    feat = _session.run(None, {"image": preprocess(crop.convert("RGB"))})[0].astype(np.float32).reshape(-1)
+    feat /= np.linalg.norm(feat) + 1e-6
+    logits = 100.0 * (_face_text @ feat)
+    p = np.exp(logits - logits.max())
+    p /= p.sum()
+    return {n: round(float(v), 4) for n, v in zip(_face_names, p)}
 
 
 def preprocess(img):
