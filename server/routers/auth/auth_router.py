@@ -1,6 +1,8 @@
 from fastapi import (
     HTTPException,
     Depends,
+    Request,
+    Response,
     status,
     APIRouter,
 )
@@ -17,6 +19,12 @@ from config import settings
 from db.base import get_session
 from db.models import User as UserModel, MagicLink, UserEmail
 from services.email_service import send_login_link
+from services.refresh_tokens import (
+    issue_refresh_token,
+    revoke_token_family,
+    rotate_refresh_token,
+    REFRESH_TTL_SECONDS,
+)
 from dependencies import oauth2_scheme, verify_token, TOKEN_TYPE_ACCESS
 
 router = APIRouter()
@@ -137,7 +145,9 @@ def request_link(body: EmailBody, session: Session = Depends(get_session)):
 
 
 @router.post("/api/auth/verify-link")
-def verify_link(body: TokenBody, session: Session = Depends(get_session)):
+def verify_link(
+    body: TokenBody, request: Request, session: Session = Depends(get_session)
+):
     ml = session.query(MagicLink).filter_by(token=body.token).first()
     if not ml or ml.used_at is not None or ml.expires_at < datetime.now():
         raise HTTPException(status_code=400, detail="This link is invalid or expired.")
@@ -152,8 +162,48 @@ def verify_link(body: TokenBody, session: Session = Depends(get_session)):
             ue.verified_at = datetime.now()
     user.last_login_at = datetime.now()
     token = create_token(user, minutes=SESSION_MINUTES)
+    refresh = issue_refresh_token(session, user.id, request.headers.get("user-agent"))
     return {
         "access_token": token["access_token"],
         "token_type": "bearer",
+        **refresh,
         "user": _user_json(user),
     }
+
+
+class RefreshBody(BaseModel):
+    refresh_token: str
+
+
+@router.post("/api/auth/refresh")
+def refresh_session(
+    body: RefreshBody, request: Request, session: Session = Depends(get_session)
+):
+    from routers.user.user import create_user_json
+
+    result = rotate_refresh_token(
+        session, body.refresh_token, request.headers.get("user-agent")
+    )
+    user = session.get(UserModel, result[0]) if result else None
+    if not result or not user:
+        # keep a reuse revoke; get_session rolls back on the raise below
+        session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = create_token(user)
+    return {
+        "access_token": token["access_token"],
+        "token_type": "bearer",
+        "refresh_token": result[1],
+        "refresh_expires_in": REFRESH_TTL_SECONDS,
+        "user": create_user_json(user),
+    }
+
+
+@router.post("/api/auth/logout", status_code=204)
+def logout(body: RefreshBody, session: Session = Depends(get_session)):
+    revoke_token_family(session, body.refresh_token)
+    return Response(status_code=204)

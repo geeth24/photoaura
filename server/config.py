@@ -46,7 +46,7 @@ class Settings:
     
     SECRET_KEY: str = _load_secret_key()
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     
     AWS_ACCESS_KEY: Optional[str] = os.environ.get("AWS_ACCESS_KEY")
     AWS_SECRET_KEY: Optional[str] = os.environ.get("AWS_SECRET_KEY")

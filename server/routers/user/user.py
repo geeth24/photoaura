@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -17,6 +17,11 @@ from routers.auth.auth_router import (
     CLIENT_URL,
 )
 from services import email_service
+from services.refresh_tokens import (
+    delete_all_for_user,
+    issue_refresh_token,
+    revoke_all_for_user,
+)
 from services.email_service import send_invite, send_verify_email
 from utils.utils import access_user_id
 
@@ -255,6 +260,7 @@ def delete_my_account(
 
     # revoke all auth — outstanding magic links + future logins
     session.query(MagicLink).filter_by(user_id=me.id).delete()
+    revoke_all_for_user(session, me.id)
     # drop access to galleries shared with this user (albums themselves stay)
     session.query(UserAlbumPermission).filter_by(user_id=me.id).delete()
     # remove all linked emails (so the address could be reused later)
@@ -420,17 +426,22 @@ def invite_client(
 
 
 @router.post("/api/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     # Replace with actual user authentication logic
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         # return 401 error
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    with session_scope() as session:
+        refresh = issue_refresh_token(
+            session, user[1].id, request.headers.get("user-agent")
+        )
     return {
         "message": "Login successful",
         "access_token": user[0]["access_token"],
         "token_type": "bearer",
+        **refresh,
         "user": create_user_json(user[1]),
     }
 
@@ -634,6 +645,7 @@ def _purge_user(session: Session, user_id: int):
     # so the row delete fails unless they're gone (this was the bug: only
     # permissions were cleared, leaving magic_links/emails/files to block it)
     session.query(MagicLink).filter_by(user_id=user_id).delete()
+    delete_all_for_user(session, user_id)
     session.query(UserEmail).filter_by(user_id=user_id).delete()
     session.query(UserAlbumPermission).filter_by(user_id=user_id).delete()
     session.query(ClientFile).filter_by(user_id=user_id).delete()

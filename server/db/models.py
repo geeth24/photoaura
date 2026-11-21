@@ -57,6 +57,25 @@ class MagicLink(Base):
     )
 
 
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    # one per sign-in; every rotation of that sign-in shares it
+    family_id: Mapped[str] = mapped_column(String(32), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP)
+    used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    device: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+
+
 class UserEmail(Base):
     __tablename__ = "user_emails"
 
