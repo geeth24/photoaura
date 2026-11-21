@@ -1,6 +1,7 @@
 import io
 import os
 import random
+import threading
 import uuid
 
 import numpy as np
@@ -556,7 +557,16 @@ def _recrop_chips(session, jobs):
     return done
 
 
+_recluster_lock = threading.Lock()
+
+
 def recluster_faces():
+    """One recluster at a time, whoever asks (uploads, resync, revisions)."""
+    with _recluster_lock:
+        return _recluster_faces()
+
+
+def _recluster_faces():
     """Authoritative clustering: rebuild every person from the full embedding
     graph using Chinese Whispers. Order-independent and chaining-resistant —
     unlike the incremental per-photo matcher. Keeps names, admin merges and

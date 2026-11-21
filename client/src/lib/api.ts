@@ -15,6 +15,7 @@ import type {
   RevisionPreview,
   RevisionWithFiles,
 } from "@/lib/types"
+import { BATCH_RETRIES, planBatches } from "@/lib/upload-batches"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
 
@@ -130,9 +131,12 @@ export type UploadOptions = {
 
 export type UploadStage = {
   stage: "uploading" | "saving" | "faces" | "clustering" | "warming" | "done"
-  pct?: number // for "uploading" (network)
+  pct?: number // for "uploading" (network, across every batch)
   current?: number // for server stages
   total?: number
+  batch?: number // 1-based batch being sent, when the upload is split
+  batches?: number
+  attempt?: number // 2 or 3 while a failed batch is retried
 }
 
 export type UploadResult = {
@@ -158,13 +162,44 @@ export function getUploadStatus(slug: string): Promise<UploadStatus> {
   return apiFetch<UploadStatus>(`/upload-status/${slug}`)
 }
 
+/** A batch failed for good; `uploaded` of `total` files were already saved. */
+export class UploadBatchError extends Error {
+  uploaded: number
+  total: number
+  constructor(message: string, uploaded: number, total: number) {
+    super(message)
+    this.uploaded = uploaded
+    this.total = total
+  }
+}
+
+class RequestError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+// a 4xx other than timeout / rate limit won't change on a second try
+const retryable = (e: unknown) =>
+  !(e instanceof RequestError) ||
+  e.status === 0 ||
+  e.status >= 500 ||
+  e.status === 408 ||
+  e.status === 429
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 /**
  * Upload photos to a new or existing album.
  *
- * Two live signals drive the dialog: XHR upload progress for the network
- * transfer ("uploading"), and websocket stage events from the server for the
- * post-upload work ("saving" -> "faces" -> "warming" -> "done"). The promise
- * resolves only once the server has finished everything (incl. cache warming).
+ * Files go up in batches (see upload-batches.ts), one request at a time, so no
+ * single request outgrows the proxy limits. The batches share an upload
+ * session; the last one is marked final and the server then runs faces and
+ * warming once for the whole upload. A failed batch is retried twice. The
+ * promise resolves when the last batch is saved; processing continues
+ * server-side and is tracked on the processing page.
  */
 export function uploadAlbum(
   opts: UploadOptions,
@@ -175,6 +210,8 @@ export function uploadAlbum(
     const ws = new WebSocket(wsUrl)
     let settled = false
     let started = false
+    const batches = planBatches(opts.files)
+    const split = batches.length > 1
 
     const finish = (err?: Error, result?: UploadResult) => {
       if (settled) return
@@ -188,38 +225,92 @@ export function uploadAlbum(
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data)
-        if (d.stage) {
+        // per-file server events would fight the overall batch progress
+        if (d.stage && !split) {
           onStage?.({ stage: d.stage, current: d.current, total: d.total })
         }
       } catch {}
     }
 
+    const run = async () => {
+      const sessionId =
+        typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const totalBytes = opts.files.reduce((n, f) => n + f.size, 0)
+      let slug = opts.albumSlug ?? ""
+      let processing = false
+      let sentBytes = 0
+      let sentFiles = 0
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i]
+        const batchBytes = batch.reduce((n, f) => n + f.size, 0)
+        const last = i === batches.length - 1
+
+        for (let attempt = 1; ; attempt++) {
+          const form = new FormData()
+          batch.forEach((f) => form.append("files", f))
+          const params = new URLSearchParams({
+            user_id: String(opts.userId),
+            face_detection: String(!!opts.faceDetection),
+          })
+          // later batches target the album the first one created
+          if (slug) params.set("slug", slug)
+          else params.set("album_name", opts.albumName ?? "")
+          if (split) {
+            params.set("session", sessionId)
+            params.set("final", String(last))
+          }
+
+          const report = (frac: number) => {
+            const overall = totalBytes
+              ? (sentBytes + batchBytes * frac) / totalBytes
+              : (sentFiles + batch.length * frac) / opts.files.length
+            onStage?.({
+              stage: "uploading",
+              pct: Math.min(100, Math.round(overall * 100)),
+              batch: i + 1,
+              batches: batches.length,
+              attempt: attempt > 1 ? attempt : undefined,
+            })
+          }
+          report(0)
+
+          try {
+            const body = await postWithProgress<{
+              album_slug?: string
+              processing?: boolean
+            }>(`/upload-files/?${params.toString()}`, form, (pct) =>
+              report(pct / 100)
+            )
+            slug = body.album_slug ?? slug
+            processing = !!body.processing
+            break
+          } catch (e) {
+            if (attempt > BATCH_RETRIES || !retryable(e)) {
+              const why = e instanceof Error ? e.message : "Upload failed"
+              throw new UploadBatchError(
+                `Upload stopped: ${sentFiles} of ${opts.files.length} files made it. ` +
+                  `Batch ${i + 1} of ${batches.length} failed after ${attempt} ${attempt === 1 ? "try" : "tries"}: ${why}.`,
+                sentFiles,
+                opts.files.length
+              )
+            }
+            await sleep(1000 * attempt)
+          }
+        }
+        sentBytes += batchBytes
+        sentFiles += batch.length
+      }
+      return { albumSlug: slug, processing }
+    }
+
     const doUpload = () => {
       if (started) return
       started = true
-
-      const form = new FormData()
-      opts.files.forEach((f) => form.append("files", f))
-      const params = new URLSearchParams({
-        user_id: String(opts.userId),
-        face_detection: String(!!opts.faceDetection),
-      })
-      if (opts.albumSlug) params.set("slug", opts.albumSlug)
-      else params.set("album_name", opts.albumName ?? "")
-
-      // server returns once files are saved; faces/warming run in the
-      // background and are tracked on the processing page.
-      postWithProgress<{ album_slug?: string; processing?: boolean }>(
-        `/upload-files/?${params.toString()}`,
-        form,
-        (pct) => onStage?.({ stage: "uploading", pct }),
-      )
-        .then((body) =>
-          finish(undefined, {
-            albumSlug: body.album_slug ?? "",
-            processing: !!body.processing,
-          }),
-        )
+      run()
+        .then((result) => finish(undefined, result))
         .catch((e: Error) => finish(e))
     }
 
@@ -253,10 +344,15 @@ function postWithProgress<T>(
         resolve((body ?? {}) as T)
       } else {
         const detail = (body as { detail?: unknown } | null)?.detail
-        reject(new Error(typeof detail === "string" ? detail : "Upload failed"))
+        reject(
+          new RequestError(
+            typeof detail === "string" ? detail : "Upload failed",
+            xhr.status
+          )
+        )
       }
     }
-    xhr.onerror = () => reject(new Error("Upload failed"))
+    xhr.onerror = () => reject(new RequestError("Upload failed", 0))
     xhr.send(form)
   })
 }

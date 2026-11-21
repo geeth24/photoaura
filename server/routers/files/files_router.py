@@ -24,7 +24,8 @@ from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
 from services.video_transcode import transcode_to_web
 from routers.websocket.websocket_router import manager
-from services import proof_service, upload_jobs
+from services import proof_service, upload_jobs, upload_sessions
+from services.upload_sessions import Batch
 from dependencies import oauth2_scheme, get_current_user, require_admin
 from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
@@ -259,6 +260,53 @@ def _upload_target(session, album_name, slug, face_detection, image_count):
     return album, False
 
 
+# albums with a processing pass in flight, and the targets that arrived
+# for them meanwhile (merged into one follow-up pass)
+_running: set[str] = set()
+_queued: dict[str, Batch] = {}
+_tasks: set[asyncio.Task] = set()
+
+
+def _schedule_processing(batch: Batch) -> None:
+    """Start processing for an album, or queue behind its running pass so two
+    passes never interleave on one album (or run two reclusters at once)."""
+    slug = batch.slug
+    if slug in _running:
+        queued = _queued.get(slug)
+        if queued:
+            queued.merge(batch)
+        else:
+            _queued[slug] = batch
+        return
+    _running.add(slug)
+    upload_jobs.start_job(
+        slug, face_detection=bool(batch.face_targets), image_count=batch.image_count
+    )
+    task = asyncio.create_task(_drain(batch))
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+async def _drain(batch: Batch) -> None:
+    slug = batch.slug
+    try:
+        while batch:
+            await _process_album(
+                batch.album_id, slug, batch.face_targets, batch.keys,
+                batch.update, batch.image_count, batch.video_targets,
+            )
+            batch = _queued.pop(slug, None)
+            if batch:
+                upload_jobs.start_job(
+                    slug,
+                    face_detection=bool(batch.face_targets),
+                    image_count=batch.image_count,
+                )
+    finally:
+        _running.discard(slug)
+        _queued.pop(slug, None)
+
+
 # Upload files and handle DB logic
 @router.post("/api/upload-files/")
 async def create_upload_files(
@@ -268,10 +316,18 @@ async def create_upload_files(
     slug: str = None,
     update: bool = False,
     face_detection: bool = False,
+    # a client-generated id shared by every batch of one upload; "final" marks
+    # the last batch, which runs the single processing pass
+    upload_session: str = Query(None, alias="session", max_length=64),
+    final: bool = False,
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     album, existed = _upload_target(session, album_name, slug, face_detection, len(files))
+    if upload_session:
+        held_slug = upload_sessions.slug_of(upload_session)
+        if held_slug and held_slug != album.slug:
+            raise HTTPException(status_code=409, detail="Upload session belongs to another album")
     album_slug = album.slug
     if existed:
         update = True
@@ -313,19 +369,21 @@ async def create_upload_files(
     # faces + clustering + cdn warming can run for minutes on a big album —
     # well past any proxy timeout. Hand them to a background task and return
     # now so the admin gets routed to a live progress page instead of a 504.
-    processing = bool(face_targets or keys or video_targets)
-    if processing:
-        upload_jobs.start_job(
-            album_slug, face_detection=bool(face_targets), image_count=image_count
-        )
-        asyncio.create_task(
-            _process_album(
-                album.id, album_slug, face_targets, keys, update, image_count,
-                video_targets,
-            )
-        )
+    batch = Batch(
+        album.id, album_slug, update, image_count,
+        face_targets, keys, video_targets,
+    )
+    if upload_session and not final:
+        upload_sessions.hold(upload_session, batch, _schedule_processing)
+        processing = False
     else:
-        await _notify("done", total, total)
+        if upload_session:
+            batch = upload_sessions.take(upload_session, batch)
+        processing = batch.has_work
+        if processing:
+            _schedule_processing(batch)
+        else:
+            await _notify("done", total, total)
 
     return {
         "filenames": [file.filename for file in files],
@@ -400,8 +458,10 @@ async def _process_album(
         if update:
             await asyncio.to_thread(invalidate_cdn)
 
-        upload_jobs.finish_job(album_slug)
-        await _notify("done", image_count, image_count)
+        # another pass is queued for this album; it finishes the job
+        if album_slug not in _queued:
+            upload_jobs.finish_job(album_slug)
+            await _notify("done", image_count, image_count)
     except Exception as e:
         print(f"album processing failed for {album_slug}: {e}")
         upload_jobs.fail_job(album_slug, str(e))
