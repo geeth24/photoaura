@@ -16,6 +16,7 @@ final class AlbumStore {
     init(api: APIClient, slug: String, initialName: String, initialLocked: Bool = false, isClient: Bool = true) {
         self.api = api
         self.state = AlbumState(slug: slug, initialName: initialName, initialLocked: initialLocked, isClient: isClient)
+        state.chosenScope = AlbumScopeMemory.scope(for: slug)
     }
 
     func send(_ intent: AlbumIntent) {
@@ -43,8 +44,13 @@ final class AlbumStore {
         case .toggleOnlyRevised:
             state.onlyRevised.toggle()
 
+        case .selectScope(let scope):
+            state.chosenScope = scope
+            AlbumScopeMemory.remember(scope, for: state.slug)
+
         case .loadSucceeded(let detail, let faces):
             state.detail = detail
+            applySmartSets(from: detail)
             state.faces = faces
             state.isLoading = false
             state.hasLoadedOnce = true
@@ -67,6 +73,19 @@ final class AlbumStore {
         }
     }
 
+    // filenames from the server are matched against what the album actually holds
+    private func applySmartSets(from detail: AlbumDetail) {
+        let byName = Dictionary(detail.albumPhotos.map { ($0.fileMetadata.filename, $0) }, uniquingKeysWith: { first, _ in first })
+        state.highlightNames = Set(detail.highlights ?? []).intersection(byName.keys)
+        var seen = Set<String>()
+        state.momentGroups = (detail.moments ?? []).compactMap { moment in
+            let photos = moment.filenames.compactMap { name in
+                seen.insert(name).inserted ? byName[name] : nil
+            }
+            return photos.isEmpty ? nil : MomentGroup(moment: moment, photos: photos)
+        }
+    }
+
     // the album only says it's locked; the client's own booking knows what's left to pay
     private func loadLockInfo(bookingNumber: String?) {
         Task { [api, slug = state.slug] in
@@ -76,4 +95,13 @@ final class AlbumStore {
             self.send(.lockInfoLoaded(bookingNumber: b.number, amountCents: amount))
         }
     }
+}
+
+/// The chip each album was last left on, for this run of the app only.
+@MainActor
+enum AlbumScopeMemory {
+    private static var chosen: [String: AlbumScope] = [:]
+
+    static func scope(for slug: String) -> AlbumScope? { chosen[slug] }
+    static func remember(_ scope: AlbumScope, for slug: String) { chosen[slug] = scope }
 }

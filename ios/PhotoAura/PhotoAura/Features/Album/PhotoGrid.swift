@@ -15,12 +15,29 @@ final class TileFrames {
     var rects: [String: CGRect] = [:]
 }
 
+/// A run of tiles, optionally under a pinned header line.
+struct PhotoGridSection: Identifiable {
+    let id: String
+    var header: Text? = nil
+    let photos: [Photo]
+}
+
 /// Square, edge-to-edge photo grid, same as the web gallery. Pinch to step
 /// between 5, 3 and 2 columns; the choice sticks across albums.
 struct PhotoGrid: View {
-    let photos: [Photo]
+    let sections: [PhotoGridSection]
     let frames: TileFrames
     let onOpen: (PhotoTarget) -> Void
+
+    init(photos: [Photo], frames: TileFrames, onOpen: @escaping (PhotoTarget) -> Void) {
+        self.init(sections: [PhotoGridSection(id: "all", photos: photos)], frames: frames, onOpen: onOpen)
+    }
+
+    init(sections: [PhotoGridSection], frames: TileFrames, onOpen: @escaping (PhotoTarget) -> Void) {
+        self.sections = sections
+        self.frames = frames
+        self.onOpen = onOpen
+    }
 
     // densest first; the middle step is the default
     static var steps: [Int] { [5, 3, 2] }
@@ -30,15 +47,15 @@ struct PhotoGrid: View {
     @State private var pinchEnded = Date.distantPast
 
     var body: some View {
-        LazyVGrid(columns: Self.columns(for: step), spacing: 2) {
-            ForEach(Array(photos.enumerated()), id: \.element.id) { idx, photo in
-                PhotoTile(photo: photo)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.rects[photo.id] = $0 }
-                    .onTapGesture {
-                        guard !pinching, Date.now.timeIntervalSince(pinchEnded) > 0.3 else { return }
-                        onOpen(PhotoTarget(index: idx, sourceID: photo.id))
+        LazyVGrid(columns: Self.columns(for: step), spacing: 2, pinnedViews: [.sectionHeaders]) {
+            ForEach(indexedSections, id: \.section.id) { entry in
+                Section {
+                    ForEach(Array(entry.section.photos.enumerated()), id: \.element.id) { idx, photo in
+                        tile(photo, index: entry.start + idx)
                     }
-                    .accessibilityAddTraits(.isButton)
+                } header: {
+                    if let header = entry.section.header { MomentHeader(text: header) }
+                }
             }
         }
         .animation(.smooth(duration: 0.35), value: step)
@@ -57,9 +74,44 @@ struct PhotoGrid: View {
         )
     }
 
+    // each section's first position in the flat list the viewer pages through
+    private var indexedSections: [(section: PhotoGridSection, start: Int)] {
+        var start = 0
+        return sections.map { section in
+            defer { start += section.photos.count }
+            return (section, start)
+        }
+    }
+
+    private func tile(_ photo: Photo, index: Int) -> some View {
+        PhotoTile(photo: photo)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.rects[photo.id] = $0 }
+            .onTapGesture {
+                guard !pinching, Date.now.timeIntervalSince(pinchEnded) > 0.3 else { return }
+                onOpen(PhotoTarget(index: index, sourceID: photo.id))
+            }
+            .accessibilityAddTraits(.isButton)
+    }
+
     static func columns(for step: Int) -> [GridItem] {
         let n = steps[min(max(step, 0), steps.count - 1)]
         return Array(repeating: GridItem(.flexible(), spacing: 2), count: n)
+    }
+}
+
+/// Pinned line above a moment's tiles.
+private struct MomentHeader: View {
+    let text: Text
+
+    var body: some View {
+        text
+            .font(EditorialTypography.sans(size: 12, weight: .medium))
+            .lineLimit(1)
+            .padding(.horizontal, EditorialSpacing.screenGutter)
+            .padding(.vertical, EditorialSpacing.small)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(EditorialColors.background)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
