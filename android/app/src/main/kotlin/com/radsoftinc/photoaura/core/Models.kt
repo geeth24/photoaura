@@ -21,7 +21,12 @@ data class CurrentUser(
 )
 
 @Serializable
-data class AuthResponse(val accessToken: String, val user: CurrentUser)
+data class AuthResponse(
+    val accessToken: String,
+    val user: CurrentUser,
+    val refreshToken: String? = null,
+    val refreshExpiresIn: Long? = null,
+)
 
 @Serializable
 data class AlbumSummary(

@@ -49,9 +49,26 @@ object Api {
         expectSuccess = false
     }
 
-    @Volatile var token: String? = null
-    /** fired on a 401 so a revoked session drops back to sign-in instead of failing forever */
+    /** fired when the session is over (401 with no refresh left) so the app drops back to sign-in */
     var onUnauthorized: () -> Unit = {}
+    /** fired after a refresh so Session can persist the rotated tokens */
+    var onRefreshed: (RefreshResponse, String?) -> Unit = { _, _ -> }
+
+    private val refresher = AuthRefresher(
+        client = { client },
+        json = json,
+        onRefreshed = { r, base -> onRefreshed(r, base) },
+        onRejected = { onUnauthorized() },
+    ).also { it.install(client) { onUnauthorized() } }
+
+    val token: String? get() = refresher.access
+    val refreshToken: String? get() = refresher.refresh
+    val tokenBase: String? get() = refresher.base
+
+    fun setTokens(access: String?, refresh: String?, base: String?) = refresher.set(access, refresh, base)
+
+    /** Refreshes ahead of expiry, e.g. on app resume. A no-op without a refresh token. */
+    suspend fun refreshIfExpiring() = refresher.refreshIfExpiring()
 
     private fun HttpRequestBuilder.auth() {
         token?.let { header("Authorization", "Bearer $it") }
@@ -59,7 +76,6 @@ object Api {
 
     private suspend inline fun <reified T> HttpResponse.decode(): T {
         if (!status.isSuccess()) {
-            if (status.value == 401) onUnauthorized()
             throw ApiException(status.value, humanError(status.value, bodyAsText()))
         }
         return body()
@@ -67,7 +83,6 @@ object Api {
 
     private suspend fun HttpResponse.check() {
         if (!status.isSuccess()) {
-            if (status.value == 401) onUnauthorized()
             throw ApiException(status.value, humanError(status.value, bodyAsText()))
         }
     }
@@ -107,6 +122,17 @@ object Api {
                 append("password", password)
             },
         ).decode()
+
+    @Serializable private data class RefreshTokenBody(val refreshToken: String)
+
+    /** best effort; the caller has already cleared the session, so failures don't matter */
+    suspend fun logout(refreshToken: String, base: String) {
+        runCatching {
+            client.post("$base/auth/logout") {
+                contentType(ContentType.Application.Json); setBody(RefreshTokenBody(refreshToken))
+            }
+        }
+    }
 
     suspend fun verifyToken() =
         client.post("$BASE/verify-token") { auth(); contentType(ContentType.Application.Json); setBody(JsonObject(emptyMap())) }.check()
