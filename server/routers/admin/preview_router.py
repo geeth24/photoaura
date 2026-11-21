@@ -38,6 +38,7 @@ def start_preview(
     token = jwt.encode(
         {
             "sub": target.user_name,
+            "uid": target.id,
             "role": "client",
             "preview": True,
             "admin_id": me.id,

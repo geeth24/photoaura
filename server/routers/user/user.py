@@ -104,8 +104,11 @@ def list_my_emails(
             is_primary=True,
             verified_at=datetime.now(),
         )
-        session.add(ue)
-        session.flush()
+        if current_user.preview:
+            ue.id = 0  # shown, never stored
+        else:
+            session.add(ue)
+            session.flush()
         rows = [ue]
     return [
         {

@@ -43,11 +43,15 @@ class TokenData:
         role: str = "client",
         preview: bool = False,
         admin_id: Optional[int] = None,
+        uid: Optional[int] = None,
+        exp: Optional[float] = None,
     ):
         self.user_name = user_name
         self.role = role
         self.preview = preview
         self.admin_id = admin_id
+        self.uid = uid
+        self.exp = exp
 
 
 def verify_token(token: str, credentials_exception: HTTPException) -> TokenData:
@@ -61,6 +65,8 @@ def verify_token(token: str, credentials_exception: HTTPException) -> TokenData:
             role=payload.get("role", "client"),
             preview=bool(payload.get("preview")),
             admin_id=payload.get("admin_id"),
+            uid=payload.get("uid"),
+            exp=payload.get("exp"),
         )
     except jwt.PyJWTError:
         raise credentials_exception
@@ -68,12 +74,20 @@ def verify_token(token: str, credentials_exception: HTTPException) -> TokenData:
 
 def preview_is_valid(session: Session, data: TokenData) -> bool:
     """A preview token only works while the admin who minted it is still an
-    admin and the account it shows is still a client."""
+    admin and the account it shows (by id, so a rename can't switch it) is
+    still a client."""
     from db.models import User
 
     admin = session.get(User, data.admin_id) if data.admin_id else None
     target = session.query(User).filter_by(user_name=data.user_name).first()
-    return bool(admin and admin.role == "admin" and target and target.role != "admin")
+    return bool(
+        admin
+        and admin.role == "admin"
+        and target
+        and target.role != "admin"
+        and data.uid is not None
+        and target.id == data.uid
+    )
 
 
 def get_current_user(

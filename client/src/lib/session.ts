@@ -36,8 +36,11 @@ export function saveSession(token: string, user: User, maxAge = maxAgeFor(token)
   setCookie("user", JSON.stringify(user), maxAge)
 }
 
+// signing out, or in, always drops any admin session kept aside for a preview
 export function clearSession() {
-  for (const name of ["token", "user", "admin_token", "admin_user"]) deleteCookie(name)
+  deleteCookie("token")
+  deleteCookie("user")
+  dropAdminStash()
 }
 
 const PREVIEW_FROM = "preview-from"
@@ -60,15 +63,32 @@ export function startPreviewSession(previewToken: string, previewUser: User) {
   saveSession(previewToken, previewUser, age)
 }
 
-// true when the admin session was put back; false when it expired meanwhile
+export function dropAdminStash() {
+  deleteCookie("admin_token")
+  deleteCookie("admin_user")
+}
+
+export function inPreview(): boolean {
+  return !!claimsOf(getCookie("token"))?.preview
+}
+
+// true when the admin session was put back. It only is while the current token
+// is a preview minted by that same admin; anything else clears the stash.
 export function restoreAdminSession(): boolean {
   const token = getCookie("admin_token")
   const user = getCookie("admin_user")
-  deleteCookie("admin_token")
-  deleteCookie("admin_user")
+  dropAdminStash()
   const exp = claimsOf(token)?.exp
   if (!token || !user || !exp || exp * 1000 <= Date.now()) return false
-  saveSession(token, JSON.parse(user) as User)
+  let admin: User
+  try {
+    admin = JSON.parse(user) as User
+  } catch {
+    return false
+  }
+  const current = claimsOf(getCookie("token"))
+  if (!current?.preview || current.admin_id !== admin.id) return false
+  saveSession(token, admin)
   return true
 }
 

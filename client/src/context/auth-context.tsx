@@ -9,6 +9,8 @@ import {
   clearSession,
   getCookie,
   deleteCookie,
+  dropAdminStash,
+  inPreview,
   previewReturnPath,
   restoreAdminSession,
   saveSession,
@@ -39,7 +41,10 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "https://aura-api.reactiveshots.com/api"
 
 function leavePreview() {
-  if (restoreAdminSession()) {
+  // another tab may already have exited; its restored admin session must survive
+  if (!inPreview()) {
+    window.location.assign(previewReturnPath())
+  } else if (restoreAdminSession()) {
     window.location.assign(previewReturnPath())
   } else {
     clearSession()
@@ -64,7 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // a preview that ran out of time hands the admin session back
     const backToAdmin = () => {
-      if (restoreAdminSession()) window.location.replace(previewReturnPath())
+      const restored = restoreAdminSession()
+      if (restored) window.location.replace(previewReturnPath())
+      return restored
     }
 
     if (savedToken && savedUser) {
@@ -88,8 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
             .catch(() => {})
         } else {
-          dropSession()
-          backToAdmin()
+          // restore first: it needs the expired preview token still in place
+          if (!backToAdmin()) dropSession()
         }
       } catch {
         dropSession()
@@ -101,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setSession = (data: LoginResponse) => {
+    dropAdminStash()
     setToken(data.access_token)
     setUser(data.user)
     saveSession(data.access_token, data.user)
@@ -158,16 +166,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer)
   }, [isPreview, token])
 
+  // signs out of everything, including an admin session kept aside for a preview
   const logout = () => {
-    if (isPreview) {
-      leavePreview()
-      return
-    }
     setUser(null)
     setToken(null)
     clearSession()
     router.push("/login")
   }
+
+  // another tab entering or leaving a preview makes this one stale
+  useEffect(() => {
+    const onFocus = () => {
+      if (!!token && inPreview() !== isPreview) window.location.reload()
+    }
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [token, isPreview])
 
   return (
     <AuthContext

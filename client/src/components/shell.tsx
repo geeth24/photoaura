@@ -7,7 +7,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { ClientTabBar, ClientTopNav, ProfileLink, useClientNav } from "@/components/client-nav"
 import { PreviewBanner } from "@/components/preview-banner"
-import { LogOut } from "lucide-react"
+import { EyeOff, LogOut } from "lucide-react"
 
 // clients get a light top bar (tabs at the bottom on phones); the studio keeps its sidebar
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -37,7 +37,7 @@ function StudioShell({ children }: { children: React.ReactNode }) {
 }
 
 function ClientShell({ children }: { children: React.ReactNode }) {
-  const { logout, isPreview } = useAuth()
+  const { logout, isPreview, exitPreview } = useAuth()
   const { items, pathname } = useClientNav()
 
   return (
@@ -56,9 +56,20 @@ function ClientShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-1">
             <ProfileLink pathname={pathname} />
+            {isPreview && (
+              <button
+                onClick={exitPreview}
+                aria-label="Exit preview"
+                className="flex h-9 items-center gap-1.5 px-2 text-[10px] font-medium uppercase tracking-[0.2em] text-brand transition-colors hover:text-text-primary"
+              >
+                <EyeOff className="size-[17px]" />
+                <span className="max-sm:hidden">Exit preview</span>
+              </button>
+            )}
             <button
               onClick={logout}
-              aria-label={isPreview ? "Exit preview" : "Sign out"}
+              aria-label={isPreview ? "Sign out of both sessions" : "Sign out"}
+              title={isPreview ? "Signs out of the preview and your admin session" : undefined}
               className="flex size-9 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
             >
               <LogOut className="size-[17px]" />

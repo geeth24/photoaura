@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
-import { LogOut, Plus, X, Check, Clock } from "lucide-react"
+import { EyeOff, LogOut, Plus, X, Check, Clock } from "lucide-react"
 import { toast } from "sonner"
 
 type Email = {
@@ -16,7 +16,7 @@ type Email = {
 
 export default function ProfilePage() {
   useDocumentTitle("Profile")
-  const { user, logout, isPreview } = useAuth()
+  const { user, logout, isPreview, exitPreview } = useAuth()
   const [emails, setEmails] = useState<Email[]>([])
   const [emailsLoaded, setEmailsLoaded] = useState(false)
   const [newEmail, setNewEmail] = useState("")
@@ -178,13 +178,24 @@ export default function ProfilePage() {
         </p>
       </section>
 
-      <button
-        onClick={logout}
-        className="flex h-11 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-destructive/50 hover:text-destructive"
-      >
-        <LogOut className="size-3.5" />
-        {isPreview ? "Exit preview" : "Sign out"}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        {isPreview && (
+          <button
+            onClick={exitPreview}
+            className="flex h-11 items-center gap-2 border border-brand/50 px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand transition-colors hover:border-brand hover:text-text-primary"
+          >
+            <EyeOff className="size-3.5" />
+            Exit preview
+          </button>
+        )}
+        <button
+          onClick={logout}
+          className="flex h-11 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-destructive/50 hover:text-destructive"
+        >
+          <LogOut className="size-3.5" />
+          {isPreview ? "Sign out of both" : "Sign out"}
+        </button>
+      </div>
     </div>
   )
 }

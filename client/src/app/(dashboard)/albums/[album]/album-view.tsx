@@ -235,14 +235,6 @@ export function AlbumView({
     }
   }, [asPaid, albumLocked, albumSlug])
 
-  const photos = useMemo(() => {
-    const all = album?.album_photos ?? []
-    if (!asPaid || !albumLocked) return all
-    return all.map((p) => {
-      const url = originals[p.file_metadata.filename]
-      return url ? { ...p, image: url, compressed_image: url } : p
-    })
-  }, [album, asPaid, albumLocked, originals])
 
   const handleDeletePhoto = useCallback(
     async (filename: string) => {
@@ -386,17 +378,17 @@ export function AlbumView({
         ? new Set(faces.find((f) => f.face_id === selectedFace)?.filenames ?? [])
         : null
     const revisionScoped = revisionFilter
-      ? photos.filter((p) =>
+      ? album.album_photos.filter((p) =>
           revisionFilter.filenames
             ? revisionFilter.filenames.has(p.file_metadata.filename)
             : p.file_metadata.revision_number === revisionFilter.number,
         )
-      : photos
+      : album.album_photos
     const faceScoped = selectedFilenames
       ? revisionScoped.filter((p) => selectedFilenames.has(p.file_metadata.filename))
       : revisionScoped
     // photos / videos tabs — only when the album actually has video
-    const hasVideos = photos.some((p) => isVideo(p))
+    const hasVideos = album.album_photos.some((p) => isVideo(p))
     const videoCount = faceScoped.filter((p) => isVideo(p)).length
     const photoCount = faceScoped.length - videoCount
     const mediaScoped = !hasVideos
@@ -408,17 +400,27 @@ export function AlbumView({
     // the viewer swipes stills only; videos open their own player
     const stills = visiblePhotos.filter((p) => !isVideo(p))
     return { hasVideos, videoCount, photoCount, visiblePhotos, stills }
-  }, [album, photos, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter])
+  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter])
 
   const stillsRef = useRef<Photo[]>([])
   stillsRef.current = view?.stills ?? []
+
+  // the grid keeps its light proof tiles; only the viewer opens the held original
+  const viewerStills = useMemo(() => {
+    const stills = view?.stills ?? []
+    if (!asPaid || !albumLocked) return stills
+    return stills.map((p) => {
+      const url = originals[p.file_metadata.filename]
+      return url ? { ...p, image: url } : p
+    })
+  }, [view, asPaid, albumLocked, originals])
 
   const openPhoto = useCallback((p: Photo) => {
     if (isVideo(p)) {
       setVideo(p)
       return
     }
-    const i = stillsRef.current.indexOf(p)
+    const i = stillsRef.current.findIndex((x) => x.file_metadata.filename === p.file_metadata.filename)
     if (i >= 0) setViewer({ index: i, deep: false })
   }, [])
 
@@ -484,7 +486,7 @@ export function AlbumView({
     )
   }
 
-  const { hasVideos, videoCount, photoCount, visiblePhotos, stills } = view!
+  const { hasVideos, videoCount, photoCount, visiblePhotos } = view!
   const isEmpty = album.album_photos.length === 0
   const countLabel = `${album.image_count} ${album.image_count === 1 ? "photo" : "photos"}`
 
@@ -922,7 +924,7 @@ export function AlbumView({
       )}
 
       <PhotoViewer
-        photos={stills}
+        photos={viewerStills}
         openIndex={viewer?.index ?? null}
         deepLink={viewer?.deep}
         onClose={() => setViewer(null)}

@@ -1,10 +1,11 @@
 from typing import Optional
-from fastapi import HTTPException, APIRouter, Depends
+from fastapi import HTTPException, APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
 import io
 import re
 import zipfile
 import logging
+import time
 from datetime import datetime, timedelta
 import jwt
 from pydantic import BaseModel
@@ -416,6 +417,7 @@ async def set_favorite(
 @router.get("/api/album/{album_slug}/preview-originals")
 async def preview_originals(
     album_slug: str,
+    response: Response,
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -424,9 +426,12 @@ async def preview_originals(
     (the "Show as paid" view); a real client or admin session is refused."""
     if not current_user.preview:
         raise HTTPException(status_code=403, detail="Only available in a client preview")
+    response.headers["Cache-Control"] = "private, no-store"
     album, _ = _album_for_user(album_slug, current_user, session)
     if not album.proof_locked or not album.hold_token:
         return {"originals": {}}
+    # the links die with the preview token
+    ttl = max(60, int((current_user.exp or 0) - time.time()))
     held = (
         session.query(FileMetadata)
         .filter(
@@ -442,7 +447,7 @@ async def preview_originals(
             m.filename: s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": AWS_BUCKET, "Key": hold_key(album.slug, album.hold_token, m.original_filename)},
-                ExpiresIn=1800,
+                ExpiresIn=ttl,
             )
             for m in held
         }
