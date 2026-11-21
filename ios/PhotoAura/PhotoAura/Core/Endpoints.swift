@@ -37,7 +37,7 @@ extension APIClient {
         let body = "username=\(escape(username))&password=\(escape(password))"
         req.httpBody = body.data(using: .utf8)
 
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp) = try await urlSession.data(for: req)
         guard let http = resp as? HTTPURLResponse else {
             throw APIError.badStatus(0, "Bad response")
         }

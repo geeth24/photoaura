@@ -21,6 +21,9 @@ struct CurrentUser: Codable, Hashable {
 
 struct AuthResponse: Decodable {
     let accessToken: String
+    // absent on servers that predate refresh tokens
+    let refreshToken: String?
+    let refreshExpiresIn: Int?
     let user: CurrentUser
 }
 

@@ -148,6 +148,12 @@ PhotoAura/
 - Base URL: `https://aura-api.reactiveshots.com/api` (prod)
 - Local dev: port-forward `kubectl port-forward svc/photoaura-backend 8000`
 - Auth: Bearer JWT in `Authorization` header. Token in Keychain.
+- Stay signed in: access tokens last 60 min; login responses also carry a rotating
+  `refresh_token`, kept in the Keychain next to the access token and tied to the
+  server that issued it. `APIClient` refreshes once on a 401 (single-flight) and
+  retries, and refreshes ahead of time when `exp` is under 5 minutes away.
+  - `POST /auth/refresh` — `{ refresh_token }` → new `access_token` + `refresh_token`; 401 signs out
+  - `POST /auth/logout` — `{ refresh_token }` → 204, called on sign out
 - Magic-link verify: opens `aura://verify?token=<short-token>` deep link
 - Endpoints we use:
   - `POST /auth/request-link` — `{ email }` → 200
