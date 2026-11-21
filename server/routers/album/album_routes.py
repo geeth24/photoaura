@@ -118,9 +118,10 @@ async def get_album(
         hidden = smart_gallery.hidden_photo_ids(session, album.id)
         file_metadata = [m for m in file_metadata if m.id not in hidden]
     album_photos = create_album_photos_json(album_slug, file_metadata, album.proof_locked)
-    highlights = None
+    highlights = moments = None
     if admin or album.smart_published:
         highlights = smart_gallery.highlight_filenames(session, album.id)
+        moments = smart_gallery.moments_json(session, album.id)
 
     permissions = (
         session.query(UserAlbumPermission).filter_by(album_id=album.id).all() if admin else []
@@ -154,6 +155,7 @@ async def get_album(
         "locked": bool(album.proof_locked),
         "booking_number": album_booking_number(session, album.id) if album.proof_locked else None,
         "highlights": highlights,
+        "moments": moments,
         "smart_published": bool(album.smart_published),
     }
 
@@ -277,6 +279,7 @@ async def view_shared_album(
         "album_photos": create_album_photos_json(album.slug, photos, album.proof_locked),
         "locked": bool(album.proof_locked),
         "highlights": smart_gallery.highlight_filenames(session, album.id) if album.smart_published else None,
+        "moments": smart_gallery.moments_json(session, album.id) if album.smart_published else None,
     }
 
 

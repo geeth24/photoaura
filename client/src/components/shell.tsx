@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/context/auth-context"
@@ -39,10 +40,24 @@ function StudioShell({ children }: { children: React.ReactNode }) {
 function ClientShell({ children }: { children: React.ReactNode }) {
   const { logout, isPreview, exitPreview } = useAuth()
   const { items, pathname } = useClientNav()
+  const bar = useRef<HTMLDivElement>(null)
+
+  // sticky section headers sit under the top bar, banner included
+  useEffect(() => {
+    const el = bar.current
+    if (!el) return
+    const root = document.documentElement
+    const ro = new ResizeObserver(() => root.style.setProperty("--client-top", `${el.offsetHeight}px`))
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      root.style.removeProperty("--client-top")
+    }
+  }, [])
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
-      <div className="sticky top-0 z-20">
+      <div ref={bar} className="sticky top-0 z-20">
         <PreviewBanner />
         <header className="flex h-14 shrink-0 items-center justify-between gap-6 border-b border-border-subtle bg-surface/80 px-5 backdrop-blur-xl sm:px-8">
           <div className="flex h-full items-center gap-6 lg:gap-10">
@@ -78,7 +93,8 @@ function ClientShell({ children }: { children: React.ReactNode }) {
         </header>
       </div>
       {/* bottom padding clears the phone tab bar */}
-      <main className="min-w-0 flex-1 overflow-x-hidden px-5 pb-28 pt-8 sm:px-8 md:pb-8 lg:px-12">
+      {/* clip, not hidden: hidden would make this the scroll parent and break sticky headers */}
+      <main className="min-w-0 flex-1 overflow-x-clip px-5 pb-28 pt-8 sm:px-8 md:pb-8 lg:px-12">
         <div className="mx-auto w-full max-w-6xl">{children}</div>
       </main>
       <ClientTabBar items={items} pathname={pathname} />

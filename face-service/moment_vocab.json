@@ -1,0 +1,32 @@
+{
+  "templates": [
+    "a photo of {} at an event",
+    "a candid photograph of {}"
+  ],
+  "labels": [
+    {"label": "Getting ready", "phrases": ["people getting ready before the event", "a bride getting her makeup and jewelry done", "hair and makeup being done in a room"]},
+    {"label": "Puja / ceremony", "phrases": ["a hindu puja ceremony with a priest", "a sacred fire ritual with offerings", "a group of people sitting on the floor praying together", "devotional singing and prayer around a decorated altar"]},
+    {"label": "Haldi", "phrases": ["a haldi ceremony with turmeric paste applied to a face", "people smeared in yellow turmeric paste"]},
+    {"label": "Mehendi", "phrases": ["a mehendi ceremony with henna on hands", "henna designs being applied to a hand"]},
+    {"label": "Seemantham", "phrases": ["a seemantham baby shower ceremony for a pregnant woman", "a pregnant woman in a silk saree with flower garlands and bangles"]},
+    {"label": "Wedding ceremony", "phrases": ["a wedding ceremony under a mandap", "a bride and groom exchanging garlands", "a groom tying the sacred thread at a wedding"]},
+    {"label": "Couple portraits", "phrases": ["a portrait of a bride and groom together", "a romantic portrait of a couple"]},
+    {"label": "Housewarming ritual", "phrases": ["a housewarming ceremony at the entrance of a new home", "a family boiling milk in a pot at a new home"]},
+    {"label": "Cake cutting", "phrases": ["a birthday cake with candles being cut", "people gathered around a cake celebrating", "a child blowing out birthday candles"]},
+    {"label": "Family portraits", "phrases": ["a posed family portrait", "a family standing together and smiling at the camera"]},
+    {"label": "Group photo", "phrases": ["a large group of friends posing together for the camera", "a big group photo with many people lined up"]},
+    {"label": "Dance floor", "phrases": ["people dancing on a dance floor", "guests dancing at a party with colorful lights"]},
+    {"label": "Stage / performance", "phrases": ["a performer on a stage under spotlights", "a singer or band performing in front of an audience", "students performing on a school stage"]},
+    {"label": "Speeches and toasts", "phrases": ["a person giving a speech into a microphone", "guests raising glasses for a toast"]},
+    {"label": "Decor and details", "phrases": ["event decor and flower arrangements", "close-up details of table decorations and centerpieces", "a decorated venue with lights and florals"]},
+    {"label": "Food", "phrases": ["food served at a party", "a buffet table with dishes of food", "plates of delicious food on a table"]},
+    {"label": "Kids playing", "phrases": ["children playing together", "kids running and laughing at a party", "a child playing games"]},
+    {"label": "Outdoor portraits", "phrases": ["an outdoor portrait of a person in natural light", "a person posing outdoors in a park or garden"]},
+    {"label": "Candid guests", "phrases": ["guests chatting and laughing at a party", "candid moments of people mingling and talking", "friends and family socializing"]},
+    {"label": "Graduation", "phrases": ["a graduate in a cap and gown", "a graduation celebration with a diploma"]},
+    {"label": "Sports", "phrases": ["an athlete playing a sport during a game", "a football game with players on the field", "a team competing in a match"]},
+    {"label": "School event", "phrases": ["a school pep rally with students cheering", "students at a school event in a gym"]},
+    {"label": "Portrait session", "phrases": ["a studio portrait of a person", "a professional headshot", "a posed portrait of a single person"]},
+    {"label": "Arrival and welcome", "phrases": ["guests arriving and greeting each other at the entrance", "people welcoming guests at the door"]}
+  ]
+}

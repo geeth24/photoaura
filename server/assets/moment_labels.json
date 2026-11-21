@@ -1,0 +1,29 @@
+{
+  "model": "ViT-L-14-quickgelu",
+  "labels": [
+    "Getting ready",
+    "Puja / ceremony",
+    "Haldi",
+    "Mehendi",
+    "Seemantham",
+    "Wedding ceremony",
+    "Couple portraits",
+    "Housewarming ritual",
+    "Cake cutting",
+    "Family portraits",
+    "Group photo",
+    "Dance floor",
+    "Stage / performance",
+    "Speeches and toasts",
+    "Decor and details",
+    "Food",
+    "Kids playing",
+    "Outdoor portraits",
+    "Candid guests",
+    "Graduation",
+    "Sports",
+    "School event",
+    "Portrait session",
+    "Arrival and welcome"
+  ]
+}

@@ -88,6 +88,8 @@ type Props = {
   onDelete?: (filename: string) => void
   // admin, when a person is selected: pin this photo as their cover
   onSetCover?: (filename: string) => void
+  // the size buttons; a page with several grids shows them once
+  controls?: boolean
 }
 
 function PhotoGridImpl({
@@ -97,6 +99,7 @@ function PhotoGridImpl({
   onToggleFavorite,
   onDelete,
   onSetCover,
+  controls = true,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -156,24 +159,26 @@ function PhotoGridImpl({
 
   return (
     <div className="space-y-3">
-      <div className="hidden items-center justify-end gap-1 sm:flex">
-        <button
-          onClick={() => changeStep(step - 1)}
-          disabled={step === 0}
-          aria-label="Smaller photos"
-          className="flex size-8 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-30"
-        >
-          <Minus className="size-4" />
-        </button>
-        <button
-          onClick={() => changeStep(step + 1)}
-          disabled={step === 2}
-          aria-label="Bigger photos"
-          className="flex size-8 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-30"
-        >
-          <Plus className="size-4" />
-        </button>
-      </div>
+      {controls && (
+        <div className="hidden items-center justify-end gap-1 sm:flex">
+          <button
+            onClick={() => changeStep(step - 1)}
+            disabled={step === 0}
+            aria-label="Smaller photos"
+            className="flex size-8 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-30"
+          >
+            <Minus className="size-4" />
+          </button>
+          <button
+            onClick={() => changeStep(step + 1)}
+            disabled={step === 2}
+            aria-label="Bigger photos"
+            className="flex size-8 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-30"
+          >
+            <Plus className="size-4" />
+          </button>
+        </div>
+      )}
 
       <div
         ref={ref}

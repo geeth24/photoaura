@@ -50,7 +50,20 @@ export type Album = {
   // filenames the studio picked as the best of the shoot; clients only get them
   // once published, null otherwise
   highlights?: string[] | null
+  // stretches of the shoot in time order; same visibility as highlights
+  moments?: Moment[] | null
   smart_published?: boolean
+}
+
+export type Moment = {
+  key: string
+  label: string
+  // ISO 8601 in the camera's local time, no offset
+  start: string
+  end: string
+  count: number
+  cover: string
+  filenames: string[]
 }
 
 export type SmartReason = "blurry" | "eyes_closed" | "duplicate"
@@ -63,6 +76,8 @@ export type SmartGallery = {
   stacks: { id: number; best: string; members: string[] }[]
   review: Record<SmartReason, { filename: string; hidden: boolean }[]>
   kept: string[]
+  // custom: the studio typed the name
+  moments: (Moment & { custom: boolean })[]
   counts: { photos: number; highlights: number; stacks: number; review: number; hidden: number }
 }
 

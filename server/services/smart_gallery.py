@@ -3,15 +3,18 @@ and picks a Highlights set. Scores come from the face service at upload; the
 selection here is pure and album-wide, so it can run again any time without
 the studio's manual choices being lost."""
 
+import json
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 from sqlalchemy import func
 
 from db.base import session_scope
-from db.models import Album, FaceEmbedding, FileMetadata, PhotoScores
+from db.models import Album, AlbumMoment, FaceEmbedding, FileMetadata, PhotoScores
 from utils.utils import capture_time
 
 
@@ -60,6 +63,30 @@ class SmartConfig:
     bonus_person_cap: float = 0.30
     bonus_orientation: float = 0.10
 
+    # moments: a time gap this many times the album's median gap starts a new one,
+    # within these bounds
+    moment_gap_k: float = _env("MOMENT_GAP_K", 8.0)
+    moment_gap_min_s: float = _env("MOMENT_GAP_MIN_S", 150.0)
+    moment_gap_max_s: float = _env("MOMENT_GAP_MAX_S", 900.0)
+    # scene change: the mean look of this many photos before vs after a point
+    moment_window: int = _env("MOMENT_WINDOW", 5)
+    moment_scene_sim: float = _env("MOMENT_SCENE_SIM", 0.80)
+    # smaller moments fold into a neighbor
+    moment_min_photos: int = _env("MOMENT_MIN_PHOTOS", 4)
+    # the count follows the album's size, between these
+    moment_photos_per: int = _env("MOMENT_PHOTOS_PER", 16)
+    moment_min_cap: int = 3
+    moment_max_cap: int = 14
+    # merging down to the cap prefers similar, small, close-in-time neighbors
+    moment_size_weight: float = 0.5
+    moment_gap_weight: float = 0.2
+    moment_gap_scale_s: float = 1800.0
+    # a label has to stand this many album-wide standard deviations above the
+    # album's average for it, and this far above the runner-up
+    moment_label_lift: float = _env("MOMENT_LABEL_LIFT", 0.6)
+    moment_label_margin: float = _env("MOMENT_LABEL_MARGIN", 0.25)
+    moment_label_reuse: int = 2
+
 
 CONFIG = SmartConfig()
 
@@ -81,6 +108,7 @@ class Rec:
     manual_highlight: str = None
     review_override: str = None
     best_pinned: bool = False
+    moment_key: str = None
     # filled by select()
     aes_n: float = 0.0
     technical: float = 0.0
@@ -341,6 +369,175 @@ def select(recs, cfg=CONFIG):
     return recs
 
 
+def _unit_mean(recs):
+    m = np.mean([r.clip for r in recs], axis=0)
+    return m / (np.linalg.norm(m) or 1.0)
+
+
+def moment_cap(n, cfg=CONFIG):
+    return int(min(cfg.moment_max_cap, max(cfg.moment_min_cap, round(n / cfg.moment_photos_per))))
+
+
+def _time_cuts(timed, cfg):
+    gaps = np.diff([r.t.timestamp() for r in timed])
+    limit = min(cfg.moment_gap_max_s, max(cfg.moment_gap_min_s, cfg.moment_gap_k * float(np.median(gaps))))
+    return {i + 1 for i, g in enumerate(gaps) if g > limit}
+
+
+def _scene_cuts(timed, cfg):
+    """Points where the look of the next few photos departs from the last few.
+    Only the deepest dip in each window counts, so one change is one cut."""
+    w, n = cfg.moment_window, len(timed)
+    clips = np.stack([r.clip for r in timed])
+    sim = np.ones(n)
+    for i in range(1, n):
+        a, b = clips[max(0, i - w) : i].mean(axis=0), clips[i : i + w].mean(axis=0)
+        sim[i] = float(a @ b / ((np.linalg.norm(a) * np.linalg.norm(b)) or 1.0))
+    return {
+        i
+        for i in range(1, n)
+        if sim[i] < cfg.moment_scene_sim and sim[i] <= sim[max(1, i - w) : i + w].min()
+    }
+
+
+def _closeness(a, b, n, cfg):
+    """How much two neighboring segments want to be one: similar looks, small
+    together, and not far apart in time."""
+    sim = float(_unit_mean(a) @ _unit_mean(b))
+    gap = (b[0].t - a[-1].t).total_seconds()
+    return (
+        sim
+        - cfg.moment_size_weight * (len(a) + len(b)) / n
+        - cfg.moment_gap_weight * min(1.0, gap / cfg.moment_gap_scale_s)
+    )
+
+
+def segment_moments(recs, cfg=CONFIG):
+    """Split the album's timed, visible photos into moments, in time order.
+    Gaps in shooting and scene changes cut; segments under moment_min_photos
+    fold into their closer neighbor; the count is capped by the album's size."""
+    timed = sorted((r for r in recs if r.has_time and not r.hidden), key=lambda r: (r.t, r.id))
+    n = len(timed)
+    if n < 2 * cfg.moment_min_photos:
+        return []
+    cuts = sorted(_time_cuts(timed, cfg) | _scene_cuts(timed, cfg))
+    segs = [timed[a:b] for a, b in zip([0] + cuts, cuts + [n])]
+
+    def fold(i):
+        near = [j for j in (i - 1, i + 1) if 0 <= j < len(segs)]
+        j = max(near, key=lambda j: _closeness(*sorted_pair(i, j), n, cfg))
+        lo, hi = min(i, j), max(i, j)
+        segs[lo : hi + 1] = [segs[lo] + segs[hi]]
+
+    def sorted_pair(i, j):
+        return (segs[i], segs[j]) if i < j else (segs[j], segs[i])
+
+    while len(segs) > 1:
+        small = [i for i, g in enumerate(segs) if len(g) < cfg.moment_min_photos]
+        if not small:
+            break
+        fold(min(small, key=lambda i: len(segs[i])))
+    cap = moment_cap(n, cfg)
+    while len(segs) > cap:
+        i = max(range(len(segs) - 1), key=lambda i: _closeness(segs[i], segs[i + 1], n, cfg))
+        segs[i : i + 2] = [segs[i] + segs[i + 1]]
+    return segs if len(segs) >= 2 else []
+
+
+# Labels come from CLIP text vectors computed at build time (see
+# face-service/export_moment_labels.py), so the backend needs no text model.
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+
+
+@lru_cache(maxsize=1)
+def moment_vocab():
+    """(labels, unit vectors) or None when the files aren't there."""
+    try:
+        labels = json.loads((ASSETS / "moment_labels.json").read_text())["labels"]
+        vectors = np.load(ASSETS / "moment_labels.npy").astype(np.float32)
+    except (OSError, KeyError, ValueError):
+        return None
+    return (labels, vectors) if len(labels) == len(vectors) else None
+
+
+@dataclass
+class Moment:
+    ordinal: int
+    recs: list
+    label: str
+    # label name before the " 2" suffix; None when the label is a fallback
+    matched: str = None
+    lift: float = 0.0
+    margin: float = 0.0
+    custom: bool = False
+
+    @property
+    def key(self):
+        return f"m{self.ordinal}"
+
+
+def label_moments(segments, album_clips, vocab, cfg=CONFIG):
+    """One Moment per segment. A moment takes the vocabulary label its photos
+    sit furthest above the album's own average for, in album-wide standard
+    deviations, as long as it leads the runner-up. Without a clear winner it is
+    "Moment N". A label serves at most moment_label_reuse moments, the strongest."""
+    moments = [Moment(i, g, f"Moment {i}") for i, g in enumerate(segments, 1)]
+    if not vocab or not moments:
+        return moments
+    labels, vectors = vocab
+    everything = album_clips @ vectors.T
+    mean, std = everything.mean(axis=0), everything.std(axis=0) + 1e-6
+    claims = {}
+    for m in moments:
+        sims = np.stack([r.clip for r in m.recs]) @ vectors.T
+        lift = ((sims - mean) / std).mean(axis=0)
+        order = np.argsort(-lift)
+        best, runner = int(order[0]), int(order[1])
+        m.lift, m.margin = float(lift[best]), float(lift[best] - lift[runner])
+        if m.lift >= cfg.moment_label_lift and m.margin >= cfg.moment_label_margin:
+            claims.setdefault(labels[best], []).append(m)
+    for name, claimants in claims.items():
+        keep = sorted(claimants, key=lambda m: -m.lift)[: cfg.moment_label_reuse]
+        for n, m in enumerate(sorted(keep, key=lambda m: m.ordinal), 1):
+            m.label, m.matched = (name if n == 1 else f"{name} {n}"), name
+    return moments
+
+
+def find_moments(recs, cfg=CONFIG, vocab=None):
+    """Segment and label. Also records each photo's moment_key."""
+    for r in recs:
+        r.moment_key = None
+    segments = segment_moments(recs, cfg)
+    if not segments:
+        return []
+    clips = np.stack([r.clip for r in recs])
+    moments = label_moments(segments, clips, vocab, cfg)
+    for m in moments:
+        for r in m.recs:
+            r.moment_key = m.key
+    return moments
+
+
+def carry_custom_labels(moments, old_groups, old_custom, min_overlap=0.5):
+    """Give each studio-renamed moment's name to the new moment holding mostly
+    the same photos. old_groups: {key: set(photo ids)}, old_custom: {key: label}."""
+    pairs = []
+    for key, label in old_custom.items():
+        before = old_groups.get(key, set())
+        for m in moments:
+            now = {r.id for r in m.recs}
+            union = len(before | now)
+            if union and len(before & now) / union >= min_overlap:
+                pairs.append((len(before & now) / union, key, m))
+    used_keys, used_moments = set(), set()
+    for _, key, m in sorted(pairs, key=lambda p: -p[0]):
+        if key in used_keys or m.ordinal in used_moments:
+            continue
+        used_keys.add(key)
+        used_moments.add(m.ordinal)
+        m.label, m.custom = old_custom[key], True
+
+
 def _faces_by_photo(session, album_id):
     """Each photo's faces with the person they belong to, from face_embedding."""
     out = {}
@@ -399,6 +596,14 @@ def select_album(album_id, cfg=CONFIG):
     """Score-derived selection for one album, written back to photo_scores."""
     with session_scope() as session:
         recs = select(load_album(session, album_id), cfg)
+        moments = find_moments(recs, cfg, moment_vocab())
+        old_rows = session.query(AlbumMoment).filter_by(album_id=album_id).all()
+        old_groups = {}
+        for pid, key in session.query(PhotoScores.photo_id, PhotoScores.moment_key).filter(
+            PhotoScores.album_id == album_id, PhotoScores.moment_key.isnot(None)
+        ):
+            old_groups.setdefault(key, set()).add(pid)
+        carry_custom_labels(moments, old_groups, {m.key: m.label for m in old_rows if m.label_custom})
         by_id = {r.id: r for r in recs}
         for sc in session.query(PhotoScores).filter(PhotoScores.album_id == album_id):
             r = by_id.get(sc.photo_id)
@@ -408,6 +613,16 @@ def select_album(album_id, cfg=CONFIG):
             sc.combined = r.combined
             sc.stack_id, sc.is_stack_best = r.stack_id, r.is_best
             sc.in_highlights, sc.review_reason = r.highlight, r.review
+            sc.moment_key = r.moment_key
+        for row in old_rows:
+            session.delete(row)
+        session.flush()
+        for m in moments:
+            session.add(
+                AlbumMoment(
+                    album_id=album_id, key=m.key, ordinal=m.ordinal, label=m.label, label_custom=m.custom
+                )
+            )
         album = session.get(Album, album_id)
         if album:
             album.smart_state = "ready"
@@ -474,6 +689,62 @@ def highlight_filenames(session, album_id):
         .all()
     )
     return [m.filename for m in sorted(rows, key=lambda m: (capture_time(m), m.id))]
+
+
+def moments_json(session, album_id, studio=False):
+    """The album's moments for the API, in time order, built from the photos
+    that are visible: a hidden photo never shows, and the range, count and cover
+    always match what the viewer can open."""
+    rows = session.query(AlbumMoment).filter_by(album_id=album_id).order_by(AlbumMoment.ordinal).all()
+    if not rows:
+        return []
+    photos = (
+        session.query(PhotoScores, FileMetadata)
+        .join(FileMetadata, FileMetadata.id == PhotoScores.photo_id)
+        .filter(
+            PhotoScores.album_id == album_id,
+            PhotoScores.moment_key.isnot(None),
+            PhotoScores.review_override.is_distinct_from("hide"),
+        )
+        .all()
+    )
+    by_key = {}
+    for sc, meta in photos:
+        by_key.setdefault(sc.moment_key, []).append((capture_time(meta), meta.id, sc, meta))
+    out = []
+    for row in rows:
+        items = sorted(by_key.get(row.key, []), key=lambda x: (x[0], x[1]))
+        if not items:
+            continue
+        # the cover is the best combined score, leaving out what the review flags
+        sound = [x for x in items if x[2].review_reason is None or x[2].review_override == "keep"]
+        cover = max(sound or items, key=lambda x: (x[2].combined if x[2].combined is not None else -1.0, -x[1]))
+        entry = {
+            "key": row.key,
+            "label": row.label,
+            "start": items[0][0].isoformat(),
+            "end": items[-1][0].isoformat(),
+            "count": len(items),
+            "cover": cover[3].filename,
+            "filenames": [x[3].filename for x in items],
+        }
+        if studio:
+            entry["custom"] = bool(row.label_custom)
+        out.append(entry)
+    return out
+
+
+def rename_moment(session, album_id, key, label):
+    """The studio's own name for a moment; blank goes back to the automatic one,
+    which the caller gets by re-running the selection."""
+    row = session.query(AlbumMoment).filter_by(album_id=album_id, key=key).first()
+    if not row:
+        return False
+    label = " ".join(label.split())
+    row.label_custom = bool(label)
+    if label:
+        row.label = label
+    return True
 
 
 def publish(session, album, published, by_studio=True):
