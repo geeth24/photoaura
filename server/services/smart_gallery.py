@@ -277,7 +277,38 @@ def pick_highlights(recs, cfg=CONFIG):
         if not left:
             break
         take(max(left, key=lambda r: (len(r.persons & missing), r.combined)))
+
+    balance_orientation(picked, pool, forced, portrait_share, cfg)
     return picked
+
+
+def balance_orientation(picked, pool, forced, portrait_share, cfg=CONFIG):
+    """Each orientation gets at least half its share of the album, rounded
+    down. A missing one comes from the best unpicked candidate, swapped in for
+    the weakest pick of the other orientation that nobody else depends on."""
+    if not picked:
+        return
+    for portrait in (True, False):
+        want = int((portrait_share if portrait else 1 - portrait_share) * len(picked) * 0.5)
+        while sum(r.portrait == portrait for r in picked) < want:
+            cands = [
+                r for r in pool
+                if r.portrait == portrait and r not in picked
+                and not any(float(np.dot(r.clip, p.clip)) > cfg.pick_sim_cap for p in picked)
+            ]
+            if not cands:
+                return
+            others = [r for r in picked if r.portrait != portrait and r not in forced]
+            # keep anyone who is the only pick showing a person
+            alone = lambda r: any(
+                p in r.persons and not any(p in o.persons for o in picked if o is not r)
+                for p in r.persons
+            )
+            others = [r for r in others if not alone(r)]
+            if not others:
+                return
+            picked.remove(min(others, key=lambda r: r.combined))
+            picked.append(max(cands, key=lambda r: r.combined))
 
 
 def select(recs, cfg=CONFIG):
