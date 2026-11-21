@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta
 import jwt
 from pydantic import BaseModel
+from sqlalchemy import func, literal_column
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from config import settings
@@ -28,7 +29,7 @@ from db.models import (
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
-from utils.utils import access_user_id, create_album_photos_json, capture_time, hold_key
+from utils.utils import access_user_id, create_album_photos_json, hold_key, json_response, timed_album_photos
 from utils.face_recog import chip_key_of
 from services import smart_gallery
 from dependencies import (
@@ -57,13 +58,21 @@ def _refuse_if_locked(album):
 
 def album_booking_number(session, album_id):
     """The booking a proof gallery belongs to, so clients can link to it."""
-    row = (
-        session.query(Booking.number)
-        .filter(Booking.album_id == album_id, Booking.cancelled_at.is_(None))
-        .order_by(Booking.id.desc())
-        .first()
+    return album_booking_numbers(session, [album_id]).get(album_id)
+
+
+def album_booking_numbers(session, album_ids) -> dict:
+    """album id -> number of its newest live booking, in a single query."""
+    if not album_ids:
+        return {}
+    rows = (
+        session.query(Booking.album_id, Booking.number)
+        .filter(Booking.album_id.in_(list(album_ids)), Booking.cancelled_at.is_(None))
+        .order_by(Booking.album_id, Booking.id.desc())
+        .distinct(Booking.album_id)
+        .all()
     )
-    return row[0] if row else None
+    return {album_id: number for album_id, number in rows}
 
 
 def _viewer(session, token):
@@ -79,13 +88,42 @@ def _viewer(session, token):
     return session.query(User).filter_by(user_name=data.user_name).first()
 
 
+def _first_photos(session, album_ids, per_album: int = 4) -> dict:
+    """The first few photos of each album, all albums in one query."""
+    if not album_ids:
+        return {}
+    ranked = (
+        session.query(
+            FileMetadata.id.label("id"),
+            # physical order: the rows an unordered LIMIT 4 gave before, so no
+            # album's preview changes
+            func.row_number()
+            .over(partition_by=FileMetadata.album_id, order_by=literal_column("file_metadata.ctid"))
+            .label("rn"),
+        )
+        .filter(FileMetadata.album_id.in_(album_ids))
+        .subquery()
+    )
+    rows = (
+        session.query(FileMetadata)
+        .join(ranked, ranked.c.id == FileMetadata.id)
+        .filter(ranked.c.rn <= per_album)
+        .order_by(FileMetadata.album_id, literal_column("file_metadata.ctid"))
+        .all()
+    )
+    out: dict = {}
+    for m in rows:
+        out.setdefault(m.album_id, []).append(m)
+    return out
+
+
 def _has_permission(session, user, album) -> bool:
     owner = user.parent_user_id or user.id
     return session.query(UserAlbumPermission).filter_by(album_id=album.id, user_id=owner).first() is not None
 
 
 @router.get("/api/album/{album_slug}/")
-async def get_album(
+def get_album(
     album_slug: str,
     secret: str = None,
     orientation: str = None,
@@ -123,23 +161,25 @@ async def get_album(
         highlights = smart_gallery.highlight_filenames(session, album.id)
         moments = smart_gallery.moments_json(session, album.id)
 
-    permissions = (
-        session.query(UserAlbumPermission).filter_by(album_id=album.id).all() if admin else []
-    )
     permissions_list = []
-    for perm in permissions:
-        user = session.get(User, perm.user_id)
-        if user:
-            permissions_list.append(
-                {
-                    "user_id": user.id,
-                    "user_name": user.user_name,
-                    "full_name": user.full_name,
-                    "user_email": user.user_email,
-                }
-            )
+    if admin:
+        grants = session.query(UserAlbumPermission.user_id).filter_by(album_id=album.id).all()
+        people = {
+            u.id: u
+            for u in session.query(User).filter(User.id.in_([g[0] for g in grants]))
+        }
+        permissions_list = [
+            {
+                "user_id": user.id,
+                "user_name": user.user_name,
+                "full_name": user.full_name,
+                "user_email": user.user_email,
+            }
+            for user in (people.get(g[0]) for g in grants)
+            if user
+        ]
 
-    return {
+    return json_response({
         "album_id": album.id,
         "album_name": album.name,
         "slug": album.slug,
@@ -157,7 +197,7 @@ async def get_album(
         "highlights": highlights,
         "moments": moments,
         "smart_published": bool(album.smart_published),
-    }
+    })
 
 
 def _own_id(session, current_user) -> int:
@@ -168,7 +208,7 @@ def _own_id(session, current_user) -> int:
 
 
 @router.get("/api/albums/")
-async def get_all_albums(
+def get_all_albums(
     user_id: int = None,
     include_website: bool = False,
     session: Session = Depends(get_session),
@@ -191,12 +231,12 @@ async def get_all_albums(
     else:
         albums = session.query(Album).filter(*filters).all()
 
+    firsts = _first_photos(session, [a.id for a in albums])
     all_albums = []
     for album in albums:
-        file_metadata = (
-            session.query(FileMetadata).filter_by(album_id=album.id).limit(4).all()
+        album_photos = create_album_photos_json(
+            album.slug, firsts.get(album.id, []), album.proof_locked
         )
-        album_photos = create_album_photos_json(album.slug, file_metadata, album.proof_locked)
 
         all_albums.append(
             {
@@ -211,11 +251,11 @@ async def get_all_albums(
             }
         )
 
-    return all_albums
+    return json_response(all_albums)
 
 
 @router.get("/api/photos/")
-async def get_all_photos(
+def get_all_photos(
     user_id: int = None,
     orientation: str = None,
     session: Session = Depends(get_session),
@@ -234,17 +274,26 @@ async def get_all_photos(
     else:
         albums = session.query(Album).filter(not_website).all()
 
-    all_photos = []
+    if not albums:
+        return []
+    photos_query = session.query(FileMetadata).filter(
+        FileMetadata.album_id.in_([a.id for a in albums])
+    )
+    if orientation:
+        photos_query = photos_query.filter_by(orientation=orientation)
+    by_album: dict = {}
+    for m in photos_query:
+        by_album.setdefault(m.album_id, []).append(m)
+
+    timed = []
     for album in albums:
-        photos_query = session.query(FileMetadata).filter_by(album_id=album.id)
-        if orientation:
-            photos_query = photos_query.filter_by(orientation=orientation)
-        album_photos = create_album_photos_json(album.slug, photos_query.all(), album.proof_locked)
-        all_photos.extend(album_photos)
+        timed.extend(
+            timed_album_photos(album.slug, by_album.get(album.id, []), album.proof_locked)
+        )
 
     # chronological across every album, newest first
-    all_photos.sort(key=capture_time, reverse=True)
-    return all_photos
+    timed.sort(key=lambda pair: pair[0], reverse=True)
+    return json_response([photo for _, photo in timed])
 
 
 @router.get("/api/album/{album_slug}/view")
@@ -392,7 +441,7 @@ def _album_for_user(album_slug: str, current_user, session: Session):
 
 
 @router.get("/api/album/{album_slug}/favorites")
-async def list_favorites(
+def list_favorites(
     album_slug: str,
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -755,15 +804,15 @@ async def delete_album(
 
 
 @router.get("/api/shared-albums/")
-async def get_shared_albums(_admin=Depends(require_admin), session: Session = Depends(get_session)):
+def get_shared_albums(_admin=Depends(require_admin), session: Session = Depends(get_session)):
     albums = session.query(Album).filter_by(shared=True).all()
 
+    firsts = _first_photos(session, [a.id for a in albums])
     all_albums = []
     for album in albums:
-        file_metadata = (
-            session.query(FileMetadata).filter_by(album_id=album.id).limit(4).all()
+        album_photos = create_album_photos_json(
+            album.slug, firsts.get(album.id, []), album.proof_locked
         )
-        album_photos = create_album_photos_json(album.slug, file_metadata, album.proof_locked)
 
         all_albums.append(
             {
@@ -777,7 +826,7 @@ async def get_shared_albums(_admin=Depends(require_admin), session: Session = De
             }
         )
 
-    return all_albums
+    return json_response(all_albums)
 
 
 @router.delete("/api/photo/delete/")

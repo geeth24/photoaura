@@ -15,7 +15,7 @@ from db.models import (
     User,
     UserAlbumPermission,
 )
-from utils.utils import build_photo_json, original_key, proof_ready
+from utils.utils import build_photo_json, json_response, original_key, proof_ready
 from utils.face_recog import (
     detect_and_store_faces,
     assign_pending_faces,
@@ -141,54 +141,45 @@ async def get_face_photo(
 
 
 @router.get("/api/faces")
-async def get_faces(
+def get_faces(
     current_user=Depends(get_current_user), session: Session = Depends(get_session)
 ):
     allowed = _accessible_album_ids(current_user, session)
 
-    link_q = session.query(PhotoFaceLink)
+    link_q = session.query(
+        PhotoFaceLink.face_id, PhotoFaceLink.photo_id, PhotoFaceLink.album_id
+    )
     if allowed is not None:
         if not allowed:
             return []
         link_q = link_q.filter(PhotoFaceLink.album_id.in_(allowed))
-    links = link_q.all()
 
     # only surface people who actually appear in an album this caller can see
-    visible_face_ids = {link.face_id for link in links}
+    links_by_face: dict = {}
+    for face_id, photo_id, album_id in link_q:
+        links_by_face.setdefault(face_id, []).append(
+            {"photo_id": photo_id, "album_id": album_id}
+        )
+    if not links_by_face:
+        return []
+
     faces = (
         session.query(FaceData)
-        .filter(FaceData.external_id.in_(visible_face_ids))
+        .filter(FaceData.external_id.in_(list(links_by_face)))
         .all()
-        if visible_face_ids
-        else []
     )
-
-    face_photo_links = [
-        {
-            "face_id": link.face_id,
-            "photo_id": link.photo_id,
-            "album_id": link.album_id,
-        }
-        for link in links
-    ]
-
-    return [
-        {
-            "id": face.id,
-            "name": face.name,
-            "external_id": face.external_id,
-            "image_url": chip_url(face),
-            "photo_links": [
-                {
-                    "photo_id": fpl["photo_id"],
-                    "album_id": fpl["album_id"],
-                }
-                for fpl in face_photo_links
-                if fpl["face_id"] == face.external_id
-            ],
-        }
-        for face in faces
-    ]
+    return json_response(
+        [
+            {
+                "id": face.id,
+                "name": face.name,
+                "external_id": face.external_id,
+                "image_url": chip_url(face),
+                "photo_links": links_by_face[face.external_id],
+            }
+            for face in faces
+        ]
+    )
 
 
 @router.get("/api/face/{face_id}/suggestions")
@@ -231,12 +222,22 @@ def face_suggestions(
             if fid not in best or dist < best[fid]:
                 best[fid] = dist
 
+    people = {
+        fd.external_id: fd
+        for fd in session.query(FaceData).filter(FaceData.external_id.in_(list(best)))
+    }
+    counts = dict(
+        session.query(PhotoFaceLink.face_id, func.count(PhotoFaceLink.id))
+        .filter(PhotoFaceLink.face_id.in_(list(best)))
+        .group_by(PhotoFaceLink.face_id)
+        .all()
+    )
     out = []
     for fid, dist in sorted(best.items(), key=lambda kv: kv[1]):
-        fd = session.query(FaceData).filter_by(external_id=fid).first()
+        fd = people.get(fid)
         if not fd:
             continue
-        cnt = session.query(PhotoFaceLink).filter_by(face_id=fid).count()
+        cnt = counts.get(fid, 0)
         out.append({
             "external_id": fid,
             "name": fd.name,
@@ -383,7 +384,7 @@ async def resync_album_faces(
 
 
 @router.get("/api/album/{album_slug}/faces")
-async def get_album_faces(
+def get_album_faces(
     album_slug: str,
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -398,18 +399,30 @@ async def get_album_faces(
     if allowed is not None and album.id not in allowed:
         raise HTTPException(status_code=403, detail="Not your album")
 
-    links = session.query(PhotoFaceLink).filter_by(album_id=album.id).all()
+    links = (
+        session.query(PhotoFaceLink.face_id, PhotoFaceLink.photo_id)
+        .filter(PhotoFaceLink.album_id == album.id)
+        .all()
+    )
+    filenames_by_photo = dict(
+        session.query(FileMetadata.id, FileMetadata.filename).filter(
+            FileMetadata.id.in_({photo_id for _, photo_id in links})
+        )
+    )
 
     by_face: dict[str, list[str]] = {}
-    for link in links:
-        photo = session.get(FileMetadata, link.photo_id)
-        if not photo:
-            continue
-        by_face.setdefault(link.face_id, []).append(photo.filename)
+    for face_id, photo_id in links:
+        # a link whose photo is gone is skipped
+        if photo_id in filenames_by_photo:
+            by_face.setdefault(face_id, []).append(filenames_by_photo[photo_id])
 
+    people = {
+        fd.external_id: fd
+        for fd in session.query(FaceData).filter(FaceData.external_id.in_(list(by_face)))
+    }
     faces = []
     for face_id, filenames in by_face.items():
-        face = session.query(FaceData).filter_by(external_id=face_id).first()
+        face = people.get(face_id)
         # skip stale links whose person no longer exists — never show a phantom
         # tile that would surface unrelated photos
         if not face:
@@ -435,7 +448,7 @@ async def get_album_faces(
 
 
 @router.get("/api/face/{face_id}")
-async def get_face(
+def get_face(
     face_id: str,
     current_user=Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -446,7 +459,9 @@ async def get_face(
         raise HTTPException(status_code=404, detail="Face not found")
 
     allowed = _accessible_album_ids(current_user, session)
-    link_q = session.query(PhotoFaceLink).filter_by(face_id=face.external_id)
+    link_q = session.query(PhotoFaceLink.photo_id, PhotoFaceLink.album_id).filter_by(
+        face_id=face.external_id
+    )
     if allowed is not None:
         if not allowed:
             raise HTTPException(status_code=404, detail="Face not found")
@@ -455,30 +470,36 @@ async def get_face(
     # this person exists globally but appears in nothing the caller can see
     if not links:
         raise HTTPException(status_code=404, detail="Face not found")
-    face_photo_links = [
-        {"photo_id": link.photo_id, "album_id": link.album_id} for link in links
-    ]
+
+    photos = {
+        m.id: m
+        for m in session.query(FileMetadata).filter(
+            FileMetadata.id.in_({pid for pid, _ in links})
+        )
+    }
+    albums = {
+        a.id: a for a in session.query(Album).filter(Album.id.in_({aid for _, aid in links}))
+    }
 
     face_photos = []
-    for fpl in face_photo_links:
-        photo = session.get(FileMetadata, fpl["photo_id"])
-        if not photo:
-            continue
-
-        album = session.get(Album, fpl["album_id"])
-        if not album:
+    for photo_id, album_id in links:
+        photo = photos.get(photo_id)
+        album = albums.get(album_id)
+        if not photo or not album:
             continue
 
         if not proof_ready(photo, album.proof_locked):
             continue
         face_photos.append(build_photo_json(photo, album.slug, album.proof_locked))
 
-    return {
-        "id": face.id,
-        "name": face.name,
-        "external_id": face.external_id,
-        "face_photos": face_photos,
-    }
+    return json_response(
+        {
+            "id": face.id,
+            "name": face.name,
+            "external_id": face.external_id,
+            "face_photos": face_photos,
+        }
+    )
 
 
 @router.put("/api/face/{face_id}")
