@@ -467,7 +467,7 @@ def _booking_json(session, b: Booking, admin: bool) -> dict:
         if album:
             out["album"] = {"id": album.id, "slug": album.slug, "name": album.name, "locked": bool(album.proof_locked)}
     else:
-        if album:
+        if album and (b.delivered_at or b.unlocked_at):
             out["album"] = {"slug": album.slug, "name": album.name, "locked": bool(album.proof_locked)}
         out["payment_instructions"] = {"zelle": ZELLE, "zelle_phone": ZELLE_PHONE, "memo": _memo(b), "methods": PAYMENT_METHODS}
     return out
@@ -535,6 +535,8 @@ def _after_unlock(booking_id: int, notify: bool):
             return
         b.unlocked_at = b.unlocked_at or _now()
         album = s.get(Album, b.album_id) if b.album_id else None
+        if album:
+            _share_gallery(s, b, album)
         if notify and album:
             target = _client_link(s, b, f"/albums/{album.slug}")
             if target:
@@ -542,6 +544,20 @@ def _after_unlock(booking_id: int, notify: bool):
                 message = (email, "gallery-unlocked", {"fullName": name, "link": link, "albumName": album.name}, None)
     if message:
         _send_all([message])
+
+
+def _share_gallery(session, b: Booking, album: Album):
+    """Give the client (and their family) the gallery in their library. Held
+    back until it's delivered or unlocked, so nothing shows while the studio
+    is still uploading and culling."""
+    if not b.client_user_id:
+        return
+    client = session.get(User, b.client_user_id)
+    if not client:
+        return
+    owner = client.parent_user_id or client.id
+    if not session.query(UserAlbumPermission).filter_by(user_id=owner, album_id=album.id).first():
+        session.add(UserAlbumPermission(user_id=owner, album_id=album.id))
 
 
 def _schedule_unlock(session, b: Booking, background: BackgroundTasks, notify: bool) -> bool:
@@ -555,6 +571,7 @@ def _schedule_unlock(session, b: Booking, background: BackgroundTasks, notify: b
             background.add_task(_after_unlock, booking_id, True)
         else:
             b.unlocked_at = b.unlocked_at or _now()
+            _share_gallery(session, b, album)
         return False
     upload_jobs.start_job(album.slug, face_detection=False, image_count=album.image_count or 0, kind="unlock")
     background.add_task(proof_service.unlock_album, album.id, lambda: _after_unlock(booking_id, notify))
@@ -934,12 +951,9 @@ def link_album(
     previous = session.get(Album, b.album_id) if b.album_id and b.album_id != album.id else None
     b.album_id = album.id
 
-    # the client (and their family) see the gallery from their library
-    if b.client_user_id:
-        client = session.get(User, b.client_user_id)
-        owner = client.parent_user_id or client.id
-        if not session.query(UserAlbumPermission).filter_by(user_id=owner, album_id=album.id).first():
-            session.add(UserAlbumPermission(user_id=owner, album_id=album.id))
+    # a relinked gallery that was already handed over stays visible
+    if b.delivered_at or b.unlocked_at:
+        _share_gallery(session, b, album)
 
     convert = False
     if b.status != "paid":
@@ -978,6 +992,7 @@ def mark_delivered(
         raise HTTPException(status_code=400, detail="Link the gallery first.")
     b.delivered_at = b.delivered_at or _now()
     _refresh_status(b)
+    _share_gallery(session, b, album)
 
     nxt = _next_payment(b)
     message = None
@@ -1256,11 +1271,12 @@ def my_bookings(current_user=Depends(get_current_user), session: Session = Depen
         else:
             action = None
         album = session.get(Album, b.album_id) if b.album_id else None
+        shown = album and (b.delivered_at or b.unlocked_at)
         out.append({
             **item,
             "action": action,
             "balance_cents": _money(b)["balance"],
-            "album_slug": album.slug if album else None,
+            "album_slug": album.slug if shown else None,
         })
     return out
 
