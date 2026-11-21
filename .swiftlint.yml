@@ -1,0 +1,34 @@
+# Run from the repo root: swiftlint lint
+# Local only: no macOS runner is registered for this repo.
+included:
+  - ios/PhotoAura
+
+excluded:
+  - ios/PhotoAura/EditorialStyle/.build
+  - ios/PhotoAura/EditorialStyle/.swiftpm
+  - ios/PhotoAura/PhotoAura.xcodeproj
+
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - function_body_length
+  - type_body_length
+  - file_length
+  - cyclomatic_complexity
+  - function_parameter_count
+  - identifier_name
+  - multiple_closures_with_trailing_closure
+  - implicit_optional_initialization
+  - todo
+
+force_cast: error
+force_try: warning
+# the bookings banner returns a 5-member tuple; a struct is the follow-up
+large_tuple:
+  warning: 2
+  error: 5
+
+nesting:
+  type_level: 2
+
+reporter: "xcode"

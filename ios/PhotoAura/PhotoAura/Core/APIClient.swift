@@ -222,7 +222,7 @@ final class APIClient {
         let items = query.map { URLQueryItem(name: $0.key, value: $0.value) }
         let data = try await perform(path: path, queryItems: items, method: method, body: body, requiresAuth: requiresAuth)
 
-        if T.self == Empty.self { return Empty() as! T }
+        if T.self == Empty.self, let empty = Empty() as? T { return empty }
 
         do {
             return try decoder.decode(T.self, from: data)
