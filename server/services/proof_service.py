@@ -26,6 +26,13 @@ LOCKED_DETAIL = "Downloads unlock once your final payment is received."
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "rs-logo-white.png")
 _logo: Optional[Image.Image] = None
 PROOF_EDGE = 2048
+# the downsized proof is the real protection; the marks only need to be there,
+# not to fight the photo: logo size (share of the short side), spacing (in
+# logo widths), and how strong the white mark and its dark halo are (0-255)
+MARK_SIZE = 0.09
+MARK_STEP = 4.8
+MARK_WHITE = 36
+MARK_HALO = 16
 
 
 def _logo_mark(w: int, h: int) -> Image.Image:
@@ -33,16 +40,16 @@ def _logo_mark(w: int, h: int) -> Image.Image:
     global _logo
     if _logo is None:
         _logo = Image.open(LOGO_PATH).convert("RGBA")
-    side = max(40, round(min(w, h) * 0.13))
+    side = max(32, round(min(w, h) * MARK_SIZE))
     alpha = _logo.resize((side, side), Image.Resampling.LANCZOS).getchannel("A")
     # a faint dark halo keeps the marks visible on white outfits and bright skies
     halo = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    halo.putalpha(alpha.point(lambda a: a * 30 // 255))
+    halo.putalpha(alpha.point(lambda a: a * MARK_HALO // 255))
     halo = halo.filter(ImageFilter.GaussianBlur(max(1.5, side / 50)))
     white = Image.new("RGBA", (side, side), (255, 255, 255, 0))
-    white.putalpha(alpha.point(lambda a: a * 60 // 255))
+    white.putalpha(alpha.point(lambda a: a * MARK_WHITE // 255))
     layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    step = round(side * 2.3)
+    step = round(side * MARK_STEP)
     for row, y in enumerate(range(-side // 3, h, step)):
         for x in range(-side // 3 + (step // 2 if row % 2 else 0), w, step):
             layer.alpha_composite(halo, (x, y))
@@ -187,6 +194,43 @@ def convert_album(album_id: int):
     except Exception as e:
         upload_jobs.fail_job(slug, str(e))
         print(f"proof: lock job failed for {slug}: {e}")
+
+
+def refresh_proofs(album_id: int) -> int:
+    """Re-render every proof in a locked album from its held original, e.g.
+    after the watermark changes. Returns how many proofs were rewritten."""
+    with session_scope() as s:
+        album = s.get(Album, album_id)
+        if not album or not album.proof_locked:
+            return 0
+        slug, token = album.slug, album.hold_token
+        held = [
+            (m.original_filename, m.filename)
+            for m in s.query(FileMetadata).filter_by(album_id=album_id).all()
+            if m.held and m.original_filename and not _is_video(m)
+        ]
+    upload_jobs.start_job(slug, face_detection=False, image_count=len(held), kind="lock")
+    done, keys = 0, []
+    try:
+        for i, (original, proof) in enumerate(held):
+            try:
+                content = s3_client.get_object(Bucket=AWS_BUCKET, Key=hold_key(slug, token, original))["Body"].read()
+                s3_client.put_object(
+                    Bucket=AWS_BUCKET, Key=f"{slug}/{proof}", Body=make_proof(content), ContentType="image/jpeg"
+                )
+                keys.append(f"{slug}/{proof}")
+                done += 1
+            except Exception as e:
+                print(f"proof: refresh failed for {proof} in {slug}: {e}")
+            upload_jobs.update_job(slug, phase="proofing", current=i + 1, total=len(held))
+        invalidate_cdn()
+        upload_jobs.update_job(slug, phase="warming", current=0, total=len(keys))
+        warm_keys(keys)
+        upload_jobs.finish_job(slug)
+    except Exception as e:
+        upload_jobs.fail_job(slug, str(e))
+        print(f"proof: refresh job failed for {slug}: {e}")
+    return done
 
 
 def unlock_album(album_id: int, on_done: Optional[Callable[[], None]] = None):
