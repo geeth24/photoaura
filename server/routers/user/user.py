@@ -524,7 +524,7 @@ def get_albums_for_user(session: Session, user_id):
 
 @router.get("/api/users/")
 def read_users(
-    current_user=Depends(get_current_user), session: Session = Depends(get_session)
+    _admin=Depends(require_admin), session: Session = Depends(get_session)
 ):
     all_users = session.query(UserModel).all()
     users = [create_user_json(user) for user in all_users]
@@ -541,7 +541,7 @@ def read_users(
 @router.get("/api/users/{user_id}")
 def read_user(
     user_id: int,
-    current_user=Depends(get_current_user),
+    _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     from db.models import ClientFile, Video
