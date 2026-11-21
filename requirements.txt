@@ -26,6 +26,8 @@ proto-plus==1.26.0
 protobuf==5.29.3
 psycopg==3.1.17
 pgvector==0.3.6
+# smart_gallery and face_recog use it directly; pgvector pulled it in until now
+numpy==2.0.2
 fpdf2==2.8.4
 SQLAlchemy==2.0.49
 alembic==1.16.5

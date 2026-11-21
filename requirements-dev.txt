@@ -1,6 +1,5 @@
 -r requirements.txt
 # unit tests and analysis tools; the server image installs requirements.txt only
-numpy==1.26.4
 psycopg-binary==3.1.17
 pytest==8.3.5
 pytest-cov==5.0.0
