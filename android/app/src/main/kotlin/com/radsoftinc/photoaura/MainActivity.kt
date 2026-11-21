@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         AppUpdate.check()
+        Session.refreshIfExpiring()
     }
 
     override fun onNewIntent(intent: Intent) {
