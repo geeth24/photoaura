@@ -1,0 +1,36 @@
+name: Promote Android
+
+# Moves a release already on one Play track to another: the same bundle, no
+# re-upload (Play refuses a version code it has seen). Internal -> production
+# is the App Store submission's twin. Notes come from release-notes/android.txt.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_track:
+        description: Track the release is on now
+        type: choice
+        options: [internal, alpha]
+        default: internal
+      to_track:
+        description: Track to promote it to
+        type: choice
+        options: [alpha, production]
+        default: production
+      version_code:
+        description: Version code to promote (blank = newest on the source track)
+        required: false
+
+jobs:
+  promote:
+    name: ${{ inputs.from_track || 'internal' }} → ${{ inputs.to_track || 'production' }}
+    runs-on: [self-hosted, universal]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Promote
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          export PLAY_RELEASE_NOTES="$(cat .github/release-notes/android.txt)"
+          python3 .github/scripts/play-promote.py com.radsoftinc.photoaura "${{ inputs.from_track || 'internal' }}" "${{ inputs.to_track || 'production' }}" ${{ inputs.version_code }} | tee -a "$GITHUB_STEP_SUMMARY"
