@@ -2,8 +2,6 @@ from PIL import Image
 import PIL.ExifTags
 import base64
 import io
-from pathlib import Path
-import os 
 
 def rotate_image_based_on_exif(img):
     try:

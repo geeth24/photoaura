@@ -1062,7 +1062,7 @@ def unlock_booking_album(
 @router.post("/api/bookings/{number}/cancel")
 def cancel_booking(
     number: str,
-    body: CancelIn = Body(CancelIn()),
+    body: CancelIn = Body(CancelIn()),  # noqa: B008
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):

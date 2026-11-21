@@ -18,13 +18,11 @@ from db.models import (
 from utils.utils import build_photo_json, json_response, original_key, proof_ready
 from utils.face_recog import (
     detect_and_store_faces,
-    assign_pending_faces,
     recluster_faces,
     set_person_cover,
     chip_key_of,
     chip_url,
     delete_chips,
-    MATCH_DIST,
     SUGGEST_DIST,
 )
 from dependencies import get_current_user, require_admin
@@ -74,7 +72,7 @@ def _resync_album_faces(album_id: int, album_slug: str):
         )
 
         done = 0
-        for s3_key, meta_id, content_type in images:
+        for s3_key, meta_id, _content_type in images:
             try:
                 detect_and_store_faces(s3_key, meta_id, album_id, AWS_BUCKET)
                 done += 1
@@ -141,7 +139,7 @@ async def get_face_photo(
 
 
 @router.get("/api/faces")
-def get_faces(
+def list_faces(
     current_user=Depends(get_current_user), session: Session = Depends(get_session)
 ):
     allowed = _accessible_album_ids(current_user, session)

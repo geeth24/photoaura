@@ -6,7 +6,6 @@ from fastapi import (
     status,
     APIRouter,
 )
-from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import Optional

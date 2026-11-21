@@ -29,7 +29,7 @@ from db.models import (
 )
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
-from utils.utils import access_user_id, create_album_photos_json, hold_key, json_response, timed_album_photos
+from utils.utils import create_album_photos_json, hold_key, json_response, timed_album_photos
 from utils.face_recog import chip_key_of
 from services import smart_gallery
 from dependencies import (

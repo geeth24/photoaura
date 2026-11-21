@@ -522,7 +522,7 @@ def carry_custom_labels(moments, old_groups, old_custom, min_overlap=0.5):
     """Give each studio-renamed moment's name to the new moment holding mostly
     the same photos. old_groups: {key: set(photo ids)}, old_custom: {key: label}."""
     pairs = []
-    for key, label in old_custom.items():
+    for key in old_custom:
         before = old_groups.get(key, set())
         for m in moments:
             now = {r.id for r in m.recs}
