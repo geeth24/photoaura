@@ -29,10 +29,11 @@ PROOF_EDGE = 2048
 # the downsized proof is the real protection; the marks only need to be there,
 # not to fight the photo: logo size (share of the short side), spacing (in
 # logo widths), and how strong the white mark and its dark halo are (0-255)
-MARK_SIZE = 0.09
-MARK_STEP = 4.8
-MARK_WHITE = 36
-MARK_HALO = 16
+MARK_SIZE = 0.11
+MARK_STEP = 3.6
+MARK_WHITE = 56
+# the halo is what keeps a mark visible on white walls, skies and dresses
+MARK_HALO = 40
 
 
 def _logo_mark(w: int, h: int) -> Image.Image:
