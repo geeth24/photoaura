@@ -8,6 +8,7 @@ Layout while locked:
 
 import io
 import os
+import re
 import secrets
 from typing import Callable, Optional
 
@@ -197,34 +198,54 @@ def convert_album(album_id: int):
         print(f"proof: lock job failed for {slug}: {e}")
 
 
+def next_proof_name(proof: str, taken: set) -> str:
+    """The proof's next version: same stem with -r2, -r3... so its URL changes
+    and no browser or CDN can serve the old render from cache."""
+    stem, ext = os.path.splitext(proof)
+    m = re.match(r"^(.*)-r(\d+)$", stem)
+    base, n = (m.group(1), int(m.group(2)) + 1) if m else (stem, 2)
+    name = f"{base}-r{n}{ext}"
+    while name.lower() in taken:
+        n += 1
+        name = f"{base}-r{n}{ext}"
+    return name
+
+
 def refresh_proofs(album_id: int) -> int:
     """Re-render every proof in a locked album from its held original, e.g.
-    after the watermark changes. Returns how many proofs were rewritten."""
+    after the watermark changes. Each proof moves to a new name (and URL), the
+    photo row follows it and the old file is deleted. Returns how many moved."""
     with session_scope() as s:
         album = s.get(Album, album_id)
         if not album or not album.proof_locked:
             return 0
         slug, token = album.slug, album.hold_token
         held = [
-            (m.original_filename, m.filename)
-            for m in s.query(FileMetadata).filter_by(album_id=album_id).all()
+            m.id for m in s.query(FileMetadata).filter_by(album_id=album_id).all()
             if m.held and m.original_filename and not _is_video(m)
         ]
+        taken = taken_names(s, album_id)
     upload_jobs.start_job(slug, face_detection=False, image_count=len(held), kind="lock")
     done, keys = 0, []
     try:
-        for i, (original, proof) in enumerate(held):
+        for i, photo_id in enumerate(held):
             try:
-                content = s3_client.get_object(Bucket=AWS_BUCKET, Key=hold_key(slug, token, original))["Body"].read()
-                s3_client.put_object(
-                    Bucket=AWS_BUCKET, Key=f"{slug}/{proof}", Body=make_proof(content), ContentType="image/jpeg"
-                )
-                keys.append(f"{slug}/{proof}")
+                with session_scope() as s:
+                    m = s.get(FileMetadata, photo_id)
+                    old, original = m.filename, m.original_filename
+                    new = next_proof_name(old, taken)
+                    content = s3_client.get_object(Bucket=AWS_BUCKET, Key=hold_key(slug, token, original))["Body"].read()
+                    s3_client.put_object(
+                        Bucket=AWS_BUCKET, Key=f"{slug}/{new}", Body=make_proof(content), ContentType="image/jpeg"
+                    )
+                    m.filename = new
+                taken.add(new.lower())
+                _delete(f"{slug}/{old}")
+                keys.append(f"{slug}/{new}")
                 done += 1
             except Exception as e:
-                print(f"proof: refresh failed for {proof} in {slug}: {e}")
+                print(f"proof: refresh failed for photo {photo_id} in {slug}: {e}")
             upload_jobs.update_job(slug, phase="proofing", current=i + 1, total=len(held))
-        invalidate_cdn()
         upload_jobs.update_job(slug, phase="warming", current=0, total=len(keys))
         warm_keys(keys)
         upload_jobs.finish_job(slug)
