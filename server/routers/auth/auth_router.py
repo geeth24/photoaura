@@ -17,7 +17,7 @@ from config import settings
 from db.base import get_session
 from db.models import User as UserModel, MagicLink, UserEmail
 from services.email_service import send_login_link
-from dependencies import oauth2_scheme, verify_token
+from dependencies import oauth2_scheme, verify_token, TOKEN_TYPE_ACCESS
 
 router = APIRouter()
 
@@ -51,7 +51,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "typ": TOKEN_TYPE_ACCESS})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

@@ -54,9 +54,27 @@ class TokenData:
         self.exp = exp
 
 
+TOKEN_TYPE_ACCESS = "access"
+TOKEN_TYPE_TICKET = "ticket"
+
+
+def decode_token(token: str, expected_type: str) -> dict:
+    """Decode a signed token and require its `typ` claim. Tokens without a
+    `typ` (issued before types existed) are rejected. Raises jwt.PyJWTError."""
+    payload = jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+        options={"require": ["exp", "typ"]},
+    )
+    if payload.get("typ") != expected_type:
+        raise jwt.InvalidTokenError("wrong token type")
+    return payload
+
+
 def verify_token(token: str, credentials_exception: HTTPException) -> TokenData:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = decode_token(token, TOKEN_TYPE_ACCESS)
         user_name: Optional[str] = payload.get("sub")
         if user_name is None:
             raise credentials_exception
