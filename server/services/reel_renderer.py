@@ -2,8 +2,10 @@
 
 Pure Python + Pillow + ffmpeg. Each photo becomes a shot: Pillow builds a plate
 (a crop of the photo, or the photo over a blurred copy of itself), the camera
-path is planned so every face stays inside the frame, and one ffmpeg run does
-the zoom/pan, crossfades, fades and audio.
+path is planned so every face stays inside the frame, and ffmpeg does the
+zoom/pan and crossfades one shot at a time, streaming raw frames into a single
+encoder that adds the fades and audio. Only two plates are ever open at once,
+so memory stays flat however many photos the reel has.
 """
 
 from __future__ import annotations
@@ -35,6 +37,8 @@ SUPERSAMPLE = 2
 MIN_FACE_FRAC = 0.03
 MUSIC_FADE_IN, MUSIC_FADE_OUT = 1.0, 1.5
 RENDER_TIMEOUT = 900
+# each worker holds a decoded 24 MP photo (~300 MB); the API pod has 1.5 GB
+PLATE_WORKERS = 1
 
 Box = Tuple[float, float, float, float]
 Rect = Tuple[float, float, float, float]  # x, y, w, h
@@ -372,22 +376,56 @@ def _fmt(v: float) -> str:
     return f"{v:.5f}".rstrip("0").rstrip(".") or "0"
 
 
-def _segment_chain(k: int, p: _Plate, ow: int, oh: int) -> str:
+def _frames(seconds: float) -> int:
+    return max(1, int(round(seconds * FPS)))
+
+
+def _prep(k: int) -> str:
+    return (
+        f"[{k}:v]scale=in_range=full:out_range=limited:"
+        f"in_color_matrix=bt601:out_color_matrix=bt709,format=yuv420p"
+    )
+
+
+def _zoompan(p: _Plate, ow: int, oh: int, first: int, count: int) -> str:
+    """Frames [first, first + count) of the plate's camera move."""
     s = p.shot
-    nf = max(1, int(round(s.duration * FPS)))
+    nf = _frames(s.duration)
     wp0, wp1 = s.rect0[2] * p.scale, s.rect1[2] * p.scale
     x0, x1 = (s.rect0[0] - p.ox) * p.scale, (s.rect1[0] - p.ox) * p.scale
     y0, y1 = (s.rect0[1] - p.oy) * p.scale, (s.rect1[1] - p.oy) * p.scale
-    u = f"min(on/{nf},1)"
+    u = f"min((on+{first})/{nf},1)"
     z = f"{p.size[0]}/({_fmt(wp0)}+({_fmt(wp1 - wp0)})*{u})"
     x = f"{_fmt(x0)}+({_fmt(x1 - x0)})*{u}"
     y = f"{_fmt(y0)}+({_fmt(y1 - y0)})*{u}"
-    return (
-        f"[{k}:v]scale=in_range=full:out_range=limited:"
-        f"in_color_matrix=bt601:out_color_matrix=bt709,format=yuv420p,"
-        f"zoompan=z='{z}':x='{x}':y='{y}':d={nf}:s={ow}x{oh}:fps={FPS},"
-        f"setsar=1[v{k}]"
-    )
+    return f"zoompan=z='{z}':x='{x}':y='{y}':d={count}:s={ow}x{oh}:fps={FPS},setsar=1"
+
+
+def piece_graph(
+    plates: Sequence[_Plate], k: int, ow: int, oh: int
+) -> Tuple[str, List[str], int]:
+    """Shot k minus the frames shared with its neighbors, then the crossfade
+    into shot k + 1. Returns the graph, the plates it reads and its frame count.
+    Played back to back, the pieces make the whole reel."""
+    xf = _frames(XFADE)
+    n = len(plates)
+    nf = _frames(plates[k].shot.duration)
+    first = xf if k > 0 else 0
+    last = nf - xf if k < n - 1 else nf
+    if last - first < 1:
+        raise ReelError(f"shot {k + 1} is shorter than its crossfades")
+    if k == n - 1:
+        graph = f"{_prep(0)},{_zoompan(plates[k], ow, oh, first, last - first)}[v]"
+        return graph, [plates[k].path], last - first
+    lines = [
+        f"{_prep(0)},split[pa][pb]",
+        f"[pa]{_zoompan(plates[k], ow, oh, first, last - first)}[body]",
+        f"[pb]{_zoompan(plates[k], ow, oh, nf - xf, xf)}[tail]",
+        f"{_prep(1)},{_zoompan(plates[k + 1], ow, oh, 0, xf)}[head]",
+        f"[tail][head]xfade=transition=fade:duration={_fmt(xf / FPS)}:offset=0[cross]",
+        "[body][cross]concat=n=2:v=1:a=0[v]",
+    ]
+    return ";".join(lines), [plates[k].path, plates[k + 1].path], last - first + xf
 
 
 def _audio_graph(
@@ -418,64 +456,112 @@ def _audio_graph(
     return lines, copies
 
 
-def build_filter_graph(
-    plates: Sequence[_Plate], ow: int, oh: int, total: float,
-    music: Optional[Tuple[int, float]],
-) -> Tuple[str, int]:
-    lines = [_segment_chain(k, p, ow, oh) for k, p in enumerate(plates)]
-    acc = plates[0].shot.duration
-    prev = "v0"
-    for k in range(1, len(plates)):
-        off = acc - XFADE
-        out = f"x{k}"
-        lines.append(
-            f"[{prev}][v{k}]xfade=transition=fade:duration={_fmt(XFADE)}:offset={_fmt(off)}[{out}]"
-        )
-        acc = off + plates[k].shot.duration
-        prev = out
-    lines.append(
-        f"[{prev}]fade=t=in:st=0:d={FADE_IO},"
+def encoder_graph(total: float, music: Optional[float]) -> Tuple[str, int]:
+    """Fades on the streamed frames (input 0) plus the music bed (inputs 1..)."""
+    lines = [
+        f"[0:v]fade=t=in:st=0:d={FADE_IO},"
         f"fade=t=out:st={_fmt(total - FADE_IO)}:d={FADE_IO},format=yuv420p[vout]"
-    )
+    ]
     copies = 0
-    if music:
-        a_lines, copies = _audio_graph(len(plates), music[1], total)
+    if music is not None:
+        a_lines, copies = _audio_graph(1, music, total)
         lines.extend(a_lines)
     return ";\n".join(lines), copies
 
 
-def _run_ffmpeg(
-    cmd: List[str],
-    total: float,
-    progress: Optional[Callable[[float], None]],
+def _niced(cmd: List[str]) -> List[str]:
+    # keep the API responsive while the pod's cores are busy encoding
+    return ["nice", "-n", "10"] + cmd if shutil.which("nice") else cmd
+
+
+def _tail(path: str) -> str:
+    try:
+        with open(path, "rb") as fh:
+            return fh.read()[-800:].decode(errors="replace")
+    except OSError:
+        return ""
+
+
+def _stream_pieces(
+    pieces: Sequence[Tuple[str, List[str], int]],
+    encoder: List[str],
+    ow: int,
+    oh: int,
+    threads: int,
+    tmpdir: str,
+    progress: Callable[[float], None],
     timeout: int,
-    errfile: str,
 ) -> None:
-    if shutil.which("nice"):
-        # keep the API responsive while the pod's cores are busy encoding
-        cmd = ["nice", "-n", "10"] + cmd
-    with open(errfile, "wb") as err:
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=err, stdin=subprocess.DEVNULL
+    """Render the pieces one at a time and pipe their raw frames into the encoder."""
+    frame_bytes = ow * oh * 3 // 2
+    total_frames = sum(p[2] for p in pieces)
+    live: List[subprocess.Popen] = []
+    timed_out = threading.Event()
+
+    def kill_all() -> None:
+        timed_out.set()
+        for proc in list(live):
+            proc.kill()
+
+    timer = threading.Timer(timeout, kill_all)
+    enc_err = os.path.join(tmpdir, "encoder.err")
+    piece_err = os.path.join(tmpdir, "piece.err")
+    with open(enc_err, "wb") as eerr:
+        enc = subprocess.Popen(
+            _niced(encoder), stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=eerr
         )
-        timer = threading.Timer(timeout, proc.kill)
+        live.append(enc)
         timer.start()
+        written = 0
         try:
-            assert proc.stdout is not None
-            for raw in proc.stdout:
-                line = raw.decode(errors="replace").strip()
-                if line.startswith("out_time_us=") and progress:
+            for i, (graph, inputs, count) in enumerate(pieces):
+                cmd = ["ffmpeg", "-nostdin", "-v", "error",
+                       "-filter_threads", str(threads)]
+                for path in inputs:
+                    cmd += ["-framerate", str(FPS), "-i", path]
+                cmd += ["-filter_complex", graph, "-map", "[v]", "-frames:v", str(count),
+                        "-f", "rawvideo", "-pix_fmt", "yuv420p", "pipe:1"]
+                with open(piece_err, "wb") as perr:
+                    proc = subprocess.Popen(
+                        _niced(cmd), stdout=subprocess.PIPE, stderr=perr,
+                        stdin=subprocess.DEVNULL,
+                    )
+                    live.append(proc)
+                    got = 0
                     try:
-                        progress(min(1.0, int(line.split("=")[1]) / 1e6 / total))
-                    except ValueError:
-                        pass
-            proc.wait()
+                        assert proc.stdout is not None and enc.stdin is not None
+                        while True:
+                            chunk = proc.stdout.read(frame_bytes)
+                            if not chunk:
+                                break
+                            enc.stdin.write(chunk)
+                            got += len(chunk)
+                            progress((written + got / frame_bytes) / total_frames)
+                        proc.wait()
+                    finally:
+                        live.remove(proc)
+                if timed_out.is_set():
+                    raise ReelError("render took too long")
+                if proc.returncode != 0:
+                    raise ReelError(f"shot {i + 1} failed: {_tail(piece_err)}")
+                if got != count * frame_bytes:
+                    raise ReelError(f"shot {i + 1} gave {got / frame_bytes:.1f} of {count} frames")
+                written += count
+            enc.stdin.close()
+            enc.wait()
+        except BrokenPipeError:
+            enc.wait()
+            raise ReelError(f"encoder failed ({enc.returncode}): {_tail(enc_err)}")
+        except BaseException:
+            enc.kill()
+            enc.wait()
+            raise
         finally:
             timer.cancel()
-    if proc.returncode != 0:
-        with open(errfile, "rb") as fh:
-            tail = fh.read()[-800:].decode(errors="replace")
-        raise ReelError(f"ffmpeg failed ({proc.returncode}): {tail}")
+    if timed_out.is_set():
+        raise ReelError("render took too long")
+    if enc.returncode != 0:
+        raise ReelError(f"encoder failed ({enc.returncode}): {_tail(enc_err)}")
 
 
 def extract_poster(video_path: str, out_path: str, at: float = 1.0) -> None:
@@ -526,6 +612,15 @@ def render_reel(
         durs.pop()
         dropped += 1
 
+    # whole frames per shot, rounded on the running total so the reel lands on target
+    quantized, done, elapsed = [], 0, 0.0
+    for d in durs:
+        elapsed += d
+        f = int(round(elapsed * FPS))
+        quantized.append((f - done) / FPS)
+        done = f
+    durs = quantized
+
     music_len = audio_duration(music_path) if music_path else 0.0
     if music_path and music_len < 3.0:
         raise ReelError("music must be at least 3 seconds long")
@@ -545,25 +640,19 @@ def render_reel(
             note("preparing", next(finished) / len(items))
             return plate
 
-        with ThreadPoolExecutor(max_workers=min(3, len(items))) as pool:
+        with ThreadPoolExecutor(max_workers=min(PLATE_WORKERS, len(items))) as pool:
             plates = list(pool.map(prep, range(len(items))))
-        total = total_length(durs)
 
-        graph, copies = build_filter_graph(
-            plates, ow, oh, total, (len(plates), music_len) if music_path else None
-        )
-        script = os.path.join(tmpdir, "graph.txt")
-        with open(script, "w") as fh:
-            fh.write(graph)
+        pieces = [piece_graph(plates, k, ow, oh) for k in range(len(plates))]
+        total = sum(p[2] for p in pieces) / FPS
+        graph, copies = encoder_graph(total, music_len if music_path else None)
 
-        cmd = ["ffmpeg", "-y", "-nostdin", "-v", "error", "-nostats",
-               "-progress", "pipe:1", "-filter_threads", str(threads),
-               "-filter_complex_threads", str(threads)]
-        for p in plates:
-            cmd += ["-framerate", str(FPS), "-i", p.path]
+        cmd = ["ffmpeg", "-y", "-nostdin", "-v", "error",
+               "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", f"{ow}x{oh}",
+               "-framerate", str(FPS), "-i", "pipe:0"]
         for _ in range(copies):
             cmd += ["-i", str(music_path)]
-        cmd += ["-filter_complex_script", script, "-map", "[vout]"]
+        cmd += ["-filter_complex", graph, "-map", "[vout]"]
         if music_path:
             cmd += ["-map", "[aout]", "-c:a", "aac", "-b:a", "160k"]
         cmd += [
@@ -576,9 +665,9 @@ def render_reel(
             "-t", _fmt(total), "-movflags", "+faststart", out_path,
         ]
         note("encoding", 0.0)
-        _run_ffmpeg(
-            cmd, total, lambda f: note("encoding", f), RENDER_TIMEOUT,
-            os.path.join(tmpdir, "ffmpeg.err"),
+        _stream_pieces(
+            pieces, cmd, ow, oh, threads, tmpdir,
+            lambda f: note("encoding", min(1.0, f)), RENDER_TIMEOUT,
         )
         d0 = durs[0]
         return ReelResult(

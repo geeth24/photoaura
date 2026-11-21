@@ -1,7 +1,7 @@
 """album reels
 
 Revision ID: 0024
-Revises: 0021
+Revises: 0023
 Create Date: 2026-11-21
 
 Rendered highlight reels (music-video MP4s) per album. The file lives at
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0024"
-down_revision: Union[str, None] = "0021"
+down_revision: Union[str, None] = "0023"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
