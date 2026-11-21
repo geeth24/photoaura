@@ -42,17 +42,25 @@ CLUSTER_KNN = int(os.environ.get("FACE_CLUSTER_KNN", "20"))
 # reunites pose-split people without merging distinct ones.
 CENTROID_MERGE_DIST = float(os.environ.get("FACE_CENTROID_MERGE_DIST", "0.40"))
 
-# A face only TAGS its photo (shows up when you filter by that person) if it's
-# at least this fraction of the image width. Keeps clustering on every face, but
-# stops tiny background faces from tagging a photo as "this person's". ~5% of the
-# frame separates real subjects from people standing in the back.
-TAG_MIN_FRAC = float(os.environ.get("FACE_TAG_MIN_FRAC", "0.05"))
+# A face TAGS its photo (shows up when you filter by that person) unless it's
+# background: tiny, or well under the size of the photo's main faces. Measured
+# against the other faces rather than the frame, so a full-length group portrait
+# where every face is ~3% of the width still tags everyone in it.
+TAG_REL_MIN = float(os.environ.get("FACE_TAG_REL_MIN", "0.35"))
+TAG_MIN_PX = int(os.environ.get("FACE_TAG_MIN_PX", "60"))
 
 
-def _is_prominent(bbox, img_w):
-    if not bbox or not img_w:
-        return True  # no dims -> don't drop it
-    return (bbox[2] - bbox[0]) / img_w >= TAG_MIN_FRAC
+def _box_px(bbox):
+    if not bbox:
+        return 0
+    return min(bbox[2] - bbox[0], bbox[3] - bbox[1])
+
+
+def _is_subject(bbox, biggest_px):
+    if not bbox:
+        return True  # no box -> don't drop it
+    px = _box_px(bbox)
+    return px >= TAG_MIN_PX and px >= TAG_REL_MIN * biggest_px
 
 # Two gates with different jobs:
 #  - INDEX: lenient. Should we embed + link this face at all? ArcFace is
@@ -174,10 +182,48 @@ def _crop(img, bbox, pad=0.2):
     return img.crop((left, top, right, bottom))
 
 
+def chip_key_of(fd):
+    """S3 key of a person's chip. Rows from before versioned chips point at
+    the old fixed key."""
+    return fd.chip_key or f"faces/{fd.external_id}.jpg"
+
+
+def chip_url(fd, fit=None):
+    prefix = f"fit-in/{fit}/" if fit else ""
+    return f"https://{settings.AWS_CLOUDFRONT_URL}/{prefix}{chip_key_of(fd)}"
+
+
+def _new_chip_key(external_id, embedding_id):
+    # a new URL per chip: the CDN and the apps cache chips for a year, so
+    # overwriting one key kept showing the old face
+    return f"faces/{external_id}-{embedding_id}.jpg"
+
+
+def _upload_chip(img, bbox, key, bucket=AWS_BUCKET):
+    buf = io.BytesIO()
+    _crop(img, bbox).save(buf, format="JPEG")
+    buf.seek(0)
+    s3_client.upload_fileobj(
+        buf, bucket, key, ExtraArgs={"ContentType": "image/jpeg"}
+    )
+
+
+def delete_chips(keys, bucket=AWS_BUCKET):
+    keys = sorted({k for k in keys if k})
+    for i in range(0, len(keys), 1000):
+        try:
+            s3_client.delete_objects(
+                Bucket=bucket,
+                Delete={"Objects": [{"Key": k} for k in keys[i:i + 1000]]},
+            )
+        except Exception as e:
+            print(f"chip cleanup failed: {e}")
+
+
 def set_person_cover(face_id, album_slug, filename):
     """Pin a person's cover chip to their face in a chosen photo. Crops that
-    face, replaces faces/<face_id>.jpg, and locks key_score so auto-scoring
-    never overrides it. Returns (ok, message)."""
+    face to a new chip key and locks key_score so auto-scoring never overrides
+    it. Returns (ok, message)."""
     with session_scope() as session:
         person = session.query(FaceData).filter_by(external_id=face_id).first()
         if not person:
@@ -206,15 +252,15 @@ def set_person_cover(face_id, album_slug, filename):
         img = ImageOps.exif_transpose(
             Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))
         ).convert("RGB")
-        buf = io.BytesIO()
-        _crop(img, fe.bbox["box"]).save(buf, format="JPEG")
-        buf.seek(0)
-        s3_client.upload_fileobj(
-            buf, AWS_BUCKET, f"faces/{face_id}.jpg",
-            ExtraArgs={"ContentType": "image/jpeg"},
-        )
+        old_chip = chip_key_of(person)
+        new_chip = _new_chip_key(face_id, fe.id)
+        _upload_chip(img, fe.bbox["box"], new_chip)
         person.key_score = COVER_LOCK
+        person.key_embedding_id = fe.id
+        person.chip_key = new_chip
         session.commit()
+    if old_chip != new_chip:
+        delete_chips([old_chip])
     return True, "Cover updated"
 
 
@@ -228,6 +274,10 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
     img = ImageOps.exif_transpose(
         Image.open(io.BytesIO(s3_client.get_object(Bucket=bucket, Key=file_path)["Body"].read()))
     ).convert("RGB")
+
+    # the photo's main faces set the bar for what counts as background
+    biggest = max((_min_px(f) for f in faces if should_index(f)[0]), default=0)
+    replaced_chips = []
 
     with session_scope() as session:
         for index, face in enumerate(faces):
@@ -268,8 +318,8 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
 
             # only frontal/sharp crops compete to be the person's key chip;
             # turned/soft shots still get linked, just never shown as the face
+            score = face_score(face) if chip_worthy else None
             if chip_worthy:
-                score = face_score(face)
                 session.execute(
                     pg_insert(FaceData)
                     .values(external_id=face_id, key_score=score)
@@ -282,43 +332,46 @@ def detect_and_store_faces(file_path, photo_id, album_id, bucket):
                 )
                 session.flush()
 
-                fd = session.query(FaceData).filter_by(external_id=face_id).first()
-                if fd and fd.key_score == score:
-                    buf = io.BytesIO()
-                    _crop(img, face["bbox"]).save(buf, format="JPEG")
-                    buf.seek(0)
-                    s3_client.upload_fileobj(
-                        buf,
-                        bucket,
-                        f"faces/{face_id}.jpg",
-                        ExtraArgs={"ContentType": "image/jpeg"},
-                    )
-
-            session.add(
-                FaceEmbedding(
-                    photo_id=photo_id,
-                    album_id=album_id,
-                    face_id=face_id,
-                    embedding=embedding,
-                    det_score=face.get("det_score"),
-                    bbox={"box": face["bbox"]},
-                    pose={
-                        "yaw": face.get("yaw"),
-                        "pitch": face.get("pitch"),
-                        "roll": face.get("roll"),
-                        "sharpness": face.get("sharpness"),
-                        "eye_open": face.get("eye_open"),
-                    },
-                )
+            fe = FaceEmbedding(
+                photo_id=photo_id,
+                album_id=album_id,
+                face_id=face_id,
+                embedding=embedding,
+                det_score=face.get("det_score"),
+                bbox={"box": face["bbox"]},
+                pose={
+                    "yaw": face.get("yaw"),
+                    "pitch": face.get("pitch"),
+                    "roll": face.get("roll"),
+                    "sharpness": face.get("sharpness"),
+                    "eye_open": face.get("eye_open"),
+                },
             )
-            # only tag the photo as this person's if the face is a real subject,
-            # not a tiny face in the background
-            if _is_prominent(face["bbox"], img.width):
+            session.add(fe)
+            session.flush()
+
+            if chip_worthy:
+                # the upsert ran as raw SQL; reload so key_score isn't a cached value
+                fd = (
+                    session.query(FaceData)
+                    .filter_by(external_id=face_id)
+                    .populate_existing()
+                    .first()
+                )
+                if fd and fd.key_score == score:
+                    new_chip = _new_chip_key(face_id, fe.id)
+                    _upload_chip(img, face["bbox"], new_chip, bucket)
+                    replaced_chips.append(chip_key_of(fd))
+                    fd.chip_key = new_chip
+                    fd.key_embedding_id = fe.id
+
+            if _is_subject(face["bbox"], biggest):
                 session.add(
                     PhotoFaceLink(photo_id=photo_id, face_id=face_id, album_id=album_id)
                 )
             session.commit()
 
+    delete_chips(replaced_chips, bucket)
     return "Faces processed and stored."
 
 
@@ -396,19 +449,22 @@ def _chinese_whispers(node_ids, adjacency, iterations=25):
     return labels
 
 
-def _plan_people(clusters, by_id):
+def _plan_people(clusters, by_id, keep=frozenset()):
     """Turn raw clusters into people. A cluster becomes a person when ANY of its
     faces is chip-worthy, and that face is its thumbnail; judging only the
     top-scoring face threw away people whose best-scored shot was a bit soft.
-    Faces left in clusters with no clean shot then join the nearest person
-    within MATCH_DIST, so turned heads and soft frames still tag their photos.
-    Returns [(member_ids, chip_face_id)], biggest first."""
+    Clusters holding a face in `keep` (admin merges, pinned covers) stay people
+    even without a clean shot. Faces left in clusters with no clean shot then
+    join the nearest person within MATCH_DIST, so turned heads and soft frames
+    still tag their photos. Returns [(member_ids, chip_face_id)], biggest first."""
     kept, leftovers = [], []
     for members in sorted(clusters.values(), key=len, reverse=True):
         worthy = [i for i in members if is_chip_worthy(_stored_face(by_id[i]))]
         if not worthy:
-            leftovers.extend(members)
-            continue
+            if not any(i in keep for i in members):
+                leftovers.extend(members)
+                continue
+            worthy = members
         best = max(worthy, key=lambda i: face_score(_stored_face(by_id[i])))
         kept.append((list(members), best))
 
@@ -432,11 +488,79 @@ def _plan_people(clusters, by_id):
     return kept
 
 
+def _join_manual_groups(labels, faces):
+    """Faces an admin merged share a manual_group; put their clusters together
+    no matter what the embeddings say."""
+    groups = {}
+    for fe in faces:
+        if fe.manual_group:
+            groups.setdefault(fe.manual_group, []).append(fe.id)
+    if not groups:
+        return labels
+    parent = {}
+
+    def _find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for ids in groups.values():
+        root = _find(labels[ids[0]])
+        for i in ids[1:]:
+            r = _find(labels[i])
+            if r != root:
+                parent[r] = root
+    return {fid: _find(lbl) for fid, lbl in labels.items()}
+
+
+def _recrop_chips(session, jobs):
+    """Crop and upload chips, one original download per photo. jobs is
+    [(external_id, photo_id, embedding_id, bbox)]. Each person's row only
+    points at the new chip once it's uploaded, so a failed upload keeps the
+    old one and the next recluster retries."""
+    by_photo = {}
+    for job in jobs:
+        by_photo.setdefault(job[1], []).append(job)
+    done = 0
+    for photo_id, photo_jobs in by_photo.items():
+        row = (
+            session.query(Album.slug, Album.hold_token, FileMetadata)
+            .join(FileMetadata, FileMetadata.album_id == Album.id)
+            .filter(FileMetadata.id == photo_id)
+            .first()
+        )
+        if not row:
+            continue
+        key = original_key(row.slug, row.FileMetadata, row.hold_token)
+        try:
+            img = ImageOps.exif_transpose(
+                Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))
+            ).convert("RGB")
+        except Exception as e:
+            print(f"recluster: couldn't read {key} for chips: {e}")
+            continue
+        for external_id, _, embedding_id, bbox in photo_jobs:
+            new_chip = _new_chip_key(external_id, embedding_id)
+            try:
+                _upload_chip(img, bbox, new_chip)
+            except Exception as e:
+                print(f"recluster: chip upload failed for {new_chip}: {e}")
+                continue
+            session.query(FaceData).filter_by(external_id=external_id).update(
+                {"chip_key": new_chip, "key_embedding_id": embedding_id}
+            )
+            done += 1
+        session.commit()
+    return done
+
+
 def recluster_faces():
     """Authoritative clustering: rebuild every person from the full embedding
     graph using Chinese Whispers. Order-independent and chaining-resistant —
-    unlike the incremental per-photo matcher. Preserves any names already
-    assigned, repicks each person's sharpest frontal key chip."""
+    unlike the incremental per-photo matcher. Keeps names, admin merges and
+    pinned covers, and re-crops a chip only when its best face changed."""
     with session_scope() as session:
         faces = session.query(FaceEmbedding).all()
         if not faces:
@@ -444,19 +568,30 @@ def recluster_faces():
         by_id = {fe.id: fe for fe in faces}
         node_ids = list(by_id.keys())
 
-        # photo widths, to judge face prominence when tagging
-        img_w = {
-            pid: w
-            for pid, w in session.query(FileMetadata.id, FileMetadata.width).all()
-        }
+        # each photo's biggest face, the yardstick for background faces
+        biggest = {}
+        for fe in faces:
+            px = _box_px((fe.bbox or {}).get("box"))
+            if px > biggest.get(fe.photo_id, 0):
+                biggest[fe.photo_id] = px
 
         # what each face was assigned to before — lets us keep stable person ids
         # (and names) across reruns, so re-clustering is cheap and idempotent
         old_face_of = {fe.id: fe.face_id for fe in faces}
         all_fd = session.query(FaceData).all()
         old_names = {fd.external_id: fd.name for fd in all_fd if fd.name}
-        # manually pinned covers (locked key_score) survive reclustering
+        old_chip = {
+            fd.external_id: (fd.key_embedding_id, chip_key_of(fd)) for fd in all_fd
+        }
         old_scores = {fd.external_id: fd.key_score or 0 for fd in all_fd}
+        # pinned covers follow the face they were pinned to, whichever cluster
+        # it lands in. older pins have no face recorded and follow the person id
+        pinned = {
+            fd.key_embedding_id: chip_key_of(fd)
+            for fd in all_fd
+            if (fd.key_score or 0) >= COVER_LOCK and fd.key_embedding_id in by_id
+        }
+        old_chip_keys = {key for _, key in old_chip.values()}
 
         # edges: each face's nearest neighbours within CLUSTER_DIST (HNSW kNN)
         sim_min = 1.0 - CLUSTER_DIST
@@ -512,10 +647,14 @@ def recluster_faces():
             remap = {g: glabels[_find(i)] for i, g in enumerate(glabels)}
             labels = {fid: remap[lbl] for fid, lbl in labels.items()}
 
+        # stage 3: admin merges win over the embeddings
+        labels = _join_manual_groups(labels, faces)
+
         clusters = {}
         for fid, lbl in labels.items():
             clusters.setdefault(lbl, []).append(fid)
-        people_plan = _plan_people(clusters, by_id)
+        keep = {fe.id for fe in faces if fe.manual_group} | set(pinned)
+        people_plan = _plan_people(clusters, by_id, keep)
 
         # wipe old identities; embeddings stay, face_id gets rewritten.
         # null the FK references before dropping face_data rows.
@@ -529,12 +668,12 @@ def recluster_faces():
         session.flush()
 
         people = 0
+        links = 0
         used_ids = set()
-        chips = []  # (external_id, photo_id, bbox, is_new) to crop+upload after commit
+        jobs = []  # chips to crop after commit
         # biggest clusters first so they claim their original person id
         for members, best_id in people_plan:
-            best = by_id[best_id]
-            best_face = _stored_face(best)
+            best_face = _stored_face(by_id[best_id])
 
             # reuse the person id this cluster mostly came from -> stable ids +
             # we can skip re-cropping an unchanged chip. fall back to a new id.
@@ -548,7 +687,6 @@ def recluster_faces():
                  if oid not in used_ids),
                 None,
             ) or uuid.uuid4().hex
-            is_new = external_id not in old_names and external_id not in tally
             used_ids.add(external_id)
 
             inherited = next(
@@ -556,22 +694,41 @@ def recluster_faces():
                  if old_face_of.get(i) in old_names),
                 None,
             ) if old_names else None
-            # keep a pinned cover sticky; the existing chip is left untouched
-            # below (head_object skip) since the person id is reused
-            score = face_score(best_face)
-            if old_scores.get(external_id, 0) >= COVER_LOCK:
-                score = COVER_LOCK
+
+            pin = next((i for i in members if i in pinned), None)
+            prev_emb, prev_key = old_chip.get(external_id, (None, None))
+            if pin is not None:
+                score, key_emb, chip_key = COVER_LOCK, pin, pinned[pin]
+            elif old_scores.get(external_id, 0) >= COVER_LOCK and prev_emb is None:
+                score, key_emb, chip_key = COVER_LOCK, None, prev_key
+            else:
+                score = face_score(best_face)
+                if prev_emb == best_id:
+                    key_emb, chip_key = best_id, prev_key
+                else:
+                    # keep showing the old chip until the new one is uploaded
+                    key_emb, chip_key = None, prev_key
+                    if best_face["bbox"]:
+                        jobs.append(
+                            (external_id, by_id[best_id].photo_id, best_id, best_face["bbox"])
+                        )
 
             session.add(
-                FaceData(external_id=external_id, name=inherited, key_score=score)
+                FaceData(
+                    external_id=external_id,
+                    name=inherited,
+                    key_score=score,
+                    key_embedding_id=key_emb,
+                    chip_key=chip_key,
+                )
             )
             linked = set()
             for i in members:
                 fe = by_id[i]
                 fe.face_id = external_id  # cluster membership (all faces)
-                # tag the photo only when this person is a real subject in it
-                if fe.photo_id not in linked and _is_prominent(
-                    (fe.bbox or {}).get("box"), img_w.get(fe.photo_id)
+                # tag the photo unless this person is background in it
+                if fe.photo_id not in linked and _is_subject(
+                    (fe.bbox or {}).get("box"), biggest.get(fe.photo_id, 0)
                 ):
                     linked.add(fe.photo_id)
                     session.add(
@@ -581,44 +738,22 @@ def recluster_faces():
                             album_id=fe.album_id,
                         )
                     )
+            links += len(linked)
             people += 1
-            chips.append((external_id, best.photo_id, best_face["bbox"], is_new))
 
         session.commit()
 
-        # crop + upload key chips. skip ones that already exist (reused person,
-        # chip still valid) so reruns stay cheap.
-        for external_id, photo_id, bbox, is_new in chips:
-            if not bbox:
-                continue
-            if not is_new:
-                try:
-                    s3_client.head_object(Bucket=AWS_BUCKET, Key=f"faces/{external_id}.jpg")
-                    continue  # chip already there
-                except Exception:
-                    pass
-            row = (
-                session.query(Album.slug, Album.hold_token, FileMetadata)
-                .join(FileMetadata, FileMetadata.album_id == Album.id)
-                .filter(FileMetadata.id == photo_id)
-                .first()
-            )
-            if not row:
-                continue
-            key = original_key(row.slug, row.FileMetadata, row.hold_token)
-            try:
-                img = ImageOps.exif_transpose(
-                    Image.open(io.BytesIO(s3_client.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()))
-                ).convert("RGB")
-                buf = io.BytesIO()
-                _crop(img, bbox).save(buf, format="JPEG")
-                buf.seek(0)
-                s3_client.upload_fileobj(
-                    buf, AWS_BUCKET, f"faces/{external_id}.jpg",
-                    ExtraArgs={"ContentType": "image/jpeg"},
-                )
-            except Exception as e:
-                print(f"recluster: chip upload failed for {key}: {e}")
+        recropped = _recrop_chips(session, jobs)
 
-    print(f"recluster_faces: {people} people from {len(node_ids)} faces")
+        # chips nobody points at any more: replaced ones and people who are gone
+        in_use = {
+            key or f"faces/{eid}.jpg"
+            for eid, key in session.query(FaceData.external_id, FaceData.chip_key)
+        }
+        delete_chips(old_chip_keys - in_use)
+
+    print(
+        f"recluster_faces: {people} people from {len(node_ids)} faces, "
+        f"{links} photo links, {recropped}/{len(jobs)} chips re-cropped"
+    )
     return f"{people} people"

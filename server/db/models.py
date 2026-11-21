@@ -278,8 +278,14 @@ class FaceData(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[Optional[str]] = mapped_column(String(255))
     external_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
-    # quality of the chosen key-face crop (faces/{external_id}.jpg); higher = better
+    # quality of the chosen key-face crop; higher = better
     key_score: Mapped[Optional[float]] = mapped_column(Float)
+    # the embedding the chip was cropped from, and the S3 key it lives at.
+    # null chip_key = legacy chip at faces/{external_id}.jpg
+    key_embedding_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("face_embedding.id", ondelete="SET NULL", use_alter=True)
+    )
+    chip_key: Mapped[Optional[str]] = mapped_column(String(255))
 
 
 class PhotoFaceLink(Base):
@@ -307,6 +313,8 @@ class FaceEmbedding(Base):
     det_score: Mapped[Optional[float]] = mapped_column(Float)
     bbox: Mapped[Optional[Any]] = mapped_column(JSON)
     pose: Mapped[Optional[Any]] = mapped_column(JSON)
+    # faces an admin merged share a group; reclustering keeps them together
+    manual_group: Mapped[Optional[str]] = mapped_column(String(32), index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
     )

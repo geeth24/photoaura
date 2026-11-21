@@ -29,6 +29,7 @@ from db.models import (
 from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, add_album_to_user, capture_time, hold_key, slugify
+from utils.face_recog import chip_key_of
 from dependencies import is_admin_caller, oauth2_optional, require_admin, get_current_user, verify_token
 from services.proof_service import LOCKED_DETAIL
 
@@ -582,7 +583,14 @@ async def delete_album(
         } if face_ids else set()
         orphaned = face_ids - still_used
 
+        orphan_chips = []
         if orphaned:
+            orphan_chips = [
+                chip_key_of(fd)
+                for fd in session.query(FaceData).filter(
+                    FaceData.external_id.in_(orphaned)
+                )
+            ]
             session.query(FaceEmbedding).filter(
                 FaceEmbedding.face_id.in_(orphaned)
             ).delete(synchronize_session=False)
@@ -619,7 +627,7 @@ async def delete_album(
         except Exception as e:
             logging.error(f"album delete: listing the album folder failed: {e}")
         keys = [{"Key": k} for k in sorted(listed)]
-        keys += [{"Key": f"faces/{fid}.jpg"} for fid in orphaned]
+        keys += [{"Key": k} for k in orphan_chips]
         for i in range(0, len(keys), 1000):
             try:
                 s3_client.delete_objects(
