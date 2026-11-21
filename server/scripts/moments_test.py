@@ -1,10 +1,10 @@
 """Checks for smart gallery Moments: segmentation on a made-up timeline, labels
 and their fallback, who sees moments and which photos, renames surviving a
-re-selection, and the 0026 migration both ways.
+re-selection, and the 0025 migration both ways.
 
-Runs the real app in-process against a LOCAL Postgres at migration 0026, with
+Runs the real app in-process against a LOCAL Postgres at migration 0025, with
 an invented album (random vectors), and removes what it made. The migration
-check goes down to 0023 and back up on that database, so don't point it at one
+check goes down to 0024 and back up on that database, so don't point it at one
 you care about.
 
     cd server
@@ -281,28 +281,28 @@ def api_checks():
 
 
 def migration_checks():
-    print("migration 0026 down and up")
+    print("migration 0025 down and up")
     cfg = Config(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "alembic.ini"))
     cfg.set_main_option("script_location", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "alembic"))
     insp = lambda: sa.inspect(engine)
     has = lambda: ("album_moments" in insp().get_table_names(), "moment_key" in {c["name"] for c in insp().get_columns("photo_scores")})
     head = lambda: sa.text("select version_num from alembic_version")
     with engine.connect() as conn:
-        check(conn.execute(head()).scalar() == "0026", "database starts at 0026")
+        check(conn.execute(head()).scalar() == "0025", "database starts at 0025")
     check(has() == (True, True), "table and column exist")
-    command.downgrade(cfg, "0023")
+    command.downgrade(cfg, "0024")
     engine.dispose()
     with engine.connect() as conn:
-        check(conn.execute(head()).scalar() == "0023", "downgrade lands on 0023 (the revision it follows)")
+        check(conn.execute(head()).scalar() == "0024", "downgrade lands on 0024 (the revision it follows)")
     check(has() == (False, False), "downgrade drops the table and the column")
     command.upgrade(cfg, "head")
     engine.dispose()
     with engine.connect() as conn:
-        check(conn.execute(head()).scalar() == "0026", "upgrade returns to 0026")
+        check(conn.execute(head()).scalar() == "0025", "upgrade returns to 0025")
     check(has() == (True, True), "and brings both back")
     from alembic.script import ScriptDirectory
-    rev = ScriptDirectory.from_config(cfg).get_revision("0026")
-    check(rev.down_revision == "0023", "0026 follows 0023")
+    rev = ScriptDirectory.from_config(cfg).get_revision("0025")
+    check(rev.down_revision == "0024", "0025 follows 0024")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """album moments
 
-Revision ID: 0026
-Revises: 0023
+Revision ID: 0025
+Revises: 0024
 Create Date: 2026-11-21
 
 Moments split an album into the stretches of the shoot (cake cutting, dancing).
@@ -14,8 +14,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0026"
-down_revision: Union[str, None] = "0023"
+revision: str = "0025"
+down_revision: Union[str, None] = "0024"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
