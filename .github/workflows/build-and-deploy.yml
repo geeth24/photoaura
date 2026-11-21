@@ -56,5 +56,11 @@ jobs:
             echo "No tag change — skipping commit"
           else
             git commit -m "deploy photoaura: ${SHORT_SHA}"
-            git push
+            # other deploys push to this repo too; rebase onto theirs and retry
+            for attempt in 1 2 3 4 5; do
+              git push && break
+              [ "$attempt" = 5 ] && exit 1
+              sleep $((attempt * 2))
+              git pull --rebase
+            done
           fi
