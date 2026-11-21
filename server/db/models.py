@@ -8,6 +8,7 @@ from sqlalchemy import (
     Date,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -27,7 +28,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_name: Mapped[Optional[str]] = mapped_column(String(255))
+    user_name: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     user_password: Mapped[Optional[str]] = mapped_column(String(255))
     full_name: Mapped[Optional[str]] = mapped_column(String(255))
     user_email: Mapped[Optional[str]] = mapped_column(String(255))
@@ -94,7 +95,7 @@ class Album(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[Optional[str]] = mapped_column(String(255))
-    slug: Mapped[Optional[str]] = mapped_column(String(255))
+    slug: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     location: Mapped[Optional[str]] = mapped_column(String(255))
     date: Mapped[Optional[str]] = mapped_column(String(255))
     image_count: Mapped[Optional[int]] = mapped_column(Integer)
@@ -127,6 +128,7 @@ class Album(Base):
 
 class FileMetadata(Base):
     __tablename__ = "file_metadata"
+    __table_args__ = (Index("ix_file_metadata_album_id_id", "album_id", "id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"))
@@ -261,10 +263,11 @@ class AppVersion(Base):
 
 class UserAlbumPermission(Base):
     __tablename__ = "user_album_permissions"
+    __table_args__ = (Index("ix_user_album_permissions_user_album", "user_id", "album_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
-    album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"))
+    album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"), index=True)
 
     user: Mapped[Optional["User"]] = relationship()
     album: Mapped[Optional["Album"]] = relationship(back_populates="permissions")
@@ -371,11 +374,11 @@ class PhotoFaceLink(Base):
     __tablename__ = "photo_face_link"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    photo_id: Mapped[Optional[int]] = mapped_column(ForeignKey("file_metadata.id"))
+    photo_id: Mapped[Optional[int]] = mapped_column(ForeignKey("file_metadata.id"), index=True)
     face_id: Mapped[Optional[str]] = mapped_column(
-        ForeignKey("face_data.external_id")
+        ForeignKey("face_data.external_id"), index=True
     )
-    album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"))
+    album_id: Mapped[Optional[int]] = mapped_column(ForeignKey("album.id"), index=True)
 
 
 class FaceEmbedding(Base):
