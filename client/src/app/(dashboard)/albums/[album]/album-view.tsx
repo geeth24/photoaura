@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { UploadAlbumDialog } from "@/components/upload-album-dialog"
 import { AlbumFaces } from "@/components/album-faces"
 import { PhotoGrid } from "@/components/photo-grid"
+import { MomentsView, type MomentGroup } from "@/components/moments-view"
 import { SmartGalleryPanel } from "@/components/smart-gallery-panel"
 import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { InviteClientDialog } from "@/components/invite-client-dialog"
@@ -91,7 +92,7 @@ export function AlbumView({
     search.get("tab") === "videos" ? "videos" : search.get("tab") === "smart" ? "smart" : "photos",
   )
   // clients open on the studio's highlights once they're published
-  const [highlightsOnly, setHighlightsOnly] = useState(true)
+  const [scope, setScope] = useState<"highlights" | "all" | "moments">("highlights")
   const [deleting, setDeleting] = useState(false)
   const [zipping, setZipping] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
@@ -400,15 +401,29 @@ export function AlbumView({
     const picked = onlyFavorites
       ? mediaScoped.filter((p) => favorites.has(p.file_metadata.filename))
       : mediaScoped
-    const highlightSet = !isAdmin && album.highlights?.length ? new Set(album.highlights) : null
-    const visiblePhotos =
-      highlightSet && highlightsOnly && mediaTab === "photos"
-        ? picked.filter((p) => highlightSet.has(p.file_metadata.filename))
-        : picked
+    const clientView = !isAdmin && mediaTab === "photos"
+    const highlightSet = clientView && album.highlights?.length ? new Set(album.highlights) : null
+    const moments = clientView ? album.moments : null
+    const active =
+      scope === "highlights" && !highlightSet ? "all" : scope === "moments" && !moments?.length ? "all" : scope
+    let momentGroups: MomentGroup[] | null = null
+    let visiblePhotos = picked
+    if (highlightSet && active === "highlights") {
+      visiblePhotos = picked.filter((p) => highlightSet.has(p.file_metadata.filename))
+    } else if (moments?.length && active === "moments") {
+      const byName = new Map(picked.map((p) => [p.file_metadata.filename, p]))
+      momentGroups = moments
+        .map((moment) => ({
+          moment,
+          photos: moment.filenames.flatMap((f) => byName.get(f) ?? []),
+        }))
+        .filter((g) => g.photos.length > 0)
+      visiblePhotos = momentGroups.flatMap((g) => g.photos)
+    }
     // the viewer swipes stills only; videos open their own player
     const stills = visiblePhotos.filter((p) => !isVideo(p))
-    return { hasVideos, videoCount, photoCount, visiblePhotos, stills }
-  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter, isAdmin, highlightsOnly])
+    return { hasVideos, videoCount, photoCount, visiblePhotos, stills, momentGroups, scope: active }
+  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter, isAdmin, scope])
 
   const stillsRef = useRef<Photo[]>([])
   stillsRef.current = view?.stills ?? []
@@ -494,7 +509,7 @@ export function AlbumView({
     )
   }
 
-  const { hasVideos, videoCount, photoCount, visiblePhotos } = view!
+  const { hasVideos, videoCount, photoCount, visiblePhotos, momentGroups } = view!
   const isEmpty = album.album_photos.length === 0
   const smartTab = isAdmin && !isEmpty && !!album.highlights?.length
   const countLabel = `${album.image_count} ${album.image_count === 1 ? "photo" : "photos"}`
@@ -901,27 +916,28 @@ export function AlbumView({
         </Tabs>
       )}
 
-      {/* clients: the studio's highlights, or everything */}
-      {!isAdmin && mediaTab === "photos" && album.highlights && album.highlights.length > 0 && (
+      {/* clients: the studio's highlights, everything, or the shoot moment by moment */}
+      {!isAdmin && mediaTab === "photos" && (album.highlights?.length || album.moments?.length) ? (
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Gallery view">
           {(
             [
-              [true, "Highlights", album.highlights.length],
-              [false, "All", album.album_photos.filter((p) => !isVideo(p)).length],
-            ] as const
-          ).map(([on, label, count]) => (
+              ...(album.highlights?.length ? [["highlights", "Highlights", album.highlights.length] as const] : []),
+              ["all", "All", album.album_photos.filter((p) => !isVideo(p)).length] as const,
+              ...(album.moments?.length ? [["moments", "Moments", album.moments.length] as const] : []),
+            ]
+          ).map(([id, label, count]) => (
             <button
-              key={label}
-              onClick={() => setHighlightsOnly(on)}
-              aria-pressed={highlightsOnly === on}
-              className={`${chipButton} ${highlightsOnly === on ? "border-brand text-brand" : chipIdle}`}
+              key={id}
+              onClick={() => setScope(id)}
+              aria-pressed={view!.scope === id}
+              className={`${chipButton} ${view!.scope === id ? "border-brand text-brand" : chipIdle}`}
             >
               {label}
               <span className="text-text-faint">{count}</span>
             </button>
           ))}
         </div>
-      )}
+      ) : null}
 
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center border border-dashed border-border-default px-6 py-24 text-center">
@@ -950,6 +966,13 @@ export function AlbumView({
           photos={album.album_photos}
           onOpen={openPhoto}
           onChanged={fetchAlbum}
+        />
+      ) : momentGroups ? (
+        <MomentsView
+          groups={momentGroups}
+          onOpen={openPhoto}
+          favorites={favorites}
+          onToggleFavorite={isPreview ? undefined : toggleFavorite}
         />
       ) : (
         <PhotoGrid

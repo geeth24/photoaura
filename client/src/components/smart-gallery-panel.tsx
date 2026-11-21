@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Check, ChevronDown, EyeOff, Loader2, Plus, Undo2, X } from "lucide-react"
+import { Check, ChevronDown, EyeOff, Loader2, Pencil, Plus, Undo2, X } from "lucide-react"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
 import { tileSrc } from "@/components/photo-grid"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { momentRange, spansDays } from "@/lib/moments"
 import { isVideo, type Photo, type SmartGallery, type SmartReason } from "@/lib/types"
 
 const REASONS: { key: SmartReason; label: string; hint: string }[] = [
@@ -109,7 +110,7 @@ export function SmartGalleryPanel({ albumSlug, photos, onOpen, onChanged }: Prop
             Publish highlights
           </p>
           <p className="mt-1 text-xs font-light text-text-muted">
-            Clients get a Highlights · All switch at the top of their gallery.
+            Clients get a Highlights · All · Moments switch at the top of their gallery.
           </p>
         </div>
         <label className="flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-text-secondary">
@@ -151,6 +152,29 @@ export function SmartGalleryPanel({ albumSlug, photos, onOpen, onChanged }: Prop
             )
           })}
         </div>
+      </Section>
+
+      <Section
+        title="Moments"
+        note={smart.moments.length ? `${smart.moments.length} stretches of the shoot` : ""}
+      >
+        {smart.moments.length === 0 ? (
+          <Empty>No moments found. They need photos with capture times from more than one stretch of the day.</Empty>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {smart.moments.map((m) => (
+              <MomentRow
+                key={m.key}
+                moment={m}
+                cover={thumb(m.cover)}
+                withDate={spansDays(smart.moments)}
+                onOpen={onOpen}
+                busy={busy}
+                onRename={(label) => send(`/moments/${m.key}`, { label })}
+              />
+            ))}
+          </div>
+        )}
       </Section>
 
       <Section title="Stacks" note={`${smart.counts.stacks} groups of near-identical shots`}>
@@ -363,6 +387,96 @@ function Tile({
         </span>
       )}
       {children}
+    </div>
+  )
+}
+
+function MomentRow({
+  moment,
+  cover,
+  withDate,
+  onOpen,
+  onRename,
+  busy,
+}: {
+  moment: SmartGallery["moments"][number]
+  cover: Photo | undefined
+  withDate: boolean
+  onOpen: (p: Photo) => void
+  onRename: (label: string) => void
+  busy: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(moment.label)
+
+  const save = () => {
+    setEditing(false)
+    if (draft.trim() && draft.trim() !== moment.label) onRename(draft.trim())
+  }
+
+  return (
+    <div className="flex items-center gap-4 border border-border-default p-3">
+      {cover && <Tile photo={cover} onOpen={onOpen} size="size-20 shrink-0 sm:size-24" />}
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              save()
+            }}
+            className="flex items-center gap-1.5"
+          >
+            <input
+              autoFocus
+              value={draft}
+              maxLength={60}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+              aria-label="Moment name"
+              className="h-8 min-w-0 flex-1 border border-border-default bg-transparent px-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-text-primary outline-none focus:border-brand"
+            />
+            <button
+              type="submit"
+              aria-label="Save name"
+              className="flex size-8 shrink-0 items-center justify-center border border-border-default text-text-secondary transition-colors hover:border-brand hover:text-brand"
+            >
+              <Check className="size-3.5" />
+            </button>
+          </form>
+        ) : (
+          <div className="flex items-center gap-2">
+            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-text-primary">
+              {moment.label}
+            </p>
+            <button
+              onClick={() => {
+                setDraft(moment.label)
+                setEditing(true)
+              }}
+              disabled={busy}
+              aria-label="Rename moment"
+              className="flex size-7 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+            >
+              <Pencil className="size-3" />
+            </button>
+            {moment.custom && (
+              <button
+                onClick={() => onRename("")}
+                disabled={busy}
+                aria-label="Back to the automatic name"
+                className="flex size-7 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+              >
+                <Undo2 className="size-3" />
+              </button>
+            )}
+          </div>
+        )}
+        <p className="mt-1 text-xs font-light text-text-muted">
+          {momentRange(moment, withDate)}
+          <span className="px-1.5">·</span>
+          {moment.count} {moment.count === 1 ? "photo" : "photos"}
+        </p>
+      </div>
     </div>
   )
 }

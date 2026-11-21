@@ -189,6 +189,25 @@ class PhotoScores(Base):
     manual_highlight: Mapped[Optional[str]] = mapped_column(String(8))
     review_override: Mapped[Optional[str]] = mapped_column(String(8))
     best_pinned: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    # the moment this photo sits in (album_moments.key); null without a capture time
+    moment_key: Mapped[Optional[str]] = mapped_column(String(12))
+
+
+class AlbumMoment(Base):
+    """A stretch of the shoot found by the selection pass. Times, counts and the
+    cover are read off the photos, so a hidden or deleted photo never leaves a
+    stale range behind; only the name and its order live here."""
+
+    __tablename__ = "album_moments"
+    __table_args__ = (UniqueConstraint("album_id", "key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    album_id: Mapped[int] = mapped_column(ForeignKey("album.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(12))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(80))
+    # the studio typed this name; re-selection keeps it
+    label_custom: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
 
 
 class AlbumRevision(Base):

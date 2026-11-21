@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.base import get_session
@@ -33,6 +33,11 @@ class ReviewBody(BaseModel):
 
 class BestBody(BaseModel):
     filename: str
+
+
+class MomentBody(BaseModel):
+    # blank goes back to the automatic name
+    label: str = Field(max_length=60)
 
 
 def _album(session, slug):
@@ -76,6 +81,7 @@ def smart_json(session, album):
         "stacks": [],
         "review": {reason: [] for reason in REVIEW_REASONS},
         "kept": [],
+        "moments": smart_gallery.moments_json(session, album.id, studio=True),
         "counts": {"photos": 0, "highlights": 0, "stacks": 0, "review": 0, "hidden": 0},
     }
     rows = (
@@ -194,4 +200,19 @@ async def set_stack_best(
     )
     for m in mates:
         m.best_pinned = m.id == row.id
+    return _reselect(session, album)
+
+
+@router.post("/api/album/{album_slug}/smart/moments/{key}")
+async def rename_moment(
+    album_slug: str,
+    key: str,
+    body: MomentBody,
+    _admin=Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    album = _album(session, album_slug)
+    if not smart_gallery.rename_moment(session, album.id, key, body.label):
+        raise HTTPException(status_code=404, detail="Moment not found")
+    # a cleared name needs the automatic one back; a typed one survives the rerun
     return _reselect(session, album)
