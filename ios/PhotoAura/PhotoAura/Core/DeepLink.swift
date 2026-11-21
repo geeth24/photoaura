@@ -17,7 +17,7 @@ enum DeepLink {
             do {
                 let resp = try await api.verifyMagicLink(token: token)
                 await MainActor.run {
-                    auth.signIn(token: resp.accessToken, user: resp.user)
+                    auth.signIn(resp)
                 }
             } catch {
                 // failed verify just leaves user signed-out; login screen handles it

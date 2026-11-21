@@ -21,6 +21,8 @@ enum KeychainStore {
         SecItemDelete(query as CFDictionary)
         var add = query
         add[kSecValueData as String] = data
+        // readable once the device has been unlocked after boot, so background refresh works
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(add as CFDictionary, nil)
     }
 

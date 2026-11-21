@@ -40,7 +40,10 @@ struct PhotoAuraApp: App {
                 .updatePrompts(updates)
                 // launch counts as becoming active, so this covers both
                 .onChange(of: scenePhase, initial: true) { _, phase in
-                    if phase == .active { updates.send(.appBecameActive) }
+                    if phase == .active {
+                        updates.send(.appBecameActive)
+                        Task { await auth.refreshIfNeeded() }
+                    }
                 }
                 .onOpenURL { url in
                     DeepLink.handle(url, auth: auth, api: api)

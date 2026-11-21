@@ -50,7 +50,7 @@ final class LoginStore {
 
         case .passwordSignedIn(let resp):
             state.isSending = false
-            auth.signIn(token: resp.accessToken, user: resp.user)
+            auth.signIn(resp)
 
         case .sendFailed(let m):
             state.isSending = false
