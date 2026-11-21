@@ -20,7 +20,7 @@ from db.models import Album, Booking, BookingPayment, FileMetadata, User, UserAl
 from dependencies import get_current_user, require_admin
 from routers.auth.auth_router import CLIENT_URL, issue_magic_link
 from routers.user.user import _primary_email, _verify_link
-from services import email_service, proof_service, upload_jobs
+from services import email_service, proof_service, smart_gallery, upload_jobs
 from services.aws_service import s3_client
 from services.booking_service import (
     BOOKING_PACKAGES,
@@ -993,6 +993,7 @@ def mark_delivered(
     b.delivered_at = b.delivered_at or _now()
     _refresh_status(b)
     _share_gallery(session, b, album)
+    smart_gallery.auto_publish_on_delivery(session, album)
 
     nxt = _next_payment(b)
     message = None

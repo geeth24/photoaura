@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { UploadAlbumDialog } from "@/components/upload-album-dialog"
 import { AlbumFaces } from "@/components/album-faces"
 import { PhotoGrid } from "@/components/photo-grid"
+import { SmartGalleryPanel } from "@/components/smart-gallery-panel"
 import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { InviteClientDialog } from "@/components/invite-client-dialog"
 import { AlbumAccessDialog } from "@/components/album-access-dialog"
@@ -86,9 +87,11 @@ export function AlbumView({
   useDocumentTitle(album?.album_name)
   const [loading, setLoading] = useState(true)
   const search = useSearchParams()
-  const [mediaTab, setMediaTab] = useState<"photos" | "videos">(
-    search.get("tab") === "videos" ? "videos" : "photos",
+  const [mediaTab, setMediaTab] = useState<"photos" | "videos" | "smart">(
+    search.get("tab") === "videos" ? "videos" : search.get("tab") === "smart" ? "smart" : "photos",
   )
+  // clients open on the studio's highlights once they're published
+  const [highlightsOnly, setHighlightsOnly] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [zipping, setZipping] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
@@ -394,13 +397,18 @@ export function AlbumView({
     const mediaScoped = !hasVideos
       ? faceScoped
       : faceScoped.filter((p) => (mediaTab === "videos" ? isVideo(p) : !isVideo(p)))
-    const visiblePhotos = onlyFavorites
+    const picked = onlyFavorites
       ? mediaScoped.filter((p) => favorites.has(p.file_metadata.filename))
       : mediaScoped
+    const highlightSet = !isAdmin && album.highlights?.length ? new Set(album.highlights) : null
+    const visiblePhotos =
+      highlightSet && highlightsOnly && mediaTab === "photos"
+        ? picked.filter((p) => highlightSet.has(p.file_metadata.filename))
+        : picked
     // the viewer swipes stills only; videos open their own player
     const stills = visiblePhotos.filter((p) => !isVideo(p))
     return { hasVideos, videoCount, photoCount, visiblePhotos, stills }
-  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter])
+  }, [album, faces, selectedFace, mediaTab, onlyFavorites, favorites, revisionFilter, isAdmin, highlightsOnly])
 
   const stillsRef = useRef<Photo[]>([])
   stillsRef.current = view?.stills ?? []
@@ -488,6 +496,7 @@ export function AlbumView({
 
   const { hasVideos, videoCount, photoCount, visiblePhotos } = view!
   const isEmpty = album.album_photos.length === 0
+  const smartTab = isAdmin && !isEmpty && !!album.highlights?.length
   const countLabel = `${album.image_count} ${album.image_count === 1 ? "photo" : "photos"}`
 
   const chipButton =
@@ -878,17 +887,40 @@ export function AlbumView({
       )}
       <AlbumFaces faces={faces} selected={selectedFace} onSelect={setSelectedFace} />
 
-      {/* photos / videos tabs — only when the album has video */}
-      {hasVideos && (
+      {/* photos / videos / smart tabs — only when the album has video or scores */}
+      {(hasVideos || smartTab) && (
         <Tabs
           value={mediaTab}
-          onValueChange={(v) => setMediaTab(v as "photos" | "videos")}
+          onValueChange={(v) => setMediaTab(v as "photos" | "videos" | "smart")}
         >
           <TabsList>
-            <TabsTrigger value="photos">Photos ({photoCount})</TabsTrigger>
-            <TabsTrigger value="videos">Videos ({videoCount})</TabsTrigger>
+            <TabsTrigger value="photos">{hasVideos ? `Photos (${photoCount})` : "Photos"}</TabsTrigger>
+            {hasVideos && <TabsTrigger value="videos">Videos ({videoCount})</TabsTrigger>}
+            {smartTab && <TabsTrigger value="smart">Smart</TabsTrigger>}
           </TabsList>
         </Tabs>
+      )}
+
+      {/* clients: the studio's highlights, or everything */}
+      {!isAdmin && mediaTab === "photos" && album.highlights && album.highlights.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Gallery view">
+          {(
+            [
+              [true, "Highlights", album.highlights.length],
+              [false, "All", album.album_photos.filter((p) => !isVideo(p)).length],
+            ] as const
+          ).map(([on, label, count]) => (
+            <button
+              key={label}
+              onClick={() => setHighlightsOnly(on)}
+              aria-pressed={highlightsOnly === on}
+              className={`${chipButton} ${highlightsOnly === on ? "border-brand text-brand" : chipIdle}`}
+            >
+              {label}
+              <span className="text-text-faint">{count}</span>
+            </button>
+          ))}
+        </div>
       )}
 
       {isEmpty ? (
@@ -912,6 +944,13 @@ export function AlbumView({
             </button>
           )}
         </div>
+      ) : mediaTab === "smart" && smartTab ? (
+        <SmartGalleryPanel
+          albumSlug={albumSlug}
+          photos={album.album_photos}
+          onOpen={openPhoto}
+          onChanged={fetchAlbum}
+        />
       ) : (
         <PhotoGrid
           photos={visiblePhotos}

@@ -13,6 +13,7 @@ from dependencies import oauth2_scheme, verify_token
 from routers.auth.auth_router import router as auth_router
 from routers.user.user import router as user_router
 from routers.album.album_routes import router as album_router
+from routers.album.smart_router import router as smart_router
 from routers.files.files_router import router as files_router
 from routers.category.category import router as category_router
 from routers.face.face_router import router as face_router
@@ -48,6 +49,7 @@ app.add_middleware(
 app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(album_router)
+app.include_router(smart_router)
 app.include_router(files_router)
 app.include_router(websocket_router)
 app.include_router(category_router)

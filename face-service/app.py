@@ -20,6 +20,8 @@ from insightface.app import FaceAnalysis
 from insightface.app.common import Face
 from insightface.utils import face_align
 
+import photo_scores
+
 app = FastAPI(title="photoaura-faces")
 
 _MODEL = os.environ.get("FACE_MODEL", "buffalo_l")
@@ -44,6 +46,17 @@ _s3 = boto3.client(
     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
     region_name=os.environ.get("AWS_REGION", "us-east-1"),
 )
+
+
+# CLIP + aesthetic scores are optional: without the weights the service still
+# serves faces and /embed just leaves `photo` out
+_PHOTO_SCORES = False
+if os.environ.get("PHOTO_SCORES", "0") == "1":
+    try:
+        photo_scores.load()
+        _PHOTO_SCORES = True
+    except Exception as e:
+        print(f"photo scores disabled: {e}")
 
 
 class EmbedRequest(BaseModel):
@@ -192,7 +205,12 @@ def describe(arr):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "model": _MODEL, "det_sizes": _DET_SIZES}
+    return {
+        "ok": True,
+        "model": _MODEL,
+        "det_sizes": _DET_SIZES,
+        "photo_scores": _PHOTO_SCORES,
+    }
 
 
 @app.post("/embed")
@@ -212,4 +230,11 @@ def embed(req: EmbedRequest):
 
     # insightface expects BGR
     arr = np.ascontiguousarray(np.asarray(img)[:, :, ::-1])
-    return {"img_w": img.width, "img_h": img.height, "faces": describe(arr)}
+    out = {"img_w": img.width, "img_h": img.height, "faces": describe(arr)}
+    if _PHOTO_SCORES:
+        try:
+            out["photo"] = photo_scores.score(img)
+        except Exception as e:
+            # faces still matter if the photo scorer chokes
+            print(f"photo score failed for {req.key}: {e}")
+    return out

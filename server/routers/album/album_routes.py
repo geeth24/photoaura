@@ -30,6 +30,7 @@ from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, capture_time, hold_key
 from utils.face_recog import chip_key_of
+from services import smart_gallery
 from dependencies import (
     TOKEN_TYPE_TICKET,
     decode_token,
@@ -112,7 +113,14 @@ async def get_album(
     if not file_metadata and not member:
         raise HTTPException(status_code=404, detail="No images found in the album")
 
+    # photos the studio hid in the smart review stay out of clients' galleries
+    if not admin:
+        hidden = smart_gallery.hidden_photo_ids(session, album.id)
+        file_metadata = [m for m in file_metadata if m.id not in hidden]
     album_photos = create_album_photos_json(album_slug, file_metadata, album.proof_locked)
+    highlights = None
+    if admin or album.smart_published:
+        highlights = smart_gallery.highlight_filenames(session, album.id)
 
     permissions = (
         session.query(UserAlbumPermission).filter_by(album_id=album.id).all() if admin else []
@@ -145,6 +153,8 @@ async def get_album(
         "revision": latest_revision(session, album.id),
         "locked": bool(album.proof_locked),
         "booking_number": album_booking_number(session, album.id) if album.proof_locked else None,
+        "highlights": highlights,
+        "smart_published": bool(album.smart_published),
     }
 
 
@@ -254,7 +264,10 @@ async def view_shared_album(
                 status_code=403, detail="This gallery is private — open it from the share link."
             )
 
-    photos = session.query(FileMetadata).filter_by(album_id=album.id).all()
+    hidden = smart_gallery.hidden_photo_ids(session, album.id)
+    photos = [
+        p for p in session.query(FileMetadata).filter_by(album_id=album.id).all() if p.id not in hidden
+    ]
     return {
         "album_id": album.id,
         "album_name": album.name,
@@ -263,6 +276,7 @@ async def view_shared_album(
         "public": bool(album.public),
         "album_photos": create_album_photos_json(album.slug, photos, album.proof_locked),
         "locked": bool(album.proof_locked),
+        "highlights": smart_gallery.highlight_filenames(session, album.id) if album.smart_published else None,
     }
 
 
@@ -614,7 +628,10 @@ def download_album_zip(
         raise HTTPException(status_code=403, detail="Not authorized for this gallery")
     _refuse_if_locked(album)
 
-    photos = session.query(FileMetadata).filter_by(album_id=album.id).all()
+    hidden = smart_gallery.hidden_photo_ids(session, album.id)
+    photos = [
+        p for p in session.query(FileMetadata).filter_by(album_id=album.id).all() if p.id not in hidden
+    ]
     if not photos:
         raise HTTPException(status_code=404, detail="Nothing to download")
 

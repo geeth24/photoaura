@@ -15,6 +15,7 @@ from services.aws_service import s3_client
 from db.base import session_scope
 from db.models import FaceData, FaceEmbedding, PhotoFaceLink, FileMetadata, Album
 from utils.utils import original_key
+from services.smart_gallery import store_photo_scores
 
 AWS_BUCKET = settings.AWS_BUCKET
 
@@ -373,6 +374,9 @@ def set_person_cover(face_id, album_slug, filename):
 
 def detect_and_store_faces(file_path, photo_id, album_id, bucket):
     result = _embed_image(bucket, file_path)
+    if result.get("photo"):
+        with session_scope() as session:
+            store_photo_scores(session, photo_id, album_id, result["photo"])
     faces = result.get("faces", [])
     if not faces:
         return "No faces detected."
