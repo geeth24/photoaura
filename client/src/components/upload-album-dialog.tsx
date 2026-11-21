@@ -24,6 +24,7 @@ import { toast } from "sonner"
 type Props = {
   mode: "new" | "existing"
   userId: number
+  albumSlug?: string
   albumName?: string
   onUploaded: () => void
   trigger?: React.ReactNode
@@ -62,6 +63,7 @@ function stageDetail(s: UploadStage): string {
 export function UploadAlbumDialog({
   mode,
   userId,
+  albumSlug,
   albumName,
   onUploaded,
   trigger,
@@ -104,7 +106,8 @@ export function UploadAlbumDialog({
 
   const resolvedName = mode === "new" ? name.trim() : albumName ?? ""
   const faces = lockFaceDetection || faceDetection
-  const canUpload = resolvedName.length > 0 && files.length > 0 && !uploading
+  const hasTarget = mode === "new" ? resolvedName.length > 0 : !!albumSlug
+  const canUpload = hasTarget && files.length > 0 && !uploading
 
   // clients upload videos too — say "video"/"item" so it doesn't read "photos"
   const hasVideos = files.some((f) => f.type.startsWith("video/"))
@@ -117,8 +120,10 @@ export function UploadAlbumDialog({
     setUploading(true)
     setStage({ stage: "uploading", pct: 0 })
     try {
-      const { albumSlug, processing } = await uploadAlbum(
-        { files, albumName: resolvedName, userId, faceDetection: faces },
+      const { albumSlug: uploadedSlug, processing } = await uploadAlbum(
+        mode === "new"
+          ? { files, albumName: resolvedName, userId, faceDetection: faces }
+          : { files, albumSlug, userId, faceDetection: faces },
         setStage
       )
       toast.success(
@@ -129,8 +134,8 @@ export function UploadAlbumDialog({
       onUploaded()
       setOpen(false)
       // faces/warming run server-side now — hand off to the live progress page
-      if (processing && albumSlug) {
-        router.push(`/albums/${albumSlug}/processing`)
+      if (processing && uploadedSlug) {
+        router.push(`/albums/${uploadedSlug}/processing`)
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed")

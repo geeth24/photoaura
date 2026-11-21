@@ -228,6 +228,37 @@ async def _notify(stage: str, current: int = 0, total: int = 0):
         pass
 
 
+def _upload_target(session, album_name, slug, face_detection, image_count):
+    """The album an upload lands in. A slug always means an existing album
+    (names can change); a bare name finds-or-creates by its slug."""
+    if slug:
+        album = session.query(Album).filter_by(slug=slug).first()
+        if not album:
+            raise HTTPException(status_code=404, detail="Album not found")
+        return album, True
+    if not album_name or not album_name.strip():
+        raise HTTPException(status_code=400, detail="album_name or slug is required")
+    album_slug = slugify(album_name)
+    album = session.query(Album).filter_by(slug=album_slug).first()
+    if album:
+        return album, True
+    album = Album(
+        name=album_name,
+        slug=album_slug,
+        location=os.path.join(settings.DATA_DIR, album_slug),
+        date=datetime.now(),
+        image_count=image_count,
+        shared=False,
+        upload=False,
+        secret=str(uuid4()),
+        face_detection=face_detection,
+    )
+    session.add(album)
+    session.commit()
+    session.refresh(album)
+    return album, False
+
+
 # Upload files and handle DB logic
 @router.post("/api/upload-files/")
 async def create_upload_files(
@@ -240,25 +271,9 @@ async def create_upload_files(
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    album_slug = slugify(album_name)
-    album = session.query(Album).filter_by(slug=album_slug).first()
-
-    if not album:
-        album = Album(
-            name=album_name,
-            slug=album_slug,
-            location=os.path.join(settings.DATA_DIR, album_slug),
-            date=datetime.now(),
-            image_count=len(files),
-            shared=False,
-            upload=False,
-            secret=str(uuid4()),
-            face_detection=face_detection,
-        )
-        session.add(album)
-        session.commit()
-        session.refresh(album)
-    else:
+    album, existed = _upload_target(session, album_name, slug, face_detection, len(files))
+    album_slug = album.slug
+    if existed:
         update = True
 
     if user_id and album:
@@ -417,6 +432,7 @@ async def create_upload_zip(
     file: UploadFile = File(...),
     album_name: str = Query(None),
     user_id: int = None,
+    slug: str = None,
     face_detection: bool = False,
     current_user=Depends(require_admin),
     session: Session = Depends(get_session),
@@ -424,26 +440,7 @@ async def create_upload_zip(
     """Bulk-upload an album from a single .zip of original files. Each entry
     runs through the same pipeline as /api/upload-files/ (S3, metadata, blur,
     faces, CDN warm)."""
-    if not album_name:
-        raise HTTPException(status_code=400, detail="album_name is required")
-
-    album_slug = slugify(album_name)
-    album = session.query(Album).filter_by(slug=album_slug).first()
-    if not album:
-        album = Album(
-            name=album_name,
-            slug=album_slug,
-            location=os.path.join(settings.DATA_DIR, album_slug),
-            date=datetime.now(),
-            image_count=0,
-            shared=False,
-            upload=False,
-            secret=str(uuid4()),
-            face_detection=face_detection,
-        )
-        session.add(album)
-        session.commit()
-        session.refresh(album)
+    album, _ = _upload_target(session, album_name, slug, face_detection, 0)
 
     if user_id and album:
         add_album_to_user(user_id, album.id)

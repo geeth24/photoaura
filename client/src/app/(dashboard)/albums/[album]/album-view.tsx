@@ -14,6 +14,7 @@ import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
 import { InviteClientDialog } from "@/components/invite-client-dialog"
 import { AlbumAccessDialog } from "@/components/album-access-dialog"
 import { ManageDownloadsDialog } from "@/components/manage-downloads-dialog"
+import { RenameAlbumDialog } from "@/components/rename-album-dialog"
 import { UploadRevisionDialog } from "@/components/upload-revision-dialog"
 import { AlbumRevisions } from "@/components/album-revisions"
 import { RevisionBanner } from "@/components/revision-banner"
@@ -282,6 +283,22 @@ export function AlbumView({
     }
   }
 
+  const handleRename = async (name: string) => {
+    const previous = album?.album_name
+    if (!previous) return
+    setAlbum((a) => (a ? { ...a, album_name: name } : a))
+    try {
+      await apiFetch(`/album/${albumSlug}/name`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      })
+      toast.success("Album renamed")
+    } catch (e) {
+      setAlbum((a) => (a ? { ...a, album_name: previous } : a))
+      toast.error(e instanceof Error ? e.message : "Couldn't rename the album")
+    }
+  }
+
   const [resyncing, setResyncing] = useState(false)
   const handleResyncFaces = async () => {
     if (resyncing) return
@@ -448,9 +465,14 @@ export function AlbumView({
             </span>
           </Link>
 
-          <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
-            {album.album_name}
-          </h1>
+          <div className="flex items-start gap-3">
+            <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
+              {album.album_name}
+            </h1>
+            {isAdmin && (
+              <RenameAlbumDialog albumName={album.album_name} onRename={handleRename} />
+            )}
+          </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="text-[11px] uppercase tracking-[0.2em] text-text-muted">
@@ -569,6 +591,7 @@ export function AlbumView({
             <UploadAlbumDialog
               mode="existing"
               userId={user.id}
+              albumSlug={albumSlug}
               albumName={album.album_name}
               open={uploadOpen}
               onOpenChange={(o) => {

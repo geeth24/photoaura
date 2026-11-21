@@ -121,7 +121,9 @@ export async function apiStream(
 
 export type UploadOptions = {
   files: File[]
-  albumName: string
+  // an existing album is targeted by slug so a rename can't split it in two
+  albumSlug?: string
+  albumName?: string
   userId: number
   faceDetection?: boolean
 }
@@ -199,10 +201,11 @@ export function uploadAlbum(
       const form = new FormData()
       opts.files.forEach((f) => form.append("files", f))
       const params = new URLSearchParams({
-        album_name: opts.albumName,
         user_id: String(opts.userId),
         face_detection: String(!!opts.faceDetection),
       })
+      if (opts.albumSlug) params.set("slug", opts.albumSlug)
+      else params.set("album_name", opts.albumName ?? "")
 
       // server returns once files are saved; faces/warming run in the
       // background and are tracked on the processing page.
