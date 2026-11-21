@@ -59,10 +59,21 @@ async function authedFetch(url: string, build: (token: string | null) => Request
   return res
 }
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+// identical GETs fired together (the nav and a page both asking for bookings)
+// share one request
+const inflightGets = new Map<string, Promise<unknown>>()
+
+export function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const isGet = !options.method || options.method.toUpperCase() === "GET"
+  if (!isGet || options.body) return request<T>(path, options)
+  const shared = inflightGets.get(path) as Promise<T> | undefined
+  if (shared) return shared
+  const sent = request<T>(path, options).finally(() => inflightGets.delete(path))
+  inflightGets.set(path, sent)
+  return sent
+}
+
+async function request<T>(path: string, options: RequestInit): Promise<T> {
   const res = await authedFetch(`${API_URL}${path}`, (token) => {
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
