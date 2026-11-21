@@ -52,6 +52,22 @@ data class AlbumDetail(
     // proof mode: watermarked previews until the booking's final payment
     val locked: Boolean = false,
     val bookingNumber: String? = null,
+    // curated sets; null until the studio publishes them, and absent on older servers
+    val highlights: List<String>? = null,
+    val smartPublished: Boolean = false,
+    val moments: List<Moment>? = null,
+)
+
+/** A stretch of the shoot, like "Cake cutting". `filenames` are in capture order. */
+@Serializable
+data class Moment(
+    val key: String,
+    val label: String = "",
+    val start: String? = null,
+    val end: String? = null,
+    val count: Int = 0,
+    val cover: String? = null,
+    val filenames: List<String> = emptyList(),
 )
 
 /** A batch of re-edits pushed after delivery. The delivery itself is version 1, so the first is number 2. */

@@ -44,6 +44,7 @@ import com.radsoftinc.editorialstyle.EditorialPhotoBadge
 import com.radsoftinc.editorialstyle.EditorialSkeleton
 import com.radsoftinc.editorialstyle.EditorialTheme
 import com.radsoftinc.photoaura.core.ImageUrls
+import com.radsoftinc.photoaura.core.MomentSection
 import com.radsoftinc.photoaura.core.Photo
 import com.radsoftinc.photoaura.ui.RemoteImage
 
@@ -85,6 +86,8 @@ fun PhotoGrid(
     gap: Dp = 2.dp,
     header: LazyGridScope.() -> Unit = {},
     footer: LazyGridScope.() -> Unit = {},
+    sections: List<MomentSection>? = null,
+    sectionHeader: @Composable (MomentSection) -> Unit = {},
 ) {
     val haptics = LocalHapticFeedback.current
     val cols by GridDensity.step
@@ -130,6 +133,16 @@ fun PhotoGrid(
         header()
         if (photos == null) {
             items(15) { EditorialSkeleton(Modifier.fillMaxWidth().aspectRatio(1f)) }
+        } else if (sections != null) {
+            var flat = 0
+            sections.forEach { section ->
+                val first = flat
+                fullWidth("moment-${section.key}") { sectionHeader(section) }
+                itemsIndexed(section.photos, key = { _, p -> "${section.key}/${p.id}" }) { i, p ->
+                    Tile(p, Modifier.onGloballyPositioned { frames.rects[p.id] = it.boundsInWindow() }) { onOpen(first + i) }
+                }
+                flat += section.photos.size
+            }
         } else {
             itemsIndexed(photos, key = { _, p -> p.id }) { idx, p ->
                 Tile(p, Modifier.onGloballyPositioned { frames.rects[p.id] = it.boundsInWindow() }) { onOpen(idx) }
