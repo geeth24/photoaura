@@ -380,6 +380,24 @@ class FaceEmbedding(Base):
     )
 
 
+class AlbumReel(Base):
+    """A rendered highlight reel (music-video MP4) for an album."""
+
+    __tablename__ = "album_reels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    album_id: Mapped[int] = mapped_column(
+        ForeignKey("album.id", ondelete="CASCADE"), index=True
+    )
+    aspect: Mapped[str] = mapped_column(String(8))  # 9:16 | 16:9
+    s3_key: Mapped[str] = mapped_column(String(255))
+    duration: Mapped[Optional[float]] = mapped_column(Float)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
+    )
+    status: Mapped[str] = mapped_column(String(16), server_default="rendering")  # rendering | ready | failed
+
+
 class Video(Base):
     __tablename__ = "videos"
 
