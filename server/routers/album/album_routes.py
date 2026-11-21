@@ -30,7 +30,16 @@ from services.aws_service import s3_client, invalidate_cdn
 from botocore.exceptions import ClientError
 from utils.utils import access_user_id, create_album_photos_json, capture_time, hold_key
 from utils.face_recog import chip_key_of
-from dependencies import is_admin_caller, oauth2_optional, preview_is_valid, require_admin, get_current_user, verify_token
+from dependencies import (
+    TOKEN_TYPE_TICKET,
+    decode_token,
+    is_admin_caller,
+    oauth2_optional,
+    preview_is_valid,
+    require_admin,
+    get_current_user,
+    verify_token,
+)
 from services.proof_service import LOCKED_DETAIL
 
 from routers.revisions.revisions_router import latest_revision
@@ -566,6 +575,7 @@ async def create_download_ticket(
             "sub": current_user.user_name,
             "album": album_slug,
             "scope": DOWNLOAD_SCOPE,
+            "typ": TOKEN_TYPE_TICKET,
             "exp": datetime.utcnow() + timedelta(minutes=15),
         },
         settings.SECRET_KEY,
@@ -591,9 +601,7 @@ def download_album_zip(
     allowed = False
     if ticket:
         try:
-            payload = jwt.decode(
-                ticket, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-            )
+            payload = decode_token(ticket, TOKEN_TYPE_TICKET)
             allowed = (
                 payload.get("scope") == DOWNLOAD_SCOPE
                 and payload.get("album") == album_slug
