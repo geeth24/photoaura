@@ -1,0 +1,27 @@
+{
+  "path": [
+    "client/src",
+    "server",
+    "face-service"
+  ],
+  "pattern": "**/*.{ts,tsx,py}",
+  "ignore": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/__pycache__/**",
+    "server/alembic/versions/**",
+    "server/tests/**",
+    "server/scripts/**",
+    "client/src/components/ui/**",
+    "**/*.test.ts"
+  ],
+  "minTokens": 50,
+  "minLines": 5,
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": "analysis/jscpd",
+  "gitignore": true,
+  "absolute": true
+}

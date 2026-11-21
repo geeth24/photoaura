@@ -1,14 +1,14 @@
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from models.user import User, UpdateUserForm
 from db.base import get_session, session_scope
 from db.models import User as UserModel, UserAlbumPermission, Album, UserEmail
-from dependencies import oauth2_scheme, get_current_user, require_admin
+from dependencies import get_current_user, require_admin
 from routers.auth.auth_router import (
     create_token,
     get_password_hash,
@@ -415,11 +415,6 @@ def invite_client(
         session.add(UserAlbumPermission(user_id=user.id, album_id=album.id))
 
     token = issue_magic_link(session, user, "invite")
-    import os
-
-    client_url = os.environ.get(
-        "NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com"
-    )
     link = _verify_link(token, f"/albums/{album.slug}")
     sent = send_invite(user.user_email, user.full_name, link, album.name, _album_counts(session, album))
     return {"message": "Invite sent" if sent else "Client added (email not sent)"}
@@ -724,7 +719,6 @@ def notify_user(
     if not email:
         raise HTTPException(status_code=400, detail="This user has no email on file")
 
-    name = user.full_name or "there"
     album = session.get(Album, body.album_id) if body.album_id else None
     if not album:
         # newest first, so a client added to a second album isn't told their

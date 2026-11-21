@@ -61,7 +61,6 @@ function fmtSize(bytes: number | null): string {
 
 export function ManageDownloadsDialog({
   albumId,
-  albumSlug,
   albumName,
   trigger,
   open: controlledOpen,

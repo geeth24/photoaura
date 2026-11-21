@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": { "correctness": "warn" },
+  "rules": {
+    "no-unused-expressions": ["warn", { "allowTernary": true }]
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/.next/**", "**/dist/**", "next-env.d.ts"]
+}

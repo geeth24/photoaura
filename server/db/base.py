@@ -23,7 +23,7 @@ class Base(DeclarativeBase):
 # a preview request is read-only below the handlers too: the transaction itself
 # is READ ONLY, and an explicit commit raises instead of quietly writing
 @event.listens_for(SessionLocal, "after_begin")
-def _read_only_transaction(session, transaction, connection):
+def _read_only_transaction(session, _transaction, connection):
     request = session.info.get("request")
     if request is not None and getattr(request.state, "read_only", False):
         connection.execute(text("SET TRANSACTION READ ONLY"))

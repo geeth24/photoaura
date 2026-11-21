@@ -5,7 +5,6 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    status,
 )
 from datetime import datetime
 import os
@@ -16,7 +15,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
-from db.models import Album, FileMetadata, User, PhotoFaceLink, FaceEmbedding
+from db.models import Album, FileMetadata, PhotoFaceLink, FaceEmbedding
 from services.aws_service import s3_client, invalidate_cdn
 from utils.face_recog import detect_and_store_faces, recluster_faces
 from services import smart_gallery
@@ -27,7 +26,7 @@ from services.video_transcode import transcode_to_web
 from routers.websocket.websocket_router import manager
 from services import proof_service, upload_jobs, upload_sessions
 from services.upload_sessions import Batch
-from dependencies import oauth2_scheme, get_current_user, require_admin
+from dependencies import require_admin
 from services.gemini_service import analyze_image
 from fastapi.responses import StreamingResponse
 import asyncio

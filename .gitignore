@@ -10,3 +10,8 @@ ios/PhotoAura/EditorialStyle/.swiftpm/
 .claude/
 .vercel
 .env*
+# quality reports and coverage output
+analysis/
+.coverage
+client/coverage/
+.pytest_cache/

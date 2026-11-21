@@ -7,7 +7,7 @@ from sqlalchemy import func
 import os
 
 from config import settings
-from db.base import get_session, session_scope, warm_up
+from db.base import get_session, warm_up
 from db.models import Album, User, FileMetadata
 from sqlalchemy.orm import Session
 from dependencies import oauth2_scheme, verify_token

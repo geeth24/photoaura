@@ -1,0 +1,46 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/components/ui/**/*.{ts,tsx}"
+  ],
+  "ignoreDependencies": [
+    "jscpd",
+    "oxlint",
+    "react-email"
+  ],
+  "ignoreIssues": {
+    "src/components/album-revisions.tsx": [
+      "exports"
+    ],
+    "src/components/location-stops.tsx": [
+      "exports"
+    ],
+    "src/components/store-badges.tsx": [
+      "exports"
+    ],
+    "src/components/time-picker.tsx": [
+      "exports"
+    ],
+    "src/components/upload-dropzone.tsx": [
+      "exports"
+    ],
+    "src/lib/api.ts": [
+      "exports"
+    ],
+    "src/lib/auth-refresh.ts": [
+      "exports"
+    ],
+    "src/lib/bookings.ts": [
+      "exports"
+    ],
+    "src/lib/download.ts": [
+      "exports"
+    ],
+    "src/lib/upload-batches.ts": [
+      "exports"
+    ],
+    "src/lib/types.ts": [
+      "types"
+    ]
+  }
+}

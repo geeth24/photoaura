@@ -1,0 +1,36 @@
+# Lint gate for server/ and face-service/ (Python 3.9, as in the Dockerfile).
+# Run from the repo root: ruff check server face-service
+
+target-version = "py39"
+extend-exclude = ["server/alembic/versions"]
+
+[lint]
+# pyflakes, bugbear and mccabe complexity stand in for sonarjs on the Python side
+select = ["E9", "F", "B", "C90"]
+ignore = [
+  # 13 raise-without-from sites in routers, mostly HTTPException re-raises; follow-up
+  "B904",
+]
+
+[lint.flake8-bugbear]
+# FastAPI reads Depends(), Query() and friends in defaults by design
+extend-immutable-calls = [
+  "fastapi.Depends",
+  "fastapi.Query",
+  "fastapi.Body",
+  "fastapi.File",
+  "fastapi.Form",
+  "fastapi.Header",
+  "fastapi.Cookie",
+  "fastapi.Path",
+]
+
+[lint.mccabe]
+# existing hot spots sit at 16-23; the report lists anything over 10
+max-complexity = 25
+
+[lint.per-file-ignores]
+# reels router is being reworked on another branch; revisit after that lands
+"server/routers/reels/reels_router.py" = ["F401"]
+# existing script, left as is; it needs a database to run
+"server/scripts/moments_test.py" = ["B007"]
