@@ -1,0 +1,114 @@
+name: Code quality
+
+# Lint, dead code, duplication, complexity, unit tests and coverage for the
+# client and the Python services. SwiftLint runs locally only (no macOS runner
+# is registered here). See .github/scripts/quality-report.ts.
+#
+# Not a required check; the sticky PR comment and the job summary carry the result.
+
+on:
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'face-service/**'
+      - 'requirements*.txt'
+      - 'ruff.toml'
+      - '.jscpd.json'
+      - '.github/workflows/analysis.yml'
+      - '.github/scripts/quality-report.ts'
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'face-service/**'
+      - 'requirements*.txt'
+      - 'ruff.toml'
+      - '.jscpd.json'
+      - '.github/workflows/analysis.yml'
+      - '.github/scripts/quality-report.ts'
+  workflow_dispatch:
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Code quality
+    runs-on: [self-hosted, universal]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # the report diffs against the base branch to decide which areas to check
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Changed areas
+        id: areas
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base=()
+          if [ "$EVENT" = "pull_request" ]; then base=(--base "origin/$BASE_REF"); fi
+          areas=$(bun run .github/scripts/quality-report.ts "${base[@]}" --print-areas)
+          echo "areas=$areas" >> "$GITHUB_OUTPUT"
+          echo "Checking: $areas"
+
+      - name: Client tools cache
+        if: contains(steps.areas.outputs.areas, 'client') || contains(steps.areas.outputs.areas, 'python')
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('client/bun.lock') }}
+
+      - name: Install client tools
+        if: contains(steps.areas.outputs.areas, 'client') || contains(steps.areas.outputs.areas, 'python')
+        working-directory: client
+        run: bun install --frozen-lockfile
+
+      - name: Set up Python
+        if: contains(steps.areas.outputs.areas, 'python')
+        uses: actions/setup-python@v5
+        with:
+          # matches the Dockerfile
+          python-version: '3.9'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install server tools
+        if: contains(steps.areas.outputs.areas, 'python')
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint, dead code, duplication, tests
+        env:
+          AREAS: ${{ steps.areas.outputs.areas }}
+          COMMENT: ${{ github.event_name == 'pull_request' && '--comment' || '' }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$AREAS" ]; then
+            echo "No client or server files changed."
+            exit 0
+          fi
+          args=(--areas "$AREAS")
+          if [ -n "$COMMENT" ]; then args+=("$COMMENT"); fi
+          bun run .github/scripts/quality-report.ts "${args[@]}"
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: analysis/
+          retention-days: 7
