@@ -47,6 +47,23 @@ export type Album = {
   // proof mode: watermarked, downloads refused until the final payment
   locked?: boolean
   booking_number?: string | null
+  // filenames the studio picked as the best of the shoot; clients only get them
+  // once published, null otherwise
+  highlights?: string[] | null
+  smart_published?: boolean
+}
+
+export type SmartReason = "blurry" | "eyes_closed" | "duplicate"
+
+export type SmartGallery = {
+  status: "none" | "scoring" | "ready"
+  published: boolean
+  highlights: string[]
+  manual: { add: string[]; remove: string[] }
+  stacks: { id: number; best: string; members: string[] }[]
+  review: Record<SmartReason, { filename: string; hidden: boolean }[]>
+  kept: string[]
+  counts: { photos: number; highlights: number; stacks: number; review: number; hidden: number }
 }
 
 export type Revision = {

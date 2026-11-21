@@ -111,6 +111,11 @@ class Album(Base):
     proof_locked: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
     # originals sit under {slug}/_hold/{hold_token}/ while locked; never sent to clients
     hold_token: Mapped[Optional[str]] = mapped_column(String(64))
+    # smart gallery: null until scored, then scoring -> ready. Clients only see
+    # highlights once published; touched = the studio chose, so delivery won't
+    smart_state: Mapped[Optional[str]] = mapped_column(String(12))
+    smart_published: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    smart_touched: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
 
     photos: Mapped[list["FileMetadata"]] = relationship(
         back_populates="album", cascade="all, delete-orphan"
@@ -148,6 +153,42 @@ class FileMetadata(Base):
     held: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
 
     album: Mapped[Optional["Album"]] = relationship(back_populates="photos")
+
+
+class PhotoScores(Base):
+    """Per-photo scores from the face service plus what the album-wide
+    selection pass decided. The studio's manual picks live in their own
+    columns so a re-run never overwrites them."""
+
+    __tablename__ = "photo_scores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    photo_id: Mapped[int] = mapped_column(
+        ForeignKey("file_metadata.id", ondelete="CASCADE"), unique=True
+    )
+    album_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("album.id", ondelete="CASCADE"), index=True
+    )
+    # raw, from the face service
+    aesthetic: Mapped[Optional[float]] = mapped_column(Float)
+    sharpness: Mapped[Optional[float]] = mapped_column(Float)
+    clipped_highlights: Mapped[Optional[float]] = mapped_column(Float)
+    clipped_shadows: Mapped[Optional[float]] = mapped_column(Float)
+    exposure_mean: Mapped[Optional[float]] = mapped_column(Float)
+    clip: Mapped[Optional[Any]] = mapped_column(Vector(768))
+    # derived by the selection pass
+    technical: Mapped[Optional[float]] = mapped_column(Float)
+    people: Mapped[Optional[float]] = mapped_column(Float)
+    main_faces: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
+    combined: Mapped[Optional[float]] = mapped_column(Float)
+    stack_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    is_stack_best: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    in_highlights: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    review_reason: Mapped[Optional[str]] = mapped_column(String(16))
+    # the studio's say: add/remove a highlight, keep/hide a review photo, pin a stack's best
+    manual_highlight: Mapped[Optional[str]] = mapped_column(String(8))
+    review_override: Mapped[Optional[str]] = mapped_column(String(8))
+    best_pinned: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
 
 
 class AlbumRevision(Base):

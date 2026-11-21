@@ -28,7 +28,7 @@ from utils.face_recog import (
     SUGGEST_DIST,
 )
 from dependencies import get_current_user, require_admin
-from services import upload_jobs
+from services import smart_gallery, upload_jobs
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
@@ -86,6 +86,12 @@ def _resync_album_faces(album_id: int, album_slug: str):
         # chaining-resistant, repicks key chips and preserves names
         upload_jobs.update_job(album_slug, phase="clustering")
         recluster_faces()
+        # same pass as an upload, so a resync also rebuilds highlights and stacks
+        try:
+            smart_gallery.select_album(album_id)
+        except Exception as e:
+            print(f"resync: smart selection failed for {album_slug!r}: {e}")
+            smart_gallery.set_state(album_id, None)
         upload_jobs.finish_job(album_slug)
         print(f"resync: album {album_slug!r} done — processed {done}/{total} photos")
     except Exception as e:

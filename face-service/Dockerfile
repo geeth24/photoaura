@@ -1,3 +1,12 @@
+# stage 1: export CLIP ViT-L/14 (OpenAI weights, quickgelu) to ONNX with CPU-only
+# PyTorch. Nothing from this stage reaches the final image except the exports.
+FROM python:3.11-slim AS clip-export
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install --no-cache-dir open_clip_torch onnx onnxconverter-common onnxruntime numpy pillow
+ADD https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac+logos+ava1-l14-linearMSE.pth /aesthetic.pth
+COPY export_clip.py /export_clip.py
+RUN python /export_clip.py /out /aesthetic.pth
+
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -18,7 +27,11 @@ RUN pip3 install --no-cache-dir \
 # no inference session (which segfaults at build time without a GPU)
 RUN python3 -c "from insightface.utils.storage import ensure_available; ensure_available('models','buffalo_l', root='/root/.insightface')"
 
-COPY app.py /app/app.py
+# CLIP image tower + aesthetic head, exported above; no PyTorch in this image
+COPY --from=clip-export /out/clip_visual.onnx /out/aesthetic.npz /models/
+ENV CLIP_DIR=/models PHOTO_SCORES=1
+
+COPY app.py photo_scores.py /app/
 WORKDIR /app
 EXPOSE 8000
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

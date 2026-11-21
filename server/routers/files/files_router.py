@@ -19,6 +19,7 @@ from db.base import get_session, session_scope
 from db.models import Album, FileMetadata, User, PhotoFaceLink, FaceEmbedding
 from services.aws_service import s3_client, invalidate_cdn
 from utils.face_recog import detect_and_store_faces, recluster_faces
+from services import smart_gallery
 from utils.utils import get_file_metadata, add_album_to_user, slugify, base_name_of
 from utils.image_utils import generate_blur_data_url
 from services.cdn_warm import warm_key
@@ -404,6 +405,7 @@ async def _process_album(
             n = len(face_targets)
             upload_jobs.update_job(album_slug, phase="faces", current=0, total=n)
             await _notify("faces", 0, n)
+            await asyncio.to_thread(smart_gallery.set_state, album_id, "scoring")
             for i, (s3_key, meta_id) in enumerate(face_targets):
                 # one bad photo must never abort the whole album — log & continue
                 try:
@@ -423,6 +425,13 @@ async def _process_album(
                 await asyncio.to_thread(recluster_faces)
             except Exception as e:
                 print(f"recluster after upload failed (non-fatal): {e}")
+
+            # one pass per album, after the faces: stacks, review pile, highlights
+            try:
+                await asyncio.to_thread(smart_gallery.select_album, album_id)
+            except Exception as e:
+                print(f"smart selection failed (non-fatal): {e}")
+                await asyncio.to_thread(smart_gallery.set_state, album_id, None)
 
         # stage 3: pre-warm CDN derivatives so the first view isn't a cold render
         warm_total = len(keys)
