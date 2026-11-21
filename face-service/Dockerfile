@@ -1,8 +1,11 @@
 # stage 1: export CLIP ViT-L/14 (OpenAI weights, quickgelu) to ONNX with CPU-only
 # PyTorch. Nothing from this stage reaches the final image except the exports.
 FROM python:3.11-slim AS clip-export
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
-    && pip install --no-cache-dir open_clip_torch onnx onnxconverter-common onnxruntime numpy pillow
+# torch and torchvision in one install from the CPU index, so pip picks a
+# matching pair; a PyPI torchvision on top fails with
+# "operator torchvision::nms does not exist"
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision \
+    && pip install --no-cache-dir open_clip_torch==4.2.2 onnx onnxconverter-common onnxruntime numpy pillow
 ADD https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac+logos+ava1-l14-linearMSE.pth /aesthetic.pth
 COPY export_clip.py /export_clip.py
 RUN python /export_clip.py /out /aesthetic.pth
