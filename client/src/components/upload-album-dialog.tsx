@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { ImageIcon, ScanFace } from "lucide-react"
+import { AlertCircle, ImageIcon, ScanFace } from "lucide-react"
 import { toast } from "sonner"
 
 type Props = {
@@ -53,8 +53,19 @@ function stagePct(s: UploadStage): number {
   return 0
 }
 
+const isSplit = (s: UploadStage) => s.stage === "uploading" && (s.batches ?? 1) > 1
+
+// split uploads read "Uploading 2 of 6 · 37%"; a retry says so
+function stageLabel(s: UploadStage): string {
+  if (!isSplit(s)) return STAGE_LABEL[s.stage]
+  const of = `${s.batch ?? 1} of ${s.batches}`
+  return s.attempt
+    ? `Retrying ${of} (attempt ${s.attempt} of 3) · ${s.pct ?? 0}%`
+    : `Uploading ${of} · ${s.pct ?? 0}%`
+}
+
 function stageDetail(s: UploadStage): string {
-  if (s.stage === "uploading") return `${s.pct ?? 0}%`
+  if (s.stage === "uploading") return isSplit(s) ? "" : `${s.pct ?? 0}%`
   if (s.stage === "done") return ""
   if (s.total) return `${s.current ?? 0}/${s.total}`
   return ""
@@ -80,12 +91,14 @@ export function UploadAlbumDialog({
   const [faceDetection, setFaceDetection] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [stage, setStage] = useState<UploadStage | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const reset = () => {
     setName("")
     setFiles([])
     setFaceDetection(false)
     setStage(null)
+    setError(null)
     setUploading(false)
   }
 
@@ -118,6 +131,7 @@ export function UploadAlbumDialog({
   const handleUpload = async () => {
     if (!canUpload) return
     setUploading(true)
+    setError(null)
     setStage({ stage: "uploading", pct: 0 })
     try {
       const { albumSlug: uploadedSlug, processing } = await uploadAlbum(
@@ -138,7 +152,7 @@ export function UploadAlbumDialog({
         router.push(`/albums/${uploadedSlug}/processing`)
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed")
+      setError(e instanceof Error ? e.message : "Upload failed")
       setUploading(false)
       setStage(null)
     }
@@ -219,9 +233,20 @@ export function UploadAlbumDialog({
           {uploading && stage && (
             <UploadProgress
               value={stagePct(stage)}
-              label={STAGE_LABEL[stage.stage]}
+              label={stageLabel(stage)}
               detail={stageDetail(stage)}
+              ellipsis={!isSplit(stage)}
             />
+          )}
+
+          {error && !uploading && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
           )}
         </div>
 
@@ -235,7 +260,7 @@ export function UploadAlbumDialog({
           />
           <Button onClick={handleUpload} disabled={!canUpload}>
             {uploading
-              ? `${STAGE_LABEL[stage?.stage ?? "uploading"]}…`
+              ? `${stage ? STAGE_LABEL[stage.stage] : "Uploading"}…`
               : mode === "new"
                 ? "Create album"
                 : "Upload"}

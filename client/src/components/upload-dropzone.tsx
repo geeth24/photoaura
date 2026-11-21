@@ -71,16 +71,18 @@ export function UploadProgress({
   value,
   label,
   detail,
+  ellipsis = true,
 }: {
   value: number
   label: string
   detail?: string
+  ellipsis?: boolean
 }) {
   return (
     <div className="space-y-1.5">
       <Progress value={value} />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{label}…</span>
+        <span>{label}{ellipsis && "…"}</span>
         <span>{detail}</span>
       </div>
     </div>
