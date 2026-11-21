@@ -85,6 +85,15 @@ def long_date(d) -> str:
     return f"{d.strftime('%A, %B')} {d.day}, {d.year}"
 
 
+def day(d, short: bool = False) -> str:
+    """"October 6, 2026", or "Oct 6, 2026"."""
+    if not d:
+        return ""
+    if isinstance(d, str):
+        d = date.fromisoformat(d)
+    return f"{d.strftime('%b' if short else '%B')} {d.day}, {d.year}"
+
+
 def clock(hhmm: Optional[str]) -> str:
     """"17:00" -> "5:00 PM"."""
     if not hhmm:

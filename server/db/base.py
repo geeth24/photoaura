@@ -36,6 +36,27 @@ def _no_commit_when_read_only(session):
         raise RuntimeError("read-only request tried to commit")
 
 
+def warm_up(connections: int = 4):
+    """Build the ORM mappers, open a few pool connections and compile the
+    statements every first screen runs, so the first real requests skip it."""
+    from sqlalchemy.orm import configure_mappers
+
+    from db.models import Album, UserAlbumPermission, User
+
+    configure_mappers()
+    open_conns = [engine.connect() for _ in range(connections)]
+    try:
+        for conn in open_conns:
+            conn.execute(text("SELECT 1"))
+    finally:
+        for conn in open_conns:
+            conn.close()
+    with SessionLocal() as session:
+        session.query(User).filter_by(user_name="").first()
+        session.query(Album).filter_by(slug="").first()
+        session.query(UserAlbumPermission).filter_by(user_id=0, album_id=0).first()
+
+
 def get_session(request: HTTPConnection):
     """FastAPI dependency: yields a session, commits on success, rolls back on error.
     A read-only request (a preview token) never commits, even from a GET handler."""
