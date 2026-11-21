@@ -229,7 +229,17 @@ def api_checks():
             allm = {f for m in ms for f in m["filenames"]}
             photos = {p["file_metadata"]["filename"] for p in get(A)["album_photos"]}
             check(len(photos) == 45 and len(allm) == 42, "the three untimed photos are in All but in no moment")
-            check(ms[1]["cover"] == "shot-019.jpg", "cover is the best combined score")
+            with session_scope() as s:
+                comb = {
+                    m.filename: sc.combined
+                    for sc, m in s.query(PhotoScores, FileMetadata)
+                    .join(FileMetadata, FileMetadata.id == PhotoScores.photo_id)
+                    .filter(FileMetadata.filename.in_(allm))
+                }
+            ranked = lambda m: sorted(m["filenames"], key=lambda f: -(comb.get(f) or -1.0))
+            check(ms[2]["cover"] == ranked(ms[2])[0], "an unlabeled moment's cover is its best combined score")
+            check(ms[1]["cover"] in ranked(ms[1])[: (len(ms[1]["filenames"]) + 1) // 2],
+                  "a labeled moment's cover comes from its better half by combined score")
 
             print("who sees moments")
             check(get(C)["moments"] is None, "client gets null before publishing")
