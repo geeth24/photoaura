@@ -1,17 +1,24 @@
-import google.generativeai as genai
 import os
 import json
 
 GOOGLE_AI_API_KEY = os.environ.get("GOOGLE_AI_API_KEY")
 
-if GOOGLE_AI_API_KEY:
-    genai.configure(api_key=GOOGLE_AI_API_KEY)
-    model = genai.GenerativeModel("gemini-3-flash-preview")
-else:
-    model = None
+_model = None
+
+
+def _get_model():
+    # the SDK takes about 350 ms to import and only uploads use it
+    global _model
+    if _model is None and GOOGLE_AI_API_KEY:
+        import google.generativeai as genai
+
+        genai.configure(api_key=GOOGLE_AI_API_KEY)
+        _model = genai.GenerativeModel("gemini-3-flash-preview")
+    return _model
 
 
 def analyze_image(image_bytes: bytes) -> dict:
+    model = _get_model()
     if not model:
         return {"description": None, "tags": []}
 

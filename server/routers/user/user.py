@@ -512,6 +512,19 @@ def create_user_json(user):
     }
 
 
+def _album_item(album) -> dict:
+    return {
+        "id": album.id,
+        "name": album.name,
+        "slug": album.slug,
+        "location": album.location,
+        "date": album.date,
+        "image_count": album.image_count,
+        "shared": album.shared,
+        "locked": bool(album.proof_locked),
+    }
+
+
 def get_albums_for_user(session: Session, user_id):
     user_id = access_user_id(session, user_id)
     albums = (
@@ -521,19 +534,21 @@ def get_albums_for_user(session: Session, user_id):
         .order_by(Album.id.desc())
         .all()
     )
-    return [
-        {
-            "id": album.id,
-            "name": album.name,
-            "slug": album.slug,
-            "location": album.location,
-            "date": album.date,
-            "image_count": album.image_count,
-            "shared": album.shared,
-            "locked": bool(album.proof_locked),
-        }
-        for album in albums
-    ]
+    return [_album_item(album) for album in albums]
+
+
+def _albums_by_owner(session: Session) -> dict:
+    """Every account's albums at once: owner id -> albums, newest first."""
+    rows = (
+        session.query(UserAlbumPermission.user_id, Album)
+        .join(Album, Album.id == UserAlbumPermission.album_id)
+        .order_by(Album.id.desc())
+        .all()
+    )
+    out: dict = {}
+    for owner_id, album in rows:
+        out.setdefault(owner_id, []).append(_album_item(album))
+    return out
 
 
 @router.get("/api/users/")
@@ -546,8 +561,10 @@ def read_users(
     for u in users:
         if u["parent_user_id"]:
             by_parent.setdefault(u["parent_user_id"], []).append(u)
+    albums = _albums_by_owner(session)
     for user in users:
-        user["albums"] = get_albums_for_user(session, user["id"])
+        # a family member sees the primary account's albums
+        user["albums"] = list(albums.get(user["parent_user_id"] or user["id"], []))
         user["family"] = by_parent.get(user["id"], [])
     return users
 

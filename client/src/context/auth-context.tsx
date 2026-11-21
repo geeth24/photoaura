@@ -105,7 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // admin) take effect without forcing a re-login
           apiFetch<User>("/me")
             .then((fresh) => {
-              setUser(fresh)
+              // same user, same object, so effects keyed on it don't refetch
+              setUser((prev) => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh))
               // read the cookie again: this request may have refreshed the session
               setCookie("user", JSON.stringify(fresh), maxAgeFor(getCookie("token") ?? savedToken))
             })

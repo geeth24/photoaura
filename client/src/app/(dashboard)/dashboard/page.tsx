@@ -17,22 +17,27 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [faces, setFaces] = useState<Face[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
-  const [loading, setLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [facesLoading, setFacesLoading] = useState(true)
+  const [albumsLoading, setAlbumsLoading] = useState(true)
+  const loading = statsLoading || facesLoading || albumsLoading
 
+  // each card fills in as its own request lands; the slow one doesn't hold the rest
   useEffect(() => {
     if (!user) return
 
-    Promise.allSettled([
-      apiFetch<DashboardStats>("/dashboard/"),
-      apiFetch<Face[]>("/faces"),
-      apiFetch<Album[]>(`/albums/?user_id=${user.id}`),
-    ])
-      .then(([s, f, a]) => {
-        if (s.status === "fulfilled") setStats(s.value)
-        if (f.status === "fulfilled") setFaces(f.value)
-        if (a.status === "fulfilled") setAlbums(a.value)
-      })
-      .finally(() => setLoading(false))
+    apiFetch<DashboardStats>("/dashboard/")
+      .then(setStats)
+      .catch(() => {})
+      .finally(() => setStatsLoading(false))
+    apiFetch<Face[]>("/faces")
+      .then(setFaces)
+      .catch(() => {})
+      .finally(() => setFacesLoading(false))
+    apiFetch<Album[]>(`/albums/?user_id=${user.id}`)
+      .then(setAlbums)
+      .catch(() => {})
+      .finally(() => setAlbumsLoading(false))
   }, [user])
 
   // first name for a warmer greeting, falls back gracefully
@@ -44,10 +49,10 @@ export default function DashboardPage() {
   const maxCount = largest[0]?.image_count || 1
 
   const statCards = [
-    { label: "Albums", icon: FolderOpen, value: stats?.albums, note: sharedCount ? `${sharedCount} shared` : null },
-    { label: "Photos", icon: Images, value: stats?.photos, note: null },
-    { label: "Faces", icon: Smile, value: faces.length, note: null },
-    { label: "Users", icon: Users, value: stats?.users, note: null },
+    { label: "Albums", icon: FolderOpen, value: stats?.albums, note: sharedCount ? `${sharedCount} shared` : null, pending: statsLoading },
+    { label: "Photos", icon: Images, value: stats?.photos, note: null, pending: statsLoading },
+    { label: "Faces", icon: Smile, value: faces.length, note: null, pending: facesLoading },
+    { label: "Users", icon: Users, value: stats?.users, note: null, pending: statsLoading },
   ]
 
   return (
@@ -76,7 +81,7 @@ export default function DashboardPage() {
 
       {/* stats */}
       <div className="grid gap-px overflow-hidden border border-border-subtle bg-border-subtle sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map(({ label, icon: Icon, value, note }, i) => (
+        {statCards.map(({ label, icon: Icon, value, note, pending }, i) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, y: 24 }}
@@ -96,7 +101,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-10">
-              {loading ? (
+              {pending ? (
                 <Skeleton className="h-12 w-24" />
               ) : (
                 <>
@@ -116,7 +121,7 @@ export default function DashboardPage() {
       </div>
 
       {/* recent albums + largest collections */}
-      {!loading && albums.length > 0 && (
+      {!albumsLoading && albums.length > 0 && (
         <div className="grid gap-10 lg:grid-cols-3">
           {/* recent albums */}
           <section className="space-y-6 lg:col-span-2">

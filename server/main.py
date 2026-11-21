@@ -1,15 +1,17 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from contextlib import asynccontextmanager
+import logging
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func
 import os
 
 from config import settings
-from db.base import get_session, session_scope
+from db.base import get_session, session_scope, warm_up
 from db.models import Album, User, FileMetadata
 from sqlalchemy.orm import Session
 from dependencies import oauth2_scheme, verify_token
+from utils.gzip_json import JsonGZipMiddleware
 from routers.auth.auth_router import router as auth_router
 from routers.user.user import router as user_router
 from routers.album.album_routes import router as album_router
@@ -32,12 +34,17 @@ from routers.reels.reels_router import router as reels_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 PhotoAura API starting up...")
+    try:
+        warm_up()
+    except Exception as e:
+        logging.warning("warm-up skipped: %s", e)
     yield
     print("👋 PhotoAura API shutting down...")
 
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(JsonGZipMiddleware, minimum_size=1000, compresslevel=5)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS if settings.CORS_ORIGINS != ["*"] else ["*"],
@@ -79,7 +86,7 @@ async def api_root():
 
 
 @app.get("/api/dashboard/")
-async def get_dashboard(
+def get_dashboard(
     token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
 ):
     credentials_exception = HTTPException(
@@ -89,9 +96,11 @@ async def get_dashboard(
     )
     verify_token(token, credentials_exception)
 
-    albums_count = session.query(func.count(Album.id)).scalar()
-    users_count = session.query(func.count(User.id)).scalar()
-    photos_count = session.query(func.count(FileMetadata.id)).scalar()
+    albums_count, users_count, photos_count = session.query(
+        session.query(func.count(Album.id)).scalar_subquery(),
+        session.query(func.count(User.id)).scalar_subquery(),
+        session.query(func.count(FileMetadata.id)).scalar_subquery(),
+    ).one()
 
     return {
         "albums": albums_count,

@@ -188,9 +188,9 @@ def my_home(
     photo/video counts and a cover, plus any files to download."""
     from sqlalchemy import func
     from db.models import Album, FileMetadata, UserAlbumPermission
-    from utils.utils import build_photo_json
-    from routers.revisions.revisions_router import latest_revision
-    from routers.album.album_routes import album_booking_number
+    from utils.utils import thumb_url
+    from routers.revisions.revisions_router import latest_revisions
+    from routers.album.album_routes import album_booking_numbers
 
     me = _me(session, current_user)
     owner = me.parent_user_id or me.id
@@ -202,17 +202,37 @@ def my_home(
         .order_by(Album.id.desc())
         .all()
     )
+    album_ids = [a.id for a in albums]
+    locked_ids = [a.id for a in albums if a.proof_locked]
+    is_video = FileMetadata.content_type.like("video/%")
+
+    counts, covers = {}, {}
+    if album_ids:
+        counts = {
+            album_id: (total, videos)
+            for album_id, total, videos in session.query(
+                FileMetadata.album_id,
+                func.count(FileMetadata.id),
+                func.count(FileMetadata.id).filter(is_video),
+            )
+            .filter(FileMetadata.album_id.in_(album_ids))
+            .group_by(FileMetadata.album_id)
+        }
+        # the first still of each album; a proof-locked one only counts held photos
+        covers = dict(
+            session.query(FileMetadata.album_id, FileMetadata.filename)
+            .filter(FileMetadata.album_id.in_(album_ids), ~is_video)
+            .filter((FileMetadata.album_id.notin_(locked_ids)) | FileMetadata.held.is_(True))
+            .order_by(FileMetadata.album_id, FileMetadata.id)
+            .distinct(FileMetadata.album_id)
+        )
+    revisions = latest_revisions(session, album_ids)
+    booking_numbers = album_booking_numbers(session, locked_ids)
+
     out_albums = []
     for a in albums:
-        in_album = session.query(func.count(FileMetadata.id)).filter(FileMetadata.album_id == a.id)
-        total = in_album.scalar() or 0
-        videos = in_album.filter(FileMetadata.content_type.like("video/%")).scalar() or 0
-        covers = session.query(FileMetadata).filter(
-            FileMetadata.album_id == a.id, ~FileMetadata.content_type.like("video/%")
-        )
-        if a.proof_locked:
-            covers = covers.filter(FileMetadata.held.is_(True))
-        cover = covers.order_by(FileMetadata.id).first()
+        total, videos = counts.get(a.id, (0, 0))
+        cover = covers.get(a.id)
         out_albums.append(
             {
                 "id": a.id,
@@ -222,10 +242,10 @@ def my_home(
                 "location": a.location,
                 "photo_count": total - videos,
                 "video_count": videos,
-                "cover": build_photo_json(cover, a.slug)["compressed_image"] if cover else None,
-                "revision": latest_revision(session, a.id),
+                "cover": thumb_url(a.slug, cover) if cover else None,
+                "revision": revisions.get(a.id),
                 "locked": bool(a.proof_locked),
-                "booking_number": album_booking_number(session, a.id) if a.proof_locked else None,
+                "booking_number": booking_numbers.get(a.id) if a.proof_locked else None,
             }
         )
 

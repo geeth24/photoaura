@@ -96,13 +96,21 @@ def _revision_json(rev: AlbumRevision):
 
 
 def latest_revision(session, album_id) -> Optional[dict]:
-    rev = (
+    return latest_revisions(session, [album_id]).get(album_id)
+
+
+def latest_revisions(session, album_ids) -> dict:
+    """Newest revision of each album that has one, in a single query."""
+    if not album_ids:
+        return {}
+    rows = (
         session.query(AlbumRevision)
-        .filter_by(album_id=album_id)
-        .order_by(AlbumRevision.number.desc())
-        .first()
+        .filter(AlbumRevision.album_id.in_(list(album_ids)))
+        .order_by(AlbumRevision.album_id, AlbumRevision.number.desc())
+        .distinct(AlbumRevision.album_id)
+        .all()
     )
-    return _revision_json(rev) if rev else None
+    return {rev.album_id: _revision_json(rev) for rev in rows}
 
 
 class PreviewBody(BaseModel):

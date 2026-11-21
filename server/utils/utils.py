@@ -7,6 +7,7 @@ import json
 import PIL.ExifTags
 from io import BytesIO
 from datetime import datetime
+from fastapi.responses import Response
 from config import settings
 from db.base import session_scope
 from db.models import User, UserAlbumPermission
@@ -29,6 +30,21 @@ AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 AWS_BUCKET = settings.AWS_BUCKET
 
 
+_EXIF_TS = re.compile(r"\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}")
+
+
+def _exif_datetime(value) -> datetime:
+    """EXIF "2026:08:28 17:04:11". strptime is the slow part of sorting a few
+    thousand photos, so the usual shape is split by hand."""
+    s = str(value)
+    if _EXIF_TS.fullmatch(s):
+        try:
+            return datetime(int(s[:4]), int(s[5:7]), int(s[8:10]), int(s[11:13]), int(s[14:16]), int(s[17:19]))
+        except ValueError:
+            pass
+    return datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
+
+
 def capture_time(meta):
     """When the shot was taken — EXIF DateTimeOriginal, falling back to upload
     time so everything sorts chronologically (matches how the camera saw it).
@@ -48,7 +64,7 @@ def capture_time(meta):
         dt = raw.get("DateTimeOriginal") or raw.get("DateTime")
         if dt:
             try:
-                return datetime.strptime(str(dt), "%Y:%m:%d %H:%M:%S")
+                return _exif_datetime(dt)
             except Exception:
                 pass
     return get("upload_date") or datetime.min
@@ -105,6 +121,30 @@ def get_file_metadata(album_id: int, album_dir: str, file: UploadFile):
     }
 
 
+def thumb_url(album_slug, filename):
+    """Grid thumbnail of a photo, served through the CDN resizer."""
+    return f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{filename}"
+
+
+def _json_default(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"{type(obj).__name__} is not JSON serializable")
+
+
+def json_response(content):
+    """Same bytes FastAPI would send for this payload, without the per-value
+    walk of jsonable_encoder (about a third of the time on a big photo list)."""
+    body = json.dumps(
+        content,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        default=_json_default,
+    )
+    return Response(body.encode("utf-8"), media_type="application/json")
+
+
 def build_photo_json(meta, album_slug, locked=None):
     """One photo's JSON, with URLs resolved against the album it actually
     lives in — so curated category lists can mix photos from many albums."""
@@ -125,7 +165,7 @@ def build_photo_json(meta, album_slug, locked=None):
         # plain URLs — works with every client version. ?v versioning broke
         # clients still running the old loader (jams ?v into the S3 key ->
         # 404); not worth breaking prod for the rare re-upload-overwrite case.
-        compressed_image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/{album_slug}/{meta.filename}"  # Grid thumbnail
+        compressed_image_url = thumb_url(album_slug, meta.filename)  # Grid thumbnail
         image_url = f"https://{AWS_CLOUDFRONT_URL}/fit-in/1920x0/{album_slug}/{meta.filename}"  # Detailed view
     out = {
         "image": image_url,
@@ -158,10 +198,19 @@ def proof_ready(meta, locked) -> bool:
     return not locked or bool(getattr(meta, "held", False)) or (meta.content_type or "").startswith("video/")
 
 
+def timed_album_photos(album_slug, file_metadata, locked=None):
+    """(capture time, photo JSON) pairs, chronological. Callers that merge
+    albums reuse the time instead of parsing every photo's EXIF again."""
+    timed = sorted(
+        ((capture_time(m), m) for m in file_metadata if proof_ready(m, locked)),
+        key=lambda pair: pair[0],
+    )
+    return [(t, build_photo_json(meta, album_slug, locked)) for t, meta in timed]
+
+
 def create_album_photos_json(album_slug, file_metadata, locked=None):
     # chronological by capture time so the grid + lightbox read like the event
-    file_metadata = sorted((m for m in file_metadata if proof_ready(m, locked)), key=capture_time)
-    return [build_photo_json(meta, album_slug, locked) for meta in file_metadata]
+    return [photo for _, photo in timed_album_photos(album_slug, file_metadata, locked)]
 
 
 def hold_key(album_slug: str, hold_token: str, name: str) -> str:

@@ -5,7 +5,7 @@ from typing import Optional
 
 from fpdf.enums import MethodReturnValue
 
-from services.booking_service import PHOTOGRAPHER, ZELLE, clock, dollars, long_date
+from services.booking_service import PHOTOGRAPHER, ZELLE, clock, day, dollars, long_date
 from services.studio_pdf import BODY_TOP, BRAND, INK, MARGIN, MUTED, RULE, StudioDoc, inline, rule
 
 STUDIO_NAME = "Reactive Shots Studios"
@@ -16,15 +16,6 @@ STUDIO_SITE = "reactiveshots.com"
 TEXT, ROW = 9.5, 4.9
 FAINT_RULE = (228, 228, 228)
 TINT = (234, 247, 255)
-
-
-def day(d, short: bool = False) -> str:
-    """"October 6, 2026", or "Oct 6, 2026"."""
-    if not d:
-        return ""
-    if isinstance(d, str):
-        d = date.fromisoformat(d)
-    return f"{d.strftime('%b' if short else '%B')} {d.day}, {d.year}"
 
 
 def _width(pdf: StudioDoc) -> float:

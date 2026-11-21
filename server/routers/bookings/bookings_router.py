@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Re
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import Integer, cast, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from config import settings
 from db.base import get_session, session_scope
@@ -34,6 +34,7 @@ from services.booking_service import (
     ZELLE_PHONE,
     contract_fields,
     contract_hash,
+    day,
     dollars,
     hours_text,
     local_date,
@@ -45,8 +46,6 @@ from services.booking_service import (
     schedule_amounts,
     today_local,
 )
-from services.contract_pdf import render_pdf
-from services.invoice_pdf import day, render_invoice
 from utils.utils import slugify
 
 router = APIRouter()
@@ -280,6 +279,25 @@ def _resolve_client(session, data: dict, create: bool):
 def _client_of(session, b: Booking):
     u = session.get(User, b.client_user_id) if b.client_user_id else None
     return u, (u.full_name if u else ""), (_primary_email(session, u) if u else "")
+
+
+def _preload_list(session, rows: list):
+    """What a list of bookings reads, a query each instead of one per row:
+    clients, their primary emails and the linked albums, keyed by id."""
+    user_ids = {b.client_user_id for b in rows if b.client_user_id}
+    album_ids = {b.album_id for b in rows if b.album_id}
+    users, emails, albums = {}, {}, {}
+    if user_ids:
+        users = {u.id: u for u in session.query(User).filter(User.id.in_(user_ids))}
+        emails = dict(
+            session.query(UserEmail.user_id, UserEmail.email)
+            .filter(UserEmail.user_id.in_(user_ids))
+            .order_by(UserEmail.user_id, UserEmail.is_primary.desc(), UserEmail.id)
+            .distinct(UserEmail.user_id)
+        )
+    if album_ids:
+        albums = {a.id: a for a in session.query(Album).filter(Album.id.in_(album_ids))}
+    return users, emails, albums
 
 
 def _owner_ids(session, me: User) -> list:
@@ -598,11 +616,18 @@ def list_bookings(
     q = session.query(Booking)
     if status:
         q = q.filter(Booking.status.in_([s.strip() for s in status.split(",") if s.strip()]))
-    rows = q.order_by(Booking.event_date.desc().nullslast(), Booking.id.desc()).all()
+    rows = (
+        q.options(selectinload(Booking.payments))
+        .order_by(Booking.event_date.desc().nullslast(), Booking.id.desc())
+        .all()
+    )
+    users, emails, albums = _preload_list(session, rows)
     out = []
     for b in rows:
-        _, name, email = _client_of(session, b)
-        album = session.get(Album, b.album_id) if b.album_id else None
+        u = users.get(b.client_user_id)
+        name = u.full_name if u else ""
+        email = (emails.get(u.id) or u.user_email) if u else ""
+        album = albums.get(b.album_id)
         out.append({
             **_summary_json(session, b),
             "client": {"user_id": b.client_user_id, "full_name": name, "email": email},
@@ -1052,6 +1077,8 @@ def cancel_booking(
 # ---- contract PDF ----
 
 def _store_pdf(session, b: Booking) -> bytes:
+    from services.contract_pdf import render_pdf
+
     _, name, email = _client_of(session, b)
     pdf = render_pdf(b, b.contract_markdown, name, email)
     # random, not the hash: the hash can be recomputed by anyone who knows the terms
@@ -1080,6 +1107,8 @@ def contract_pdf(
     session: Session = Depends(get_session),
 ):
     """The signed agreement, for the admin or the booking's client."""
+    from services.contract_pdf import render_pdf
+
     me = session.query(User).filter_by(user_name=current_user.user_name).first()
     if not me:
         raise HTTPException(status_code=401, detail="Account not found")
@@ -1220,6 +1249,8 @@ def _invoice(session, b: Booking) -> dict:
 
 
 def _invoice_response(session, b: Booking) -> Response:
+    from services.invoice_pdf import render_invoice
+
     pdf = render_invoice(_invoice(session, b))
     return _pdf_response(pdf, f"Reactive Shots Studios Invoice INV-{b.number}.pdf")
 
@@ -1262,8 +1293,13 @@ def my_bookings(current_user=Depends(get_current_user), session: Session = Depen
     rows = (
         session.query(Booking)
         .filter(Booking.client_user_id.in_(_owner_ids(session, me)), Booking.sent_at.isnot(None))
+        .options(selectinload(Booking.payments))
         .order_by(Booking.event_date.desc().nullslast(), Booking.id.desc())
         .all()
+    )
+    album_ids = {b.album_id for b in rows if b.album_id}
+    albums = (
+        {a.id: a for a in session.query(Album).filter(Album.id.in_(album_ids))} if album_ids else {}
     )
     out = []
     for b in rows:
@@ -1275,7 +1311,7 @@ def my_bookings(current_user=Depends(get_current_user), session: Session = Depen
             action = "pay"
         else:
             action = None
-        album = session.get(Album, b.album_id) if b.album_id else None
+        album = albums.get(b.album_id)
         shown = album and (b.delivered_at or b.unlocked_at)
         out.append({
             **item,
@@ -1304,6 +1340,7 @@ def my_invoices(current_user=Depends(get_current_user), session: Session = Depen
     rows = (
         session.query(Booking)
         .filter(Booking.client_user_id.in_(_owner_ids(session, me)), Booking.sent_at.isnot(None))
+        .options(selectinload(Booking.payments))
         .order_by(Booking.event_date.desc().nullslast(), Booking.id.desc())
         .all()
     )

@@ -11,16 +11,6 @@ session = boto3.Session(
 )
 
 s3_client = session.client("s3")
-rekognition_client = session.client("rekognition")
-cloudfront_client = session.client("cloudfront")
-
-if settings.AWS_BUCKET:
-    try:
-        rekognition_client.create_collection(CollectionId=settings.AWS_BUCKET)
-    except rekognition_client.exceptions.ResourceAlreadyExistsException:
-        pass
-    except Exception as e:
-        print(f"Error creating Rekognition collection: {e}")
 
 
 def invalidate_cdn(paths=("/*",)):
@@ -31,7 +21,7 @@ def invalidate_cdn(paths=("/*",)):
     if not dist:
         return
     try:
-        cloudfront_client.create_invalidation(
+        session.client("cloudfront").create_invalidation(
             DistributionId=dist,
             InvalidationBatch={
                 "Paths": {"Quantity": len(paths), "Items": list(paths)},

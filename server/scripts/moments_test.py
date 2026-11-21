@@ -288,17 +288,18 @@ def migration_checks():
     has = lambda: ("album_moments" in insp().get_table_names(), "moment_key" in {c["name"] for c in insp().get_columns("photo_scores")})
     head = lambda: sa.text("select version_num from alembic_version")
     with engine.connect() as conn:
-        check(conn.execute(head()).scalar() == "0025", "database starts at 0025")
+        start = conn.execute(head()).scalar()
+    check(start >= "0025", f"database has 0025 applied (at {start})")
     check(has() == (True, True), "table and column exist")
     command.downgrade(cfg, "0024")
     engine.dispose()
     with engine.connect() as conn:
         check(conn.execute(head()).scalar() == "0024", "downgrade lands on 0024 (the revision it follows)")
     check(has() == (False, False), "downgrade drops the table and the column")
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, start)
     engine.dispose()
     with engine.connect() as conn:
-        check(conn.execute(head()).scalar() == "0025", "upgrade returns to 0025")
+        check(conn.execute(head()).scalar() == start, f"upgrade returns to {start}")
     check(has() == (True, True), "and brings both back")
     from alembic.script import ScriptDirectory
     rev = ScriptDirectory.from_config(cfg).get_revision("0025")
