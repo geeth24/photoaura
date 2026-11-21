@@ -1,4 +1,4 @@
-import { isVideo, type Photo } from "@/lib/types"
+import { isVideo, type Photo, type Reel } from "@/lib/types"
 import { apiFetch } from "@/lib/api"
 
 const CDN = "https://aura-cdn.reactiveshots.com"
@@ -110,6 +110,12 @@ export async function downloadAlbumZip(slug: string) {
 export function downloadSharedAlbumZip(slug: string, secret?: string) {
   const q = secret ? `?secret=${encodeURIComponent(secret)}` : ""
   navigateDownload(`${API_URL}/album/${slug}/download-all${q}`)
+}
+
+export async function downloadReel(reel: Reel, slug: string) {
+  const shape = reel.aspect === "9:16" ? "vertical" : "horizontal"
+  const name = `${slug}-reel-${reel.id}-${shape}.mp4`
+  await saveBlob(reel.url, name).catch(() => window.open(reel.url, "_blank"))
 }
 
 // kept for callers that just want "the good one"

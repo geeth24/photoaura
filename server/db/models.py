@@ -418,6 +418,8 @@ class AlbumReel(Base):
         TIMESTAMP, server_default=text("CURRENT_TIMESTAMP")
     )
     status: Mapped[str] = mapped_column(String(16), server_default="rendering")  # rendering | ready | failed
+    # clients see a reel only once it's ready and published
+    published: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
 
 
 class Video(Base):

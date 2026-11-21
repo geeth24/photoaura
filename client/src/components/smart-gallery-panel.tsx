@@ -5,6 +5,7 @@ import { Check, ChevronDown, EyeOff, Loader2, Pencil, Plus, Undo2, X } from "luc
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
 import { tileSrc } from "@/components/photo-grid"
+import { SmartReels } from "@/components/smart-reels"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { momentRange, spansDays } from "@/lib/moments"
@@ -152,6 +153,10 @@ export function SmartGalleryPanel({ albumSlug, photos, onOpen, onChanged }: Prop
             )
           })}
         </div>
+      </Section>
+
+      <Section title="Reels" note="Highlights set to music">
+        <SmartReels albumSlug={albumSlug} />
       </Section>
 
       <Section

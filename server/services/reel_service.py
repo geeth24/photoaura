@@ -1,6 +1,7 @@
 """Render an album's photos into a reel, store it in S3 and track it in the DB.
 
-The scoring that picks the photos lives elsewhere; this only takes filenames.
+The scoring lives in smart_gallery; this picks from its Highlights when the
+studio doesn't hand over filenames.
 """
 
 from __future__ import annotations
@@ -15,14 +16,16 @@ import threading
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from config import settings
 from db.base import session_scope
-from db.models import Album, AlbumReel, FaceEmbedding, FileMetadata
+from db.models import Album, AlbumReel, FaceEmbedding, FileMetadata, PhotoScores
 from services import reel_jobs
 from services import reel_renderer as rr
 from services.aws_service import s3_client
+from utils.utils import capture_time
 
 AWS_BUCKET = settings.AWS_BUCKET
 AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
@@ -30,6 +33,8 @@ AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 MUSIC_PREFIX = "_music/"
 MUSIC_KEY_RE = re.compile(r"^_music/[0-9a-f]{32}\.(mp3|m4a|wav)$")
 MAX_REEL_PHOTOS = 60
+# what a 15-30 s reel holds without rushing the shots
+DEFAULT_REEL_PHOTOS = 18
 
 # one encode at a time: the pod has 3 cores and the API shares them
 _render_slot = threading.Semaphore(1)
@@ -47,6 +52,76 @@ def poster_key(s3_key: str) -> str:
 
 def public_url(key: str) -> str:
     return f"https://{AWS_CLOUDFRONT_URL}/{key}"
+
+
+def pick_reel_photos(
+    items: Sequence[Tuple[str, datetime, Optional[float]]], limit: int = DEFAULT_REEL_PHOTOS
+) -> List[str]:
+    """Spread a reel across the whole shoot. items are (filename, capture time,
+    combined score). Splits the time span into `limit` equal buckets and takes
+    the best score in each, tops up from the best of the rest when some buckets
+    are empty, and returns filenames in time order."""
+    ordered = sorted(items, key=lambda x: (x[1], x[0]))
+    if len(ordered) <= limit:
+        return [f for f, _, _ in ordered]
+
+    def rank(i):
+        f, t, score = ordered[i]
+        return (-(score if score is not None else float("-inf")), t, f)
+
+    start, end = ordered[0][1], ordered[-1][1]
+    span = (end - start).total_seconds()
+    best: Dict[int, int] = {}
+    for i, (_, t, _) in enumerate(ordered):
+        b = min(int((t - start).total_seconds() / span * limit), limit - 1) if span > 0 else 0
+        if b not in best or rank(i) < rank(best[b]):
+            best[b] = i
+    picked = set(best.values())
+    rest = sorted((i for i in range(len(ordered)) if i not in picked), key=rank)
+    picked.update(rest[: limit - len(picked)])
+    return [ordered[i][0] for i in sorted(picked)]
+
+
+def highlight_reel_filenames(session, album_id: int, limit: int = DEFAULT_REEL_PHOTOS) -> List[str]:
+    """The default reel: up to `limit` of the album's Highlights, spread over the shoot."""
+    rows = (
+        session.query(FileMetadata, PhotoScores.combined)
+        .join(PhotoScores, PhotoScores.photo_id == FileMetadata.id)
+        .filter(
+            FileMetadata.album_id == album_id,
+            PhotoScores.in_highlights.is_(True),
+            PhotoScores.review_override.is_distinct_from("hide"),
+        )
+        .all()
+    )
+    items = [
+        (m.filename, capture_time(m), combined)
+        for m, combined in rows
+        if not (m.content_type or "").startswith("video/")
+    ]
+    return pick_reel_photos(items, limit)
+
+
+def album_reels_json(session, album_id: int, published_only: bool) -> List[dict]:
+    """Finished reels for the album page, newest first. Clients only get the
+    published ones."""
+    q = session.query(AlbumReel).filter(AlbumReel.album_id == album_id, AlbumReel.status == "ready")
+    if published_only:
+        q = q.filter(AlbumReel.published.is_(True))
+    out = []
+    for row in q.order_by(AlbumReel.created_at.desc(), AlbumReel.id.desc()):
+        width, height = rr.ASPECTS.get(row.aspect, (0, 0))
+        out.append({
+            "id": row.id,
+            "aspect": row.aspect,
+            "url": public_url(row.s3_key),
+            "poster_url": public_url(poster_key(row.s3_key)),
+            "duration": row.duration,
+            "width": width,
+            "height": height,
+            "published": bool(row.published),
+        })
+    return out
 
 
 def _new_row(session, album_id: int, slug: str, aspect: str) -> Tuple[int, str]:

@@ -53,6 +53,43 @@ export type Album = {
   // stretches of the shoot in time order; same visibility as highlights
   moments?: Moment[] | null
   smart_published?: boolean
+  // finished reels, newest first; clients only get the published ones
+  reels?: Reel[]
+}
+
+export type ReelAspect = "9:16" | "16:9"
+
+export type Reel = {
+  id: number
+  aspect: ReelAspect
+  url: string
+  poster_url: string
+  duration: number | null
+  width: number
+  height: number
+  published: boolean
+}
+
+export type ReelPhase = "queued" | "downloading" | "preparing" | "encoding" | "uploading"
+
+// the studio's list, rendering and failed ones included
+export type StudioReel = Reel & {
+  status: "rendering" | "ready" | "failed"
+  created_at: string | null
+  s3_key: string
+  phase: ReelPhase | null
+  // 0-1 across every phase
+  progress: number | null
+  error: string | null
+}
+
+export type MusicTrack = {
+  key: string
+  name: string
+  size: number
+  duration: number | null
+  uploaded_at: string | null
+  url: string
 }
 
 export type Moment = {
