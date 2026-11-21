@@ -95,7 +95,9 @@ async def get_album(
         photos_query = photos_query.filter_by(orientation=orientation)
     file_metadata = photos_query.all()
 
-    if not file_metadata:
+    # an album made from a booking starts empty; the studio and its client still
+    # need to open it (that's where the upload button lives)
+    if not file_metadata and not member:
         raise HTTPException(status_code=404, detail="No images found in the album")
 
     album_photos = create_album_photos_json(album_slug, file_metadata, album.proof_locked)

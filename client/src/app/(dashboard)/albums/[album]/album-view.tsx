@@ -407,6 +407,7 @@ export function AlbumView({
   }
 
   const { hasVideos, videoCount, photoCount, visiblePhotos, stills } = view!
+  const isEmpty = album.album_photos.length === 0
 
   return (
     <div
@@ -484,7 +485,7 @@ export function AlbumView({
                 <Lock className="size-3" />
                 Preview
               </span>
-            ) : (
+            ) : isEmpty ? null : (
               <button
                 onClick={handleDownloadAll}
                 disabled={zipping}
@@ -533,7 +534,7 @@ export function AlbumView({
           </div>
 
           {/* phones can't get a zip into the camera roll — offer the share sheet */}
-          {!album.locked && <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />}
+          {!album.locked && !isEmpty && <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />}
         </div>
 
         {isAdmin && (
@@ -684,14 +685,37 @@ export function AlbumView({
         </Tabs>
       )}
 
-      <PhotoGrid
-        photos={visiblePhotos}
-        onOpen={openPhoto}
-        onDelete={isAdmin ? handleDeletePhoto : undefined}
-        onSetCover={isAdmin && selectedFace ? handleSetCover : undefined}
-        favorites={favorites}
-        onToggleFavorite={toggleFavorite}
-      />
+      {isEmpty ? (
+        <div className="flex flex-col items-center justify-center border border-dashed border-border-default px-6 py-24 text-center">
+          <UploadCloud className="size-8 text-text-faint" />
+          <p className="mt-5 font-heading text-2xl text-text-primary">
+            {isAdmin ? "No photos yet" : "Your photos are on the way"}
+          </p>
+          <p className="mt-2 max-w-sm text-sm font-light text-text-muted">
+            {isAdmin
+              ? "Drop photos and clips anywhere on this page, or choose them from your computer."
+              : "They'll show up here as soon as the studio uploads them."}
+          </p>
+          {isAdmin && user && (
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="mt-6 flex h-10 items-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary"
+            >
+              <Upload className="size-3.5" />
+              Upload photos
+            </button>
+          )}
+        </div>
+      ) : (
+        <PhotoGrid
+          photos={visiblePhotos}
+          onOpen={openPhoto}
+          onDelete={isAdmin ? handleDeletePhoto : undefined}
+          onSetCover={isAdmin && selectedFace ? handleSetCover : undefined}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+        />
+      )}
 
       <PhotoViewer
         photos={stills}
