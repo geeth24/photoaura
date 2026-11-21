@@ -1,6 +1,8 @@
+import uuid
+
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from config import settings
 from db.base import get_session, session_scope
@@ -19,16 +21,17 @@ from utils.face_recog import (
     assign_pending_faces,
     recluster_faces,
     set_person_cover,
+    chip_key_of,
+    chip_url,
+    delete_chips,
     MATCH_DIST,
     SUGGEST_DIST,
 )
 from dependencies import get_current_user, require_admin
-from services.aws_service import s3_client
 from services import upload_jobs
 
 router = APIRouter()
 AWS_BUCKET = settings.AWS_BUCKET
-AWS_CLOUDFRONT_URL = settings.AWS_CLOUDFRONT_URL
 
 
 def _accessible_album_ids(current_user, session):
@@ -168,7 +171,7 @@ async def get_faces(
             "id": face.id,
             "name": face.name,
             "external_id": face.external_id,
-            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{face.external_id}.jpg",
+            "image_url": chip_url(face),
             "photo_links": [
                 {
                     "photo_id": fpl["photo_id"],
@@ -233,7 +236,7 @@ def face_suggestions(
             "name": fd.name,
             "similarity": round((1 - dist) * 100, 1),
             "count": cnt,
-            "image_url": f"https://{AWS_CLOUDFRONT_URL}/faces/{fid}.jpg",
+            "image_url": chip_url(fd),
         })
     return out[:12]
 
@@ -251,10 +254,24 @@ def merge_faces(
 ):
     """Merge one or more people into a target person: repoint all their photo
     links to the target, inherit a name if the target has none, then drop the
-    source people (DB + Rekognition + S3 chip)."""
+    source people and their chips. Every face involved joins one manual group,
+    so the next recluster keeps them together."""
     target = session.query(FaceData).filter_by(external_id=body.target_face_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target person not found")
+
+    people = {body.target_face_id, *body.source_face_ids}
+    prior_groups = {
+        g
+        for (g,) in session.query(FaceEmbedding.manual_group)
+        .filter(
+            FaceEmbedding.face_id.in_(people),
+            FaceEmbedding.manual_group.isnot(None),
+        )
+        .distinct()
+    }
+    group = min(prior_groups) if prior_groups else uuid.uuid4().hex
+    dropped_chips = []
 
     for src_id in body.source_face_ids:
         if src_id == body.target_face_id:
@@ -270,14 +287,17 @@ def merge_faces(
         if src:
             if not target.name and src.name:
                 target.name = src.name
+            dropped_chips.append(chip_key_of(src))
             session.delete(src)
-        # drop the merged person's S3 key chip
-        try:
-            s3_client.delete_object(Bucket=AWS_BUCKET, Key=f"faces/{src_id}.jpg")
-        except Exception:
-            pass
 
     session.flush()
+
+    session.query(FaceEmbedding).filter(
+        or_(
+            FaceEmbedding.face_id == body.target_face_id,
+            FaceEmbedding.manual_group.in_(prior_groups),
+        )
+    ).update({"manual_group": group}, synchronize_session=False)
 
     # dedupe: a photo that had both people now has two identical target links
     keep = {
@@ -296,6 +316,7 @@ def merge_faces(
         ).delete(synchronize_session=False)
 
     session.commit()
+    delete_chips(dropped_chips)
     return {"message": "Merged", "target": body.target_face_id}
 
 
@@ -396,7 +417,7 @@ async def get_album_faces(
                 "face_id": face_id,
                 "name": face.name,
                 # thumbor form so the client loader can resize the crop
-                "image_url": f"https://{AWS_CLOUDFRONT_URL}/fit-in/720x0/faces/{face_id}.jpg",
+                "image_url": chip_url(face, "720x0"),
                 "count": len(filenames),
                 "filenames": filenames,
             }
