@@ -29,13 +29,24 @@ export function UploadRevisionDialog({
   albumSlug,
   albumName,
   onUploaded,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   albumSlug: string
   albumName: string
   onUploaded: () => void
+  trigger?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = (o: boolean) => {
+    setInternalOpen(o)
+    onOpenChange?.(o)
+  }
   const [files, setFiles] = useState<File[]>([])
   const [preview, setPreview] = useState<RevisionPreview | null>(null)
   const [checking, setChecking] = useState(false)
@@ -129,14 +140,18 @@ export function UploadRevisionDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger
-        render={
-          <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
-            <Layers className="size-3.5" />
-            Upload revision
-          </button>
-        }
-      />
+      {trigger !== undefined ? (
+        <DialogTrigger render={trigger as React.ReactElement} />
+      ) : controlledOpen === undefined ? (
+        <DialogTrigger
+          render={
+            <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
+              <Layers className="size-3.5" />
+              Upload revision
+            </button>
+          }
+        />
+      ) : null}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>

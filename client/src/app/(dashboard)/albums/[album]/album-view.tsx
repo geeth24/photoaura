@@ -29,20 +29,47 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trash2, Upload, ArrowLeft, UploadCloud, ScanFace, Loader2, Share2, Globe, Lock, Download, Heart } from "lucide-react"
+import {
+  Trash2,
+  Upload,
+  ArrowLeft,
+  UploadCloud,
+  ScanFace,
+  Loader2,
+  Share2,
+  Globe,
+  Lock,
+  Download,
+  Heart,
+  Users,
+  UserPlus,
+  Layers,
+  ChevronDown,
+  MoreHorizontal,
+} from "lucide-react"
 import { downloadAlbumZip } from "@/lib/download"
 import { SaveToPhotos } from "@/components/save-to-photos"
 import { toast } from "sonner"
 import Link from "next/link"
+
+const toolbarButton =
+  "flex size-10 items-center justify-center gap-2 border border-border-default text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary aria-expanded:border-border-strong aria-expanded:text-text-primary sm:w-auto sm:px-4"
+const menuItem = "gap-2.5 px-3 py-2.5 text-[11px] uppercase tracking-[0.15em]"
+// the menu popup forces destructive items to the accent color; win on specificity (icon via stroke)
+const menuDestructive =
+  "[&&&]:text-destructive! [&&&]:focus:bg-destructive/15! [&&&]:data-highlighted:bg-destructive/15!"
+const menuLabel = "px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.25em] text-text-faint"
 
 export function AlbumView({
   albumSlug,
@@ -67,6 +94,11 @@ export function AlbumView({
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [downloadsOpen, setDownloadsOpen] = useState(false)
+  const [revisionOpen, setRevisionOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [droppedFiles, setDroppedFiles] = useState<File[]>([])
   const [dragDepth, setDragDepth] = useState(0)
   const [faces, setFaces] = useState<AlbumFace[]>([])
@@ -425,6 +457,74 @@ export function AlbumView({
 
   const { hasVideos, videoCount, photoCount, visiblePhotos, stills } = view!
   const isEmpty = album.album_photos.length === 0
+  const countLabel = `${album.image_count} ${album.image_count === 1 ? "photo" : "photos"}`
+
+  const chipButton =
+    "flex items-center gap-1.5 border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] transition-colors"
+  const chipIdle =
+    "border-border-default text-text-secondary hover:border-border-strong hover:text-text-primary"
+
+  const picksButton =
+    favorites.size > 0 ? (
+      <button
+        onClick={() => setOnlyFavorites((v) => !v)}
+        className={`${chipButton} ${onlyFavorites ? "border-brand text-brand" : chipIdle}`}
+      >
+        <Heart className="size-3" fill={onlyFavorites ? "currentColor" : "none"} />
+        {favorites.size} {isAdmin ? "picked" : "picks"}
+      </button>
+    ) : null
+
+  const downloadAllButton = (
+    <button
+      onClick={handleDownloadAll}
+      disabled={zipping}
+      aria-label="Download all"
+      className={`${chipButton} ${chipIdle} disabled:opacity-50`}
+    >
+      {zipping ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
+      {isAdmin ? (
+        <span>
+          Download<span className="hidden sm:inline"> all</span>
+        </span>
+      ) : (
+        "Download all"
+      )}
+    </button>
+  )
+
+  // anyone viewing the album can grab a share link
+  const shareMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button className={`${chipButton} ${chipIdle}`}>
+            <Share2 className="size-3" />
+            Share
+            {isPublic && <Globe className="size-3 text-brand" />}
+          </button>
+        }
+      />
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={() => copyShare(false)}>
+          <Lock className="size-3.5" />
+          <span className="flex-1">Copy private link</span>
+        </DropdownMenuItem>
+        {isAdmin && isPublic && (
+          <DropdownMenuItem onClick={() => copyShare(true)}>
+            <Globe className="size-3.5" />
+            <span className="flex-1">Copy public link</span>
+          </DropdownMenuItem>
+        )}
+        {isAdmin && (
+          <DropdownMenuItem onClick={togglePublic}>
+            {isPublic ? <Lock className="size-3.5" /> : <Globe className="size-3.5" />}
+            <span className="flex-1">{isPublic ? "Make private" : "Make public"}</span>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   return (
     <div
@@ -452,7 +552,7 @@ export function AlbumView({
       )}
 
       {/* header */}
-      <div className="flex flex-wrap items-end justify-between gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5">
         <div>
           <Link
             href="/albums"
@@ -474,171 +574,223 @@ export function AlbumView({
             )}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className="text-[11px] uppercase tracking-[0.2em] text-text-muted">
-              {album.image_count} {album.image_count === 1 ? "photo" : "photos"}
-            </span>
-            {album.shared && (
-              <span className="border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
-                Shared
-              </span>
-            )}
-            {album.upload && (
-              <span className="border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
-                Upload Enabled
-              </span>
-            )}
-            {favorites.size > 0 && (
-              <button
-                onClick={() => setOnlyFavorites((v) => !v)}
-                className={`flex items-center gap-1.5 border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] transition-colors ${
-                  onlyFavorites
-                    ? "border-brand text-brand"
-                    : "border-border-default text-text-secondary hover:border-border-strong hover:text-text-primary"
-                }`}
-              >
-                <Heart className="size-3" fill={onlyFavorites ? "currentColor" : "none"} />
-                {favorites.size} {isAdmin ? "picked" : "picks"}
-              </button>
-            )}
-            {/* clients asked for this — every original in one zip */}
-            {album.locked ? (
-              <span className="flex items-center gap-1.5 border border-brand/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-brand">
-                <Lock className="size-3" />
-                Preview
-              </span>
-            ) : isEmpty ? null : (
-              <button
-                onClick={handleDownloadAll}
-                disabled={zipping}
-                className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-50"
-              >
-                {zipping ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Download className="size-3" />
-                )}
-                Download all
-              </button>
-            )}
-            {/* anyone viewing the album can grab a share link */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button className="flex items-center gap-1.5 border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
-                    <Share2 className="size-3" />
-                    Share
-                    {isPublic && <Globe className="size-3 text-brand" />}
-                  </button>
-                }
-              />
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => copyShare(false)}>
-                  <Lock className="size-3.5" />
-                  <span className="flex-1">Copy private link</span>
-                </DropdownMenuItem>
-                {isAdmin && isPublic && (
-                  <DropdownMenuItem onClick={() => copyShare(true)}>
-                    <Globe className="size-3.5" />
-                    <span className="flex-1">Copy public link</span>
-                  </DropdownMenuItem>
-                )}
-                {isAdmin && (
-                  <DropdownMenuItem onClick={togglePublic}>
-                    {isPublic ? <Lock className="size-3.5" /> : <Globe className="size-3.5" />}
-                    <span className="flex-1">
-                      {isPublic ? "Make private" : "Make public"}
+          {isAdmin ? (
+            <>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] uppercase tracking-[0.2em] text-text-muted">
+                <span>{countLabel}</span>
+                {album.locked && (
+                  <>
+                    <span className="h-3 w-px bg-border-default" />
+                    <span className="flex items-center gap-1.5 text-brand">
+                      <Lock className="size-3" />
+                      Preview
                     </span>
-                  </DropdownMenuItem>
+                  </>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                {album.shared && (
+                  <>
+                    <span className="h-3 w-px bg-border-default" />
+                    <span>Shared</span>
+                  </>
+                )}
+                {album.upload && (
+                  <>
+                    <span className="h-3 w-px bg-border-default" />
+                    <span>Upload enabled</span>
+                  </>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {!album.locked && !isEmpty && downloadAllButton}
+                {shareMenu}
+                {picksButton}
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-text-muted">
+                {countLabel}
+              </span>
+              {album.shared && (
+                <span className="border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
+                  Shared
+                </span>
+              )}
+              {album.upload && (
+                <span className="border border-border-default px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
+                  Upload Enabled
+                </span>
+              )}
+              {picksButton}
+              {/* clients asked for this: every original in one zip */}
+              {album.locked ? (
+                <span className="flex items-center gap-1.5 border border-brand/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-brand">
+                  <Lock className="size-3" />
+                  Preview
+                </span>
+              ) : isEmpty ? null : (
+                downloadAllButton
+              )}
+              {shareMenu}
+            </div>
+          )}
 
           {/* phones can't get a zip into the camera roll — offer the share sheet */}
           {!album.locked && !isEmpty && <SaveToPhotos photos={album.album_photos} albumSlug={albumSlug} />}
         </div>
 
         {isAdmin && (
-        <div className="flex flex-wrap gap-3">
-          <InviteClientDialog albumSlug={albumSlug} albumName={album.album_name} />
-          <AlbumAccessDialog albumSlug={albumSlug} albumName={album.album_name} />
-          {album.album_id != null && (
-            <ManageDownloadsDialog
-              albumId={album.album_id}
-              albumSlug={albumSlug}
-              albumName={album.album_name}
-            />
-          )}
-          <button
-            onClick={handleResyncFaces}
-            disabled={resyncing || processing}
-            className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:pointer-events-none disabled:opacity-50"
-          >
-            {processing ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <ScanFace className="size-3.5" />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            {user && (
+              <UploadAlbumDialog
+                mode="existing"
+                userId={user.id}
+                albumSlug={albumSlug}
+                albumName={album.album_name}
+                open={uploadOpen}
+                onOpenChange={(o) => {
+                  setUploadOpen(o)
+                  if (!o) setDroppedFiles([])
+                }}
+                initialFiles={droppedFiles}
+                lockFaceDetection={!!album.face_detection}
+                onUploaded={refresh}
+                trigger={
+                  <button className="flex h-10 flex-1 items-center justify-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary sm:flex-none">
+                    <Upload className="size-3.5" />
+                    Upload
+                  </button>
+                }
+              />
             )}
-            {processing ? "Re-detecting…" : resyncing ? "Starting…" : "Resync faces"}
-          </button>
-          <UploadRevisionDialog
-            albumSlug={albumSlug}
-            albumName={album.album_name}
-            onUploaded={refresh}
-          />
-          {user && (
-            <UploadAlbumDialog
-              mode="existing"
-              userId={user.id}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <button aria-label="Client" className={toolbarButton}>
+                    <Users className="size-3.5" />
+                    <span className="hidden sm:inline">Client</span>
+                    <ChevronDown className="hidden size-3 sm:block" />
+                  </button>
+                }
+              />
+              <DropdownMenuContent align="end" className="min-w-52">
+                <DropdownMenuItem className={menuItem} onClick={() => setInviteOpen(true)}>
+                  <UserPlus className="size-3.5" />
+                  Invite client
+                </DropdownMenuItem>
+                <DropdownMenuItem className={menuItem} onClick={() => setAccessOpen(true)}>
+                  <Users className="size-3.5" />
+                  Manage access
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <button aria-label="More actions" className={toolbarButton}>
+                    {processing ? (
+                      <Loader2 className="size-3.5 animate-spin text-brand" />
+                    ) : (
+                      <MoreHorizontal className="size-3.5" />
+                    )}
+                    <span className="hidden sm:inline">More</span>
+                  </button>
+                }
+              />
+              <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className={menuLabel}>Files</DropdownMenuLabel>
+                  <DropdownMenuItem className={menuItem} onClick={() => setRevisionOpen(true)}>
+                    <Layers className="size-3.5" />
+                    Upload revision
+                  </DropdownMenuItem>
+                  {album.album_id != null && (
+                    <DropdownMenuItem className={menuItem} onClick={() => setDownloadsOpen(true)}>
+                      <Download className="size-3.5" />
+                      Client downloads
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className={menuLabel}>Maintenance</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className={menuItem}
+                    disabled={resyncing || processing}
+                    onClick={handleResyncFaces}
+                  >
+                    {processing ? (
+                      <Loader2 className="size-3.5 animate-spin text-brand" />
+                    ) : (
+                      <ScanFace className="size-3.5" />
+                    )}
+                    {processing ? "Re-detecting…" : resyncing ? "Starting…" : "Resync faces"}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  className={`${menuItem} ${menuDestructive}`}
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="size-3.5 stroke-destructive" />
+                  Delete album
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <InviteClientDialog
               albumSlug={albumSlug}
               albumName={album.album_name}
-              open={uploadOpen}
-              onOpenChange={(o) => {
-                setUploadOpen(o)
-                if (!o) setDroppedFiles([])
-              }}
-              initialFiles={droppedFiles}
-              lockFaceDetection={!!album.face_detection}
+              open={inviteOpen}
+              onOpenChange={setInviteOpen}
+            />
+            <AlbumAccessDialog
+              albumSlug={albumSlug}
+              albumName={album.album_name}
+              open={accessOpen}
+              onOpenChange={setAccessOpen}
+            />
+            {album.album_id != null && (
+              <ManageDownloadsDialog
+                albumId={album.album_id}
+                albumSlug={albumSlug}
+                albumName={album.album_name}
+                open={downloadsOpen}
+                onOpenChange={setDownloadsOpen}
+              />
+            )}
+            <UploadRevisionDialog
+              albumSlug={albumSlug}
+              albumName={album.album_name}
               onUploaded={refresh}
-              trigger={
-                <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
-                  <Upload className="size-3.5" />
-                  Upload
-                </button>
-              }
+              open={revisionOpen}
+              onOpenChange={setRevisionOpen}
             />
-          )}
-          <AlertDialog>
-            <AlertDialogTrigger
-              render={
-                <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-muted transition-colors hover:border-destructive/50 hover:text-destructive">
-                  <Trash2 className="size-3.5" />
-                  Delete
-                </button>
-              }
-            />
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete album?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete &quot;{album.album_name}&quot; and all its
-                  photos. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  variant="destructive"
-                >
-                  {deleting ? "Deleting..." : "Delete"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete album?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete &quot;{album.album_name}&quot; and all its
+                    photos. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    variant="destructive"
+                  >
+                    {deleting ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         )}
       </div>
 

@@ -29,6 +29,10 @@ type Person = {
 type Props = {
   albumSlug: string
   albumName: string
+  // set open to drive it from elsewhere (a menu item); no default button then
+  trigger?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 // helper to read either shape (some endpoints return id, perms endpoint returns user_id)
@@ -36,8 +40,13 @@ const personId = (p: Person) => p.user_id ?? p.id ?? 0
 const personLabel = (p: Person) =>
   p.full_name?.trim() || p.user_name || p.user_email || `User ${personId(p)}`
 
-export function AlbumAccessDialog({ albumSlug, albumName }: Props) {
-  const [open, setOpen] = useState(false)
+export function AlbumAccessDialog({ albumSlug, albumName, trigger, open: controlledOpen, onOpenChange }: Props) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = (o: boolean) => {
+    setInternalOpen(o)
+    onOpenChange?.(o)
+  }
   const [members, setMembers] = useState<Person[]>([])
   const [allClients, setAllClients] = useState<Person[]>([])
   const [busy, setBusy] = useState<number | null>(null)
@@ -97,14 +106,18 @@ export function AlbumAccessDialog({ albumSlug, albumName }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
-            <Users className="size-3.5" />
-            Manage access
-          </button>
-        }
-      />
+      {trigger !== undefined ? (
+        <DialogTrigger render={trigger as React.ReactElement} />
+      ) : controlledOpen === undefined ? (
+        <DialogTrigger
+          render={
+            <button className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">
+              <Users className="size-3.5" />
+              Manage access
+            </button>
+          }
+        />
+      ) : null}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Manage access</DialogTitle>
