@@ -1,20 +1,22 @@
 import { Hero } from "@/components/hero"
-import { GalleryShowcase } from "@/components/gallery-showcase"
-import { StudioShowcase } from "@/components/studio-showcase"
-import { ClientShowcase } from "@/components/client-showcase"
-import { Features } from "@/components/features"
-import { Ship } from "@/components/ship"
+import { SmartSorting } from "@/components/smart-sorting"
+import { ReelsDemo } from "@/components/reels-demo"
+import { CompareDemo } from "@/components/compare-demo"
+import { PaidDemo } from "@/components/paid-demo"
+import { AppsSection } from "@/components/apps-section"
+import { StudioSection } from "@/components/studio-section"
 import { Cta } from "@/components/cta"
 
 export default function Home() {
   return (
     <>
       <Hero />
-      <GalleryShowcase />
-      <StudioShowcase />
-      <ClientShowcase />
-      <Features />
-      <Ship />
+      <SmartSorting />
+      <ReelsDemo />
+      <CompareDemo />
+      <PaidDemo />
+      <AppsSection />
+      <StudioSection />
       <Cta />
     </>
   )

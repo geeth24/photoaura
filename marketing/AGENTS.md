@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Design system — "Reactive Shots" editorial
 
-This marketing site uses the same Reactive Shots editorial look as the `client/` app, so the brand reads as one product. Always match it for new sections/pages. Reference: `../reactive-shots-v3`. In-repo examples to copy from: `src/components/hero.tsx`, `src/components/features.tsx`, `src/app/policy/page.tsx`.
+This marketing site uses the same Reactive Shots editorial look as the `client/` app, so the brand reads as one product. Always match it for new sections/pages. Reference: `../reactive-shots-v3`. The landing page goes further: its demos rebuild the album page itself (`src/components/album-demo.tsx`, shared bits in `src/components/demo-ui.tsx`) with the same classes as `client/`, so keep them in step when those screens change. Other examples: `src/components/hero.tsx`, `src/app/policy/page.tsx`.
 
 ## Fonts
 Wired in `src/app/layout.tsx` (next/font) and `src/app/globals.css`.
@@ -39,12 +39,15 @@ Defined in `src/app/globals.css` (dark default + `.light`). Corners are sharp ev
 - next-themes `attribute="class"` with `defaultTheme="dark"` — dark is the showcase; `.light` overrides cover the light pass
 - **Heading descenders gotcha:** at tight `leading-[0.85]`, "y / g / p" descenders clip under the box. Either use `leading-[0.95]` or add `pb-[0.15em]` to the clipping container.
 
-## Device mockups
-`public/mockups/*.webp` (3D MacBooks and iPhones) are generated, not hand-made: the shelfshot repo
-(`~/Development/radsoft/shelfshot`) captures the web app with fictional mocked data and renders them
-with Rotato — `bun projects/photoaura/web/capture.ts` then `bun run mockups projects/photoaura`, which
-exports straight into this folder. Change a screen there and re-run; don't edit the WebPs. Every
-person, photo and email in them is fictional — keep it that way.
+## Demo photos and device mockups
+Every photo, face, proof, reel and OG tile on the page is generated in the shelfshot repo
+(`~/Development/radsoft/shelfshot`) from a made-up wedding and a few other fictional shoots
+(`projects/photoaura/gallery-v2`). Rebuild them with
+`SITE_DIR=<this folder> PHOTOAURA_SERVER=<../server> python3 projects/photoaura/web/landing-assets.py`:
+it writes `public/demo/*` and `assets/og/*`, watermarks proofs with the server's own `proof_service`
+code and renders the reels with the server's `reel_renderer`. `src/lib/demo.ts` lists which photo is in
+which moment, who's in it and what's a highlight. `public/mockups/*.webp` (the iPhone app) come from
+`bun run mockups projects/photoaura`. Don't edit any of these by hand, and keep every person fictional.
 
 ## SEO infrastructure
 - **Metadata:** all site-wide tags in `src/app/layout.tsx` (title template, description, keywords, openGraph, twitter card, robots, alternates canonical). Override per page with `export const metadata` when adding routes.

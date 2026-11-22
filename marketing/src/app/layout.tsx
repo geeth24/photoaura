@@ -29,9 +29,9 @@ const blackMud = localFont({
 
 const SITE_URL = "https://photoaura.app"
 const SITE_NAME = "PhotoAura"
-const TAGLINE = "An editorial photo gallery for working photographers"
+const TAGLINE = "Client galleries that sort themselves"
 const DESCRIPTION =
-  "Self-hosted or managed photo gallery for photography studios. Client galleries, face recognition, branded shared albums — on your domain, on your terms."
+  "Client galleries for photography studios. PhotoAura groups photos by face, picks Highlights, splits the day into Moments, makes reels, and holds watermarked proofs until the final payment. On the web, iPhone and Android."
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -45,16 +45,16 @@ export const metadata: Metadata = {
   creator: "Rad Soft",
   publisher: "Rad Soft",
   keywords: [
-    "photography gallery",
-    "photo gallery software",
-    "self-hosted photo gallery",
     "photographer client gallery",
-    "studio photo management",
-    "face recognition photos",
+    "wedding photo gallery",
     "client proofing gallery",
+    "watermarked proofs",
+    "photo gallery software",
+    "face recognition photos",
+    "photography booking and payments",
+    "photo reels",
+    "self-hosted photo gallery",
     "open source photo gallery",
-    "self-hosted lightroom alternative",
-    "AWS S3 photo gallery",
     "PhotoAura",
     "Rad Soft",
   ],

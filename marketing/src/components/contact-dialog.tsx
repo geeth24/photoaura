@@ -32,12 +32,14 @@ export function ContactDialog({
   const [topic, setTopic] = React.useState(intent)
 
   // a reopened dialog should start clean, not on last week's success screen
-  React.useEffect(() => {
-    if (!open) return
-    setStatus("idle")
-    setError("")
-    setTopic(intent)
-  }, [open, intent])
+  function onOpenChange(next: boolean) {
+    if (next) {
+      setStatus("idle")
+      setError("")
+      setTopic(intent)
+    }
+    setOpen(next)
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -67,7 +69,7 @@ export function ContactDialog({
   }
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Trigger asChild>{children}</DialogPrimitive.Trigger>
       <AnimatePresence>
         {open && (
