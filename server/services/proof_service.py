@@ -4,6 +4,7 @@ watermarked proofs and the originals sit under a private hold prefix.
 Layout while locked:
   {slug}/{stem}-preview.jpg                     what every client loads
   {slug}/_hold/{hold_token}/{original_filename} the untouched original
+  {slug}/{old version stem}-preview.jpg         an earlier edit, for compare
 """
 
 import io
@@ -81,7 +82,13 @@ def proof_name(original: str, taken: set) -> str:
 
 def taken_names(session, album_id: int) -> set:
     rows = session.query(FileMetadata.filename, FileMetadata.original_filename).filter_by(album_id=album_id).all()
-    return {(n or "").lower() for row in rows for n in row if n}
+    proofs = (
+        session.query(PhotoVersion.proof_filename)
+        .join(FileMetadata, FileMetadata.id == PhotoVersion.photo_id)
+        .filter(FileMetadata.album_id == album_id, PhotoVersion.proof_filename.isnot(None))
+        .all()
+    )
+    return {(n or "").lower() for row in rows + proofs for n in row if n}
 
 
 def store_held(album, original: str, content: bytes, content_type: str, proof: str) -> tuple:
@@ -188,6 +195,7 @@ def convert_album(album_id: int):
             except Exception as e:
                 print(f"proof: could not hold old version {name}: {e}")
 
+        version_proofs(album_id)
         # CloudFront may still hold resized copies of the clean originals
         invalidate_cdn()
         upload_jobs.update_job(slug, phase="warming", current=0, total=len(proofs))
@@ -196,6 +204,40 @@ def convert_album(album_id: int):
     except Exception as e:
         upload_jobs.fail_job(slug, str(e))
         print(f"proof: lock job failed for {slug}: {e}")
+
+
+def version_proofs(album_id: int) -> int:
+    """Make the missing proofs of earlier versions in a locked album from
+    their held originals, so compare never needs a clean file. Returns how many."""
+    with session_scope() as s:
+        album = s.get(Album, album_id)
+        if not album or not album.proof_locked:
+            return 0
+        slug, token = album.slug, album.hold_token
+        ids = [
+            v.id
+            for v, m in s.query(PhotoVersion, FileMetadata)
+            .join(FileMetadata, FileMetadata.id == PhotoVersion.photo_id)
+            .filter(FileMetadata.album_id == album_id, PhotoVersion.proof_filename.is_(None))
+            .all()
+            if v.version < (m.version or 1) and v.filename and not _is_video(m)
+        ]
+        taken = taken_names(s, album_id)
+    done = 0
+    for version_id in ids:
+        try:
+            with session_scope() as s:
+                v = s.get(PhotoVersion, version_id)
+                content = s3_client.get_object(Bucket=AWS_BUCKET, Key=hold_key(slug, token, v.filename))["Body"].read()
+                name = proof_name(v.filename, taken)
+                s3_client.put_object(
+                    Bucket=AWS_BUCKET, Key=f"{slug}/{name}", Body=make_proof(content), ContentType="image/jpeg"
+                )
+                v.proof_filename = name
+            done += 1
+        except Exception as e:
+            print(f"proof: no proof for version {version_id} in {slug}: {e}")
+    return done
 
 
 def next_proof_name(proof: str, taken: set) -> str:
@@ -318,6 +360,16 @@ def unlock_album(album_id: int, on_done: Optional[Callable[[], None]] = None):
             album = s.get(Album, album_id)
             if album and not still_held:
                 album.proof_locked = False
+                # compare shows the clean earlier versions again
+                versions = (
+                    s.query(PhotoVersion)
+                    .join(FileMetadata, FileMetadata.id == PhotoVersion.photo_id)
+                    .filter(FileMetadata.album_id == album_id, PhotoVersion.proof_filename.isnot(None))
+                    .all()
+                )
+                for v in versions:
+                    _delete(f"{slug}/{v.proof_filename}")
+                    v.proof_filename = None
 
         upload_jobs.update_job(slug, phase="warming", current=0, total=len(restored))
         warm_keys(restored)

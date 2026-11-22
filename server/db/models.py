@@ -243,6 +243,8 @@ class PhotoVersion(Base):
     height: Mapped[Optional[int]] = mapped_column(Integer)
     revision_number: Mapped[Optional[int]] = mapped_column(Integer)
     uploaded_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP)
+    # watermarked copy shown in compare while the album is locked
+    proof_filename: Mapped[Optional[str]] = mapped_column(String(255))
 
 
 class AppVersion(Base):

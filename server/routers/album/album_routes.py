@@ -857,7 +857,10 @@ async def delete_photo(
 
     # the photo, its video poster, its held original and every earlier version
     names = {photo.filename} | {
-        v.filename for v in session.query(PhotoVersion).filter_by(photo_id=photo.id) if v.filename
+        n
+        for v in session.query(PhotoVersion).filter_by(photo_id=photo.id)
+        for n in (v.filename, v.proof_filename)
+        if n
     }
     stale = {f"{slug}/{n}" for n in names} | {f"{slug}/{photo.filename}.poster.jpg"}
     if album.hold_token:
