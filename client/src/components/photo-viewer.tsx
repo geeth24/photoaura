@@ -11,6 +11,7 @@ import { PhotoCompare } from "@/components/photo-compare"
 import { findTile, fullSrc, photoKey, tileSrc } from "@/components/photo-grid"
 import { getPhotoVersions } from "@/lib/api"
 import type { Photo, PhotoVersion } from "@/lib/types"
+import { takenAt } from "@/lib/photo-time"
 
 const OPEN_MS = 440
 const CLOSE_MS = 400
@@ -92,24 +93,6 @@ function reset(root: HTMLElement | null) {
   root.style.transform = ""
   root.style.transformOrigin = ""
   root.style.willChange = ""
-}
-
-function takenAt(p: Photo): Date | null {
-  let raw: unknown = p.file_metadata.exif_data
-  if (typeof raw === "string") {
-    try {
-      raw = JSON.parse(raw)
-      if (typeof raw === "string") raw = JSON.parse(raw)
-    } catch {
-      return null
-    }
-  }
-  const e = (raw ?? {}) as Record<string, unknown>
-  const s = String(e.DateTimeOriginal ?? e.DateTime ?? "")
-  const m = s.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/)
-  if (!m) return null
-  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
-  return isNaN(d.getTime()) ? null : d
 }
 
 type Props = {

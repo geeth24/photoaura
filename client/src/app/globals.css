@@ -13,6 +13,8 @@
   --color-brand: var(--brand);
   --color-brand-light: var(--brand-light);
   --color-brand-dark: var(--brand-dark);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
 
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
@@ -73,6 +75,8 @@
   --brand: #00a6fb;
   --brand-light: #33bbff;
   --brand-dark: #0088d1;
+  --success: #3ccf91;
+  --warning: #f2b544;
 
   --surface: #030d14;
   --surface-elevated: #071e2e;
@@ -128,6 +132,8 @@
   --brand: #0088d1;
   --brand-light: #00a6fb;
   --brand-dark: #006ba3;
+  --success: #0f8a5c;
+  --warning: #b26f00;
 
   --surface: #f8fbfd;
   --surface-elevated: #ffffff;

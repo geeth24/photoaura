@@ -1,20 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { ArrowUpRight, ImageIcon, Plus, Tags, Trash2, Unlink } from "lucide-react"
+import { toast } from "sonner"
 import { useDocumentTitle } from "@/lib/use-document-title"
-import { motion } from "motion/react"
 import { useAuth } from "@/context/auth-context"
 import { apiFetch } from "@/lib/api"
 import type { Album, Category, Photo } from "@/lib/types"
-import { Input } from "@/components/ui/input"
+import { plural } from "@/lib/format"
+import { brandButton, PageHeader, quietButton } from "@/components/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AlbumOptions } from "@/components/album-options"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,378 +25,296 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Plus, Trash2, Unlink, Tags, ImageOff, ExternalLink, Star, ImageIcon } from "lucide-react"
-import { toast } from "sonner"
-import Image from "next/image"
-import Link from "next/link"
+import { cn } from "@/lib/utils"
 
-// the featured album shape returned by /category-albums (note: `name`, `id`)
-type FeaturedAlbum = {
-  id: number
-  name: string
-  slug: string
-  image_count: number
-  album_photos: Photo[]
-}
-type CategoryAlbumRow = {
+// what /category-albums returns: the photos the site shows for each category
+type SiteRow = {
   category_id: number
-  category_name: string
-  category_slug: string
-  album: FeaturedAlbum
+  album: { id: number; name: string; slug: string; image_count: number; album_photos: Photo[] }
 }
+type Live = { photos: Photo[]; curated: number; album: Album | null }
 
 const SITE_GALLERY = "https://reactiveshots.com/gallery"
+const STRIP = 7
 
 export default function WebsitePage() {
   useDocumentTitle("Website")
   const { user } = useAuth()
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<Category[] | null>(null)
   const [albums, setAlbums] = useState<Album[]>([])
-  const [featured, setFeatured] = useState<Record<number, FeaturedAlbum>>({})
-  const [loading, setLoading] = useState(true)
-
+  const [live, setLive] = useState<Record<number, Live>>({})
   const [catName, setCatName] = useState("")
-  const [catCreating, setCatCreating] = useState(false)
-  const [busyCat, setBusyCat] = useState<number | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [busy, setBusy] = useState<number | null>(null)
 
-  const fetchAll = () => {
+  const fetchAll = useCallback(async () => {
     if (!user) return
-    setLoading(true)
-    Promise.all([
-      apiFetch<Category[]>("/categories"),
-      apiFetch<Album[]>(`/albums/?user_id=${user.id}&include_website=true`),
-      apiFetch<CategoryAlbumRow[]>("/category-albums"),
-    ])
-      .then(([c, a, rows]) => {
-        setCategories(c)
-        setAlbums(a)
-        const map: Record<number, FeaturedAlbum> = {}
-        rows.forEach((r) => {
-          map[r.category_id] = r.album
-        })
-        setFeatured(map)
+    try {
+      const [cats, all, rows] = await Promise.all([
+        apiFetch<Category[]>("/categories"),
+        apiFetch<Album[]>(`/albums/?user_id=${user.id}&include_website=true`),
+        apiFetch<SiteRow[]>("/category-albums"),
+      ])
+      const curated = await Promise.all(
+        cats.map((c) => apiFetch<unknown[]>(`/categories/${c.id}/photos`).then((p) => p.length).catch(() => 0)),
+      )
+      const next: Record<number, Live> = {}
+      cats.forEach((c, i) => {
+        const row = rows.find((r) => r.category_id === c.id)
+        // a curated-only category comes back with a stand-in album named after itself
+        const album = row ? (all.find((a) => a.album_id === row.album.id && a.slug === row.album.slug) ?? null) : null
+        next[c.id] = { photos: row?.album.album_photos ?? [], curated: curated[i], album }
       })
-      .catch(() => {
-        setCategories([])
-        setAlbums([])
-        setFeatured({})
-      })
-      .finally(() => setLoading(false))
-  }
+      setCategories(cats)
+      setAlbums(all)
+      setLive(next)
+    } catch {
+      setCategories([])
+    }
+  }, [user])
 
   useEffect(() => {
     fetchAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
+  }, [fetchAll])
+
+  const run = async (id: number | null, work: () => Promise<unknown>, done: string, failed: string) => {
+    setBusy(id)
+    try {
+      await work()
+      toast.success(done)
+      await fetchAll()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : failed)
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const createCategory = async () => {
     if (!catName.trim()) return
-    setCatCreating(true)
-    try {
-      await apiFetch(`/categories?name=${encodeURIComponent(catName)}`, { method: "POST" })
-      toast.success("Category created")
-      setCatName("")
-      fetchAll()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create category")
-    } finally {
-      setCatCreating(false)
-    }
+    setCreating(true)
+    await run(null, () => apiFetch(`/categories?name=${encodeURIComponent(catName.trim())}`, { method: "POST" }), "Category created", "Failed to create category")
+    setCatName("")
+    setCreating(false)
   }
 
-  const deleteCategory = async (id: number) => {
-    try {
-      await apiFetch(`/categories/${id}`, { method: "DELETE" })
-      toast.success("Category deleted")
-      fetchAll()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to delete category")
-    }
+  const link = (catId: number, albumId: number | undefined, method: "POST" | "DELETE") =>
+    apiFetch(`/album-categories?album_id=${albumId}&category_id=${catId}`, { method })
+
+  // swapping the featured album unlinks the old one first
+  const feature = (catId: number, albumId: number) => {
+    const current = live[catId]?.album
+    if (current?.album_id === albumId) return
+    run(
+      catId,
+      async () => {
+        if (current) await link(catId, current.album_id, "DELETE")
+        await link(catId, albumId, "POST")
+      },
+      "Featured album updated",
+      "Failed to update album",
+    )
   }
 
-  // set (or change) the featured album for a category; unlinks the previous one first
-  const setCategoryAlbum = async (categoryId: number, albumId: number) => {
-    const current = featured[categoryId]
-    if (current?.id === albumId) return
-    setBusyCat(categoryId)
-    try {
-      if (current) {
-        await apiFetch(
-          `/album-categories?album_id=${current.id}&category_id=${categoryId}`,
-          { method: "DELETE" }
-        )
-      }
-      await apiFetch(
-        `/album-categories?album_id=${albumId}&category_id=${categoryId}`,
-        { method: "POST" }
-      )
-      toast.success("Featured album updated")
-      fetchAll()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update album")
-    } finally {
-      setBusyCat(null)
-    }
-  }
-
-  const unlinkAlbum = async (categoryId: number) => {
-    const current = featured[categoryId]
-    if (!current) return
-    setBusyCat(categoryId)
-    try {
-      await apiFetch(
-        `/album-categories?album_id=${current.id}&category_id=${categoryId}`,
-        { method: "DELETE" }
-      )
-      toast.success("Album unlinked")
-      fetchAll()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to unlink album")
-    } finally {
-      setBusyCat(null)
-    }
-  }
-
-  const linkedCount = Object.keys(featured).length
+  const liveCount = categories?.filter((c) => (live[c.id]?.photos.length ?? 0) > 0).length ?? 0
 
   return (
     <div className="space-y-12">
-      {/* header */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <div className="mb-4 flex items-center gap-4">
-          <span className="block h-px w-12 bg-brand" />
-          <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-            Public Site
-          </span>
-        </div>
-        <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
-          Website
-        </h1>
-        <p className="mt-3 text-sm font-light text-text-secondary">
-          Each category shows one featured album on your public gallery.
-        </p>
-      </motion.div>
+      <PageHeader
+        eyebrow="reactiveshots.com"
+        title="Website"
+        subtitle={
+          categories
+            ? `What each category shows on the public gallery, newest work first. ${liveCount} of ${plural(categories.length, "category", "categories")} live.`
+            : "Loading the public gallery…"
+        }
+        actions={
+          <a href={SITE_GALLERY} target="_blank" rel="noopener noreferrer" className={quietButton}>
+            View gallery
+            <ArrowUpRight className="size-3.5" />
+          </a>
+        }
+      />
 
-      {/* create category */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="grid gap-2">
-          <label className="text-[10px] font-medium uppercase tracking-[0.25em] text-text-muted">
-            New Category
-          </label>
-          <Input
-            value={catName}
-            onChange={(e) => setCatName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createCategory()}
-            placeholder="Category name"
-            className="h-11 w-64 bg-surface-elevated"
-          />
-        </div>
-        <button
-          onClick={createCategory}
-          disabled={catCreating}
-          className="flex h-11 items-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:pointer-events-none disabled:opacity-50"
-        >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          createCategory()
+        }}
+        className="flex max-w-md items-center gap-2"
+      >
+        <input
+          value={catName}
+          onChange={(e) => setCatName(e.target.value)}
+          placeholder="New category, like Maternity"
+          className="h-10 min-w-0 flex-1 border border-border-default bg-surface-elevated px-3 text-sm text-text-primary placeholder:text-text-faint focus:border-border-strong focus:outline-none"
+        />
+        <button type="submit" disabled={creating || !catName.trim()} className={brandButton}>
           <Plus className="size-3.5" />
-          {catCreating ? "Creating…" : "Create"}
+          {creating ? "Adding…" : "Add"}
         </button>
+      </form>
+
+      {categories == null ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-44 w-full" />
+          ))}
+        </div>
+      ) : categories.length === 0 ? (
+        <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-16 text-center">
+          <Tags className="size-6 text-text-faint" />
+          <p className="mt-3 font-heading text-lg text-text-primary">No categories yet</p>
+          <p className="mt-1 text-sm font-light text-text-muted">Add one above to start the public gallery.</p>
+        </div>
+      ) : (
+        <ol className="divide-y divide-border-subtle border-y border-border-subtle">
+          {categories.map((c, i) => (
+            <CategoryRow
+              key={c.id}
+              index={i}
+              category={c}
+              live={live[c.id]}
+              albums={albums}
+              busy={busy === c.id}
+              onFeature={(albumId) => feature(c.id, albumId)}
+              onUnlink={() => run(c.id, () => link(c.id, live[c.id]?.album?.album_id, "DELETE"), "Album unlinked", "Failed to unlink album")}
+              onDelete={() => run(c.id, () => apiFetch(`/categories/${c.id}`, { method: "DELETE" }), "Category deleted", "Failed to delete category")}
+            />
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+function CategoryRow({
+  index,
+  category: c,
+  live,
+  albums,
+  busy,
+  onFeature,
+  onUnlink,
+  onDelete,
+}: {
+  index: number
+  category: Category
+  live?: Live
+  albums: Album[]
+  busy: boolean
+  onFeature: (albumId: number) => void
+  onUnlink: () => void
+  onDelete: () => void
+}) {
+  const photos = live?.photos ?? []
+  const album = live?.album ?? null
+  const status = live?.curated
+    ? { label: `Curated · ${plural(live.curated, "photo")}`, tone: "border-brand/60 text-brand" }
+    : album
+      ? { label: "Whole album", tone: "border-border-default text-text-secondary" }
+      : { label: "Not on the site", tone: "border-dashed border-warning/60 text-warning" }
+
+  return (
+    <li className="grid gap-6 py-7 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10">
+      <div className="space-y-4">
+        <div>
+          <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-brand/70">{String(index + 1).padStart(2, "0")}</span>
+          <h2 className="mt-1 font-heading text-2xl leading-tight tracking-tight text-text-primary">{c.name}</h2>
+          <a
+            href={`${SITE_GALLERY}/${c.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-faint transition-colors hover:text-brand"
+          >
+            /gallery/{c.slug}
+            <ArrowUpRight className="size-3" />
+          </a>
+        </div>
+        <span className={cn("inline-block border px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.2em]", status.tone)}>{status.label}</span>
+        <div className="flex items-center gap-2">
+          <Link href={`/website/${c.id}`} className={cn(quietButton, "h-9 px-3")}>
+            <ImageIcon className="size-3.5" />
+            Curate
+          </Link>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <button aria-label={`Delete ${c.name}`} className="flex size-9 items-center justify-center text-text-faint transition-colors hover:text-destructive" />
+              }
+            >
+              <Trash2 className="size-4" />
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {c.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  It disappears from the public gallery and its album link is removed. Your albums and photos stay.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={onDelete}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
-      {/* categories */}
-      <section className="space-y-6">
-        <div className="flex items-center gap-4">
-          <span className="block h-px w-8 bg-brand" />
-          <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-            Categories
-          </span>
-          {!loading && categories.length > 0 && (
-            <span className="text-[10px] uppercase tracking-[0.3em] text-text-faint">
-              {linkedCount}/{categories.length} linked
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-72 w-full" />
+      <div className="min-w-0 space-y-4">
+        {photos.length ? (
+          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {photos.slice(0, STRIP).map((p) => (
+              <div key={`${p.file_metadata.album_id}-${p.file_metadata.filename}`} className="relative h-36 shrink-0 overflow-hidden bg-surface-elevated sm:h-44" style={{ aspectRatio: `${p.file_metadata.width || 4} / ${p.file_metadata.height || 5}` }}>
+                <Image src={p.compressed_image} alt="" fill className="object-cover" sizes="240px" />
+              </div>
             ))}
-          </div>
-        ) : categories.length === 0 ? (
-          <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-16 text-center">
-            <Tags className="size-6 text-text-faint" />
-            <p className="mt-3 font-heading text-lg text-text-primary">No categories yet</p>
-            <p className="mt-1 text-sm font-light text-text-muted">
-              Create one above to group albums on your site.
-            </p>
+            {photos.length > STRIP && (
+              <Link
+                href={`/website/${c.id}`}
+                className="flex h-36 w-24 shrink-0 flex-col items-center justify-center border border-border-subtle text-text-muted transition-colors hover:border-brand hover:text-brand sm:h-44"
+              >
+                <span className="font-heading text-2xl">+{photos.length - STRIP}</span>
+                <span className="text-[9px] uppercase tracking-[0.2em]">more</span>
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((cat, i) => {
-              const album = featured[cat.id]
-              const cover = album?.album_photos?.[0]?.compressed_image
-              const busy = busyCat === cat.id
-              return (
-                <motion.div
-                  key={cat.id}
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.5,
-                    delay: Math.min(i * 0.05, 0.4),
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  className="group flex flex-col border border-border-subtle bg-surface-elevated"
-                >
-                  {/* cover */}
-                  <div className="relative aspect-[16/10] overflow-hidden bg-surface">
-                    {cover ? (
-                      <Image
-                        src={cover}
-                        alt={album.name}
-                        fill
-                        className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      />
-                    ) : (
-                      <div className="flex h-full flex-col items-center justify-center gap-1 text-text-faint">
-                        <ImageOff className="size-6" />
-                        <span className="text-[10px] uppercase tracking-[0.25em]">
-                          Not linked
-                        </span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-surface/90 via-surface/15 to-transparent" />
-
-                    {/* delete category */}
-                    <AlertDialog>
-                      <AlertDialogTrigger
-                        render={
-                          <button
-                            className="absolute right-3 top-3 flex size-8 items-center justify-center bg-surface/70 text-text-faint opacity-0 backdrop-blur transition-all hover:text-destructive group-hover:opacity-100"
-                            aria-label={`Delete ${cat.name}`}
-                          />
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete category?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This permanently deletes &quot;{cat.name}&quot; and its album link.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            onClick={() => deleteCategory(cat.id)}
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-
-                    {/* name */}
-                    <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4">
-                      <div className="min-w-0">
-                        <h3 className="line-clamp-1 font-heading text-xl leading-tight tracking-tight text-text-primary">
-                          {cat.name}
-                        </h3>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
-                          /{cat.slug}
-                        </p>
-                      </div>
-                      <a
-                        href={`${SITE_GALLERY}/${cat.slug}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 text-text-muted transition-colors hover:text-brand"
-                        aria-label="View on site"
-                      >
-                        <ExternalLink className="size-3.5" />
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* featured album + controls */}
-                  <div className="space-y-3 p-4">
-                    <Link
-                      href={`/website/${cat.id}`}
-                      className="flex items-center justify-center gap-2 border border-border-default py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-brand hover:text-brand"
-                    >
-                      <ImageIcon className="size-3.5" />
-                      Curate photos
-                    </Link>
-                    <p className="text-[10px] leading-relaxed text-text-faint">
-                      Hand-pick photos from any album (no re-upload). Falls back to the
-                      whole featured album below if none are picked.
-                    </p>
-                    <div className="flex items-center justify-between gap-2">
-                      {album ? (
-                        <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
-                          <Star className="size-3 shrink-0 fill-brand text-brand" />
-                          <span className="truncate">{album.name}</span>
-                        </span>
-                      ) : (
-                        <span className="text-sm font-light text-text-muted">
-                          No featured album
-                        </span>
-                      )}
-                      {album && (
-                        <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
-                          {album.image_count}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={album ? String(album.id) : ""}
-                        onValueChange={(v) => setCategoryAlbum(cat.id, Number(v))}
-                        disabled={busy}
-                      >
-                        <SelectTrigger className="h-10 flex-1 bg-surface">
-                          <SelectValue placeholder={album ? "Change album" : "Link an album"}>
-                            {(value) =>
-                              albums.find((a) => String(a.album_id) === String(value))
-                                ?.album_name ??
-                              album?.name ??
-                              (album ? "Change album" : "Link an album")
-                            }
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {albums.map((a) => (
-                            <SelectItem key={a.album_id} value={String(a.album_id)}>
-                              {a.album_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {album && (
-                        <button
-                          onClick={() => unlinkAlbum(cat.id)}
-                          disabled={busy}
-                          className="flex size-10 shrink-0 items-center justify-center border border-border-default text-text-muted transition-colors hover:border-border-strong hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
-                          aria-label="Unlink album"
-                        >
-                          <Unlink className="size-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            })}
+          <div className="flex h-36 flex-col items-center justify-center border border-dashed border-border-default px-6 text-center sm:h-44">
+            <p className="font-heading text-lg text-text-primary">Nothing shows here yet</p>
+            <p className="mt-1 text-sm font-light text-text-muted">Feature an album below, or curate photos from any album.</p>
           </div>
         )}
-      </section>
-    </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-[0.25em] text-text-faint">
+            {live?.curated ? "Fallback album" : "Featured album"}
+          </span>
+          <Select value={album ? String(album.album_id) : ""} onValueChange={(v) => onFeature(Number(v))} disabled={busy}>
+            <SelectTrigger className="h-9 min-w-56 flex-1 bg-surface-elevated text-[12px] sm:max-w-xs sm:flex-none">
+              <SelectValue placeholder="Choose an album">
+                {(v) => albums.find((a) => String(a.album_id) === String(v))?.album_name ?? "Choose an album"}
+              </SelectValue>
+            </SelectTrigger>
+            <AlbumOptions albums={albums} />
+          </Select>
+          {album && (
+            <button
+              onClick={onUnlink}
+              disabled={busy}
+              aria-label="Unlink album"
+              className="flex size-9 items-center justify-center border border-border-default text-text-muted transition-colors hover:border-border-strong hover:text-destructive disabled:opacity-50"
+            >
+              <Unlink className="size-3.5" />
+            </button>
+          )}
+          {live?.curated && album ? (
+            <span className="text-[11px] font-light text-text-faint">Shown only if you clear the curated picks</span>
+          ) : null}
+        </div>
+      </div>
+    </li>
   )
 }
