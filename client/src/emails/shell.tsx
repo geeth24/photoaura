@@ -314,7 +314,7 @@ export function Hint({ children }: { children: ReactNode }) {
   )
 }
 
-export const firstName = (fullName?: string) => (fullName || "there").split(" ")[0]
+export const firstName = (fullName?: string) => fullName?.trim().split(/\s+/)[0] || "there"
 
 // html-to-text ships no types; these are the bits the formatters touch
 type TextNode = { children: unknown[] }
