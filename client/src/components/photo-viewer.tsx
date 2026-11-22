@@ -384,11 +384,12 @@ export function PhotoViewer({
           shown ? "opacity-100" : "opacity-0"
         }`}
       >
-        <div className="flex items-start justify-between gap-3 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-3 pb-12 pt-[max(env(safe-area-inset-top),12px)] sm:px-6 sm:pt-5">
+        {/* equal side columns keep the date centered on the screen, whatever the buttons add up to */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-3 pb-12 pt-[max(env(safe-area-inset-top),12px)] sm:px-6 sm:pt-5">
           <button
             onClick={close}
             aria-label="Close"
-            className={`flex size-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 ${
+            className={`flex size-10 items-center justify-center justify-self-start rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 ${
               shown ? "pointer-events-auto" : ""
             }`}
           >
@@ -421,7 +422,7 @@ export function PhotoViewer({
           </div>
 
           <div
-            className={`flex items-center gap-1 rounded-full bg-white/10 p-0.5 text-white backdrop-blur-md ${
+            className={`flex items-center gap-1 justify-self-end rounded-full bg-white/10 p-0.5 text-white backdrop-blur-md ${
               shown ? "pointer-events-auto" : ""
             }`}
           >
