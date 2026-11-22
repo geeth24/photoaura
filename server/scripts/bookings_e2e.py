@@ -53,8 +53,8 @@ def _fake_render(template, props):
     return {"subject": f"[{template}]", "html": "<p>test</p>"}
 
 
-def _fake_send(to, subject, html, attachments=None):
-    sent.append({"to": to, "subject": subject, "attachments": attachments or []})
+def _fake_send(to, rendered, attachments=None):
+    sent.append({"to": to, "subject": rendered["subject"], "attachments": attachments or []})
     return True
 
 

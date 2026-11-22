@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { render } from "@react-email/render"
+import { textOptions } from "@/emails/shell"
 import LoginLinkEmail, { loginLinkSubject } from "@/emails/login-link"
 import ClientInviteEmail, { clientInviteSubject } from "@/emails/client-invite"
 import VerifyEmail, { verifyEmailSubject } from "@/emails/verify-email"
@@ -95,8 +96,11 @@ export async function POST(req: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const props = (body.props as any) || {}
 
-  const html = await render(<Component {...props} />)
+  const email = <Component {...props} />
+  const html = await render(email)
+  // spam filters score html-only mail worse, so Resend gets a text part too
+  const text = await render(email, { plainText: true, htmlToTextOptions: textOptions })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subject = (t.subject as any)(props)
-  return NextResponse.json({ subject, html })
+  return NextResponse.json({ subject, html, text })
 }
