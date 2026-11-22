@@ -32,6 +32,8 @@ FROM = os.environ.get("EMAIL_FROM", "Reactive Shots <noreply@mail.reactiveshots.
 # blind-copy every client email to our catch-all so we keep a record of what
 # went out (comma-separated; client never sees it)
 BCC = [a.strip() for a in os.environ.get("EMAIL_BCC", "").split(",") if a.strip()]
+# replies to noreply@ bounce, which hurts sender reputation; send them to a real inbox
+REPLY_TO = os.environ.get("EMAIL_REPLY_TO", "geeth@reactiveshots.com").strip()
 CLIENT_URL = os.environ.get("NEXT_PUBLIC_CLIENT_URL", "https://aura.reactiveshots.com")
 RENDER_URL = f"{CLIENT_URL.rstrip('/')}/api/email/render"
 RENDER_SECRET = os.environ.get("EMAIL_RENDER_SECRET", "")
@@ -58,13 +60,17 @@ def _render(template: str, props: dict) -> Optional[dict]:
         return None
 
 
-def _send(to_email: str, subject: str, html: str, attachments: Optional[list] = None) -> bool:
-    """attachments: [{"filename": str, "content": bytes}]"""
+def _send(to_email: str, rendered: dict, attachments: Optional[list] = None) -> bool:
+    """rendered: {subject, html, text?} from _render. attachments: [{"filename": str, "content": bytes}]"""
     if not resend.api_key:
         print("RESEND_API_KEY not set — skipping email to", to_email)
         return False
     try:
-        payload = {"from": FROM, "to": [to_email], "subject": subject, "html": html}
+        payload = {"from": FROM, "to": [to_email], "subject": rendered["subject"], "html": rendered["html"]}
+        if rendered.get("text"):
+            payload["text"] = rendered["text"]
+        if REPLY_TO:
+            payload["reply_to"] = REPLY_TO
         if BCC:
             payload["bcc"] = BCC
         if attachments:
@@ -83,7 +89,7 @@ def send_login_link(to_email: str, full_name: str, link: str) -> bool:
     payload = _render("login-link", {"fullName": full_name, "link": link})
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"])
+    return _send(to_email, payload)
 
 
 def send_invite(
@@ -99,14 +105,14 @@ def send_invite(
     )
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"])
+    return _send(to_email, payload)
 
 
 def send_verify_email(to_email: str, full_name: str, link: str) -> bool:
     payload = _render("verify-email", {"fullName": full_name, "link": link})
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"])
+    return _send(to_email, payload)
 
 
 def send_gallery_ready(
@@ -123,7 +129,7 @@ def send_new_download(to_email: str, full_name: str, link: str, album_name: str)
     )
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"])
+    return _send(to_email, payload)
 
 
 def send_new_video(to_email: str, full_name: str, link: str, album_name: str) -> bool:
@@ -133,7 +139,7 @@ def send_new_video(to_email: str, full_name: str, link: str, album_name: str) ->
     )
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"])
+    return _send(to_email, payload)
 
 
 def send_album_revision(
@@ -153,11 +159,11 @@ def send_album_revision(
     )
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"])
+    return _send(to_email, payload)
 
 
 def send_template(to_email: str, template: str, props: dict, attachments: Optional[list] = None) -> bool:
     payload = _render(template, props)
     if not payload:
         return False
-    return _send(to_email, payload["subject"], payload["html"], attachments)
+    return _send(to_email, payload, attachments)

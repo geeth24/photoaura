@@ -1,5 +1,5 @@
-import { Section, Text } from "@react-email/components"
-import { Button, DetailRows, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import { Button, DetailRows, EmailShell, Eyebrow, Heading, Hint, Lead, Paragraph, Strong, firstName } from "./shell"
+import { SIGN_IN_HINT } from "./copy"
 
 type Props = {
   fullName?: string
@@ -25,27 +25,25 @@ export default function GalleryDeliveredEmail({
   zellePhone,
   memo,
 }: Props) {
-  const first = (fullName || "there").split(" ")[0]
-
   return (
-    <EmailShell preview={`Your photos are edited and ready to view — ${albumName}`}>
+    <EmailShell
+      preview={`Your photos are edited and ready to view — ${albumName}`}
+      art="gallery-delivered"
+      artAlt="A contact sheet of small photos with a loupe resting on it"
+    >
       <Eyebrow>Gallery preview</Eyebrow>
-      <Text style={styles.heading}>{albumName}</Text>
-      <Text style={styles.subtitle}>
-        Hi {first} — your photos are edited and ready. Have a look, pick your favorites, and let us know about any
-        revisions.
-      </Text>
+      <Heading>{albumName}</Heading>
+      <Lead>
+        Hi {firstName(fullName)}, your photos are edited and ready. Have a look, pick your favorites, and let us know
+        about any revisions.
+      </Lead>
 
-      <Section>
-        <Button href={link}>View your gallery</Button>
-      </Section>
+      <Button href={link}>View your gallery</Button>
 
-      <Divider />
-
-      <Text style={styles.paragraph}>
+      <Paragraph>
         These are watermarked previews. The clean, full-resolution files and downloads unlock as soon as your final
         payment is received.
-      </Text>
+      </Paragraph>
 
       <DetailRows
         rows={[
@@ -55,12 +53,23 @@ export default function GalleryDeliveredEmail({
         ]}
       />
 
-      <Text style={styles.paragraph}>
-        Cash or check works too — just mention <span style={styles.emphasis}>{bookingNumber}</span>. We&apos;ll email
-        you the moment your gallery unlocks.
-      </Text>
+      <Paragraph>
+        Cash or check works too, just mention <Strong>{bookingNumber}</Strong>. We&apos;ll email you the moment your
+        gallery unlocks.
+      </Paragraph>
 
-      <Text style={styles.hint}>This link signs you in. It&apos;s just for you — please don&apos;t forward it.</Text>
+      <Hint>{SIGN_IN_HINT}</Hint>
     </EmailShell>
   )
 }
+
+GalleryDeliveredEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview&next=/albums/ellis-park-wedding",
+  bookingNumber: "RS-1042",
+  albumName: "Ellis & Park Wedding",
+  finalAmount: "$1,200.00",
+  zelle: "zelle@reactiveshots.com",
+  zellePhone: "(972) 829-5173",
+  memo: "RS-1042 final",
+} satisfies Props

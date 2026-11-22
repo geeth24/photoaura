@@ -5,8 +5,7 @@
   ],
   "ignoreDependencies": [
     "jscpd",
-    "oxlint",
-    "react-email"
+    "oxlint"
   ],
   "ignoreIssues": {
     "src/components/album-revisions.tsx": [
