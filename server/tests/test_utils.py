@@ -55,6 +55,8 @@ def test_capture_time_without_any_date_sorts_first():
         ("IMG_1234.jpg", "img_1234"),
         ("IMG_1234_v2.JPG", "img_1234"),
         ("img_1234 v3.png", "img_1234"),
+        ("IMG_1234_v2-r2.jpg", "img_1234"),
+        ("Party-171-preview-r2.jpg", "party-171-preview-r2"),
         (None, ""),
     ],
 )

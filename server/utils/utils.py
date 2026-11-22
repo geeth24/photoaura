@@ -258,10 +258,11 @@ def add_album_to_user(user_id, album_id):
         session.add(UserAlbumPermission(user_id=user_id, album_id=album_id))
 
 
-_VERSION_SUFFIX = re.compile(r"[ _-]v\d+$", re.IGNORECASE)
+# _v2-r2 is a fix swapped into version 2 after it went up
+_VERSION_SUFFIX = re.compile(r"[ _-]v\d+(?:-r\d+)?$", re.IGNORECASE)
 
 
 def base_name_of(filename: str) -> str:
-    """IMG_1234.jpg, IMG_1234_v2.JPG and img_1234 v3.png all -> "img_1234"."""
+    """IMG_1234.jpg, IMG_1234_v2.JPG, IMG_1234_v2-r2.jpg and img_1234 v3.png all -> "img_1234"."""
     stem = os.path.splitext(filename or "")[0]
     return _VERSION_SUFFIX.sub("", stem).lower()
