@@ -1,5 +1,4 @@
-import { Section, Text } from "@react-email/components"
-import { Button, DetailRows, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import { Button, DetailRows, EmailShell, Eyebrow, Heading, Hint, Lead, Paragraph, Strong, firstName } from "./shell"
 
 type Props = {
   fullName?: string
@@ -29,15 +28,17 @@ export default function PaymentReceivedEmail({
   nextLabel,
   nextAmount,
 }: Props) {
-  const first = (fullName || "there").split(" ")[0]
-
   return (
-    <EmailShell preview={`We received your ${label.toLowerCase()} of ${amount}. Thank you!`}>
+    <EmailShell
+      preview={`We received your ${label.toLowerCase()} of ${amount}. Thank you!`}
+      art="payment-received"
+      artAlt="A paper receipt with a checkmark stamp beside a few coins"
+    >
       <Eyebrow>{`Receipt · ${bookingNumber}`}</Eyebrow>
-      <Text style={styles.heading}>{amount} received</Text>
-      <Text style={styles.subtitle}>
-        Hi {first} — thank you! Here&apos;s your receipt for the {label.toLowerCase()}.
-      </Text>
+      <Heading>{amount} received</Heading>
+      <Lead>
+        Hi {firstName(fullName)}, thank you! Here&apos;s your receipt for the {label.toLowerCase()}.
+      </Lead>
 
       <DetailRows
         rows={[
@@ -50,25 +51,32 @@ export default function PaymentReceivedEmail({
       />
 
       {nextLabel && nextAmount ? (
-        <Text style={styles.paragraph}>
-          <span style={styles.emphasis}>Next up:</span> {nextLabel}, {nextAmount}. Your booking page shows when
-          it&apos;s due and how to pay.
-        </Text>
+        <Paragraph>
+          <Strong>Next up:</Strong> {nextLabel}, {nextAmount}. Your booking page shows when it&apos;s due and how to
+          pay.
+        </Paragraph>
       ) : (
-        <Text style={styles.paragraph}>
-          <span style={styles.emphasis}>That&apos;s everything.</span> You&apos;re paid in full.
-        </Text>
+        <Paragraph>
+          <Strong>That&apos;s everything.</Strong> You&apos;re paid in full.
+        </Paragraph>
       )}
 
-      <Section>
-        <Button href={link}>View your booking</Button>
-      </Section>
+      <Button href={link}>View your booking</Button>
 
-      <Divider />
-
-      <Text style={styles.hint}>
-        Keep this email for your records. The link signs you in — please don&apos;t forward it.
-      </Text>
+      <Hint>Keep this email for your records. The link signs you in, so please don&apos;t forward it.</Hint>
     </EmailShell>
   )
 }
+
+PaymentReceivedEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview&next=/bookings/RS-1042",
+  bookingNumber: "RS-1042",
+  label: "Event-day payment",
+  amount: "$960.00",
+  method: "Zelle",
+  paidTotal: "$1,200.00",
+  balance: "$1,200.00",
+  nextLabel: "Final payment",
+  nextAmount: "$1,200.00",
+} satisfies Props

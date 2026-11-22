@@ -1,5 +1,5 @@
-import { Section, Text } from "@react-email/components"
-import { Button, DetailRows, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import { Button, DetailRows, EmailShell, Eyebrow, Heading, Hint, Lead, Paragraph, Strong, firstName } from "./shell"
+import { SIGN_IN_HINT } from "./copy"
 
 type Props = {
   fullName?: string
@@ -16,16 +16,18 @@ export const bookingSignedSubject = (bookingNumber: string) => `Your agreement i
 
 // the signed PDF rides along as an attachment
 export default function BookingSignedEmail({ fullName, link, bookingNumber, eventDate, retainer, zelle, zellePhone, memo }: Props) {
-  const first = (fullName || "there").split(" ")[0]
-
   return (
-    <EmailShell preview={`Signed. Send the ${retainer} retainer to hold ${eventDate}.`}>
+    <EmailShell
+      preview={`Signed. Send the ${retainer} retainer to hold ${eventDate}.`}
+      art="booking-signed"
+      artAlt="A signed agreement with a fountain pen across it"
+    >
       <Eyebrow>Agreement signed</Eyebrow>
-      <Text style={styles.heading}>One step left</Text>
-      <Text style={styles.subtitle}>
-        Hi {first} — your agreement for {eventDate} is signed. A copy is attached to this email. Your date is held as
-        soon as the retainer arrives.
-      </Text>
+      <Heading>One step left</Heading>
+      <Lead>
+        Hi {firstName(fullName)}, your agreement for {eventDate} is signed and a copy is attached to this email. Your
+        date is held as soon as the retainer arrives.
+      </Lead>
 
       <DetailRows
         rows={[
@@ -35,23 +37,29 @@ export default function BookingSignedEmail({ fullName, link, bookingNumber, even
         ]}
       />
 
-      <Text style={styles.paragraph}>
-        Zelle is quickest. Cash or check is fine too — just mention <span style={styles.emphasis}>{bookingNumber}</span>
-        .
-      </Text>
+      <Paragraph>
+        Zelle is quickest. Cash or check is fine too, just mention <Strong>{bookingNumber}</Strong>.
+      </Paragraph>
 
-      <Section>
-        <Button href={link}>View your booking</Button>
-      </Section>
+      <Button href={link}>View your booking</Button>
 
-      <Divider />
-
-      <Text style={styles.paragraph}>
+      <Paragraph>
         You&apos;ll get a receipt by email each time a payment is marked received, and your booking page always shows
         what&apos;s next.
-      </Text>
+      </Paragraph>
 
-      <Text style={styles.hint}>This link signs you in. It&apos;s just for you — please don&apos;t forward it.</Text>
+      <Hint>{SIGN_IN_HINT}</Hint>
     </EmailShell>
   )
 }
+
+BookingSignedEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview&next=/bookings/RS-1042",
+  bookingNumber: "RS-1042",
+  eventDate: "Saturday, March 13, 2027",
+  retainer: "$240.00",
+  zelle: "zelle@reactiveshots.com",
+  zellePhone: "(972) 829-5173",
+  memo: "RS-1042 retainer",
+} satisfies Props

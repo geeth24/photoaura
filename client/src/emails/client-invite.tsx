@@ -1,5 +1,19 @@
-import { Column, Link, Row, Section, Text } from "@react-email/components"
-import { Button, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import {
+  Button,
+  EmailShell,
+  Eyebrow,
+  Heading,
+  Hint,
+  InlineLink,
+  Lead,
+  Panel,
+  PanelItem,
+  SecondaryButton,
+  Stats,
+  Strong,
+  firstName,
+} from "./shell"
+import { GET_THE_APP, SIGN_IN_HINT } from "./copy"
 
 type Props = {
   fullName?: string
@@ -10,113 +24,53 @@ type Props = {
   videoCount?: number
 }
 
-export const clientInviteSubject = (albumName: string) =>
-  `Your gallery is ready — ${albumName}`
+export const clientInviteSubject = (albumName: string) => `Your gallery is ready — ${albumName}`
 
-// photoaura.app sends phones to their own store
-const GET_THE_APP = "https://photoaura.app/app"
-
-function Stat({ n, label }: { n: number; label: string }) {
-  return (
-    <Column style={stat}>
-      <Text style={statNumber}>{n}</Text>
-      <Text style={statLabel}>{label}</Text>
-    </Column>
-  )
-}
-
-export default function ClientInviteEmail({
-  fullName,
-  link,
-  albumName,
-  photoCount,
-  videoCount,
-}: Props) {
-  const first = (fullName || "there").split(" ")[0]
-  const hasCounts = typeof photoCount === "number"
+export default function ClientInviteEmail({ fullName, link, albumName, photoCount, videoCount }: Props) {
+  const stats: [number, string][] = []
+  if (typeof photoCount === "number") stats.push([photoCount, photoCount === 1 ? "Photo" : "Photos"])
+  if ((videoCount ?? 0) > 0) stats.push([videoCount ?? 0, videoCount === 1 ? "Video" : "Videos"])
   // the sign-in link lands on the album; #save jumps to the save-to-phone step
   const saveLink = link.includes("next=") ? `${link}%23save` : link
 
   return (
-    <EmailShell preview={`Your gallery ${albumName} is ready to view`}>
+    <EmailShell
+      preview={`Your gallery ${albumName} is ready to view`}
+      art="gallery-ready"
+      artAlt="Three printed photographs fanned out"
+    >
       <Eyebrow>Your gallery is ready</Eyebrow>
-      <Text style={styles.heading}>{albumName}</Text>
-      <Text style={styles.subtitle}>
-        Hi {first} — your photos are ready. One tap below signs you in, no
-        password needed.
-      </Text>
+      <Heading>{albumName}</Heading>
+      <Lead>
+        Hi {firstName(fullName)}, your photos are ready. One tap below signs you in, no password needed.
+      </Lead>
 
-      {hasCounts && (
-        <Section style={statsBox}>
-          <Row>
-            <Stat n={photoCount ?? 0} label={photoCount === 1 ? "photo" : "photos"} />
-            {(videoCount ?? 0) > 0 && (
-              <Stat n={videoCount ?? 0} label={videoCount === 1 ? "video" : "videos"} />
-            )}
-          </Row>
-        </Section>
-      )}
+      {stats.length > 0 && <Stats items={stats} />}
 
-      <Section>
-        <Button href={link}>View your gallery</Button>
-      </Section>
+      <Button href={link}>View your gallery</Button>
 
-      <Divider />
+      <Panel title="Saving your photos">
+        <PanelItem label="On your phone">
+          The PhotoAura app puts every photo into your camera roll in one tap, full quality, and shows new galleries as
+          they land. Sign in with this same email.
+        </PanelItem>
+        <SecondaryButton href={GET_THE_APP}>Get the app</SecondaryButton>
+        <PanelItem label="On a computer">
+          Open the gallery and use <Strong>Download all</Strong> for one zip of the originals. In Safari on your phone,{" "}
+          <InlineLink href={saveLink}>Save to Photos</InlineLink> works too.
+        </PanelItem>
+      </Panel>
 
-      <Text style={styles.paragraph}>
-        <span style={styles.emphasis}>On your phone?</span> The PhotoAura app
-        puts every photo into your camera roll in one tap, full quality — and
-        shows new galleries as they land. Sign in with this same email.
-      </Text>
-      <Section>
-        <Button href={GET_THE_APP}>Get the app</Button>
-      </Section>
-      <Text style={styles.paragraph}>
-        <span style={styles.emphasis}>On a computer?</span> Open the gallery
-        and use <span style={styles.emphasis}>Download all</span> for one zip
-        of the originals. In Safari on your phone,{" "}
-        <Link href={saveLink} style={inlineLink}>
-          Save to Photos
-        </Link>{" "}
-        works too.
-      </Text>
-
-      <Text style={styles.hint}>
-        This link signs you in. It&apos;s just for you — please don&apos;t
-        forward it.
-      </Text>
+      <Hint>{SIGN_IN_HINT}</Hint>
     </EmailShell>
   )
 }
 
-const statsBox: React.CSSProperties = {
-  border: "1px solid rgba(237, 246, 252, 0.08)",
-  padding: "14px 8px",
-  margin: "0 0 24px",
-}
-
-const stat: React.CSSProperties = {
-  textAlign: "center",
-}
-
-const statNumber: React.CSSProperties = {
-  color: "#edf6fc",
-  fontSize: "26px",
-  fontWeight: 600,
-  lineHeight: 1,
-  margin: "0 0 6px",
-}
-
-const statLabel: React.CSSProperties = {
-  color: "rgba(237, 246, 252, 0.4)",
-  fontSize: "10px",
-  letterSpacing: "0.25em",
-  textTransform: "uppercase",
-  margin: 0,
-}
-
-const inlineLink: React.CSSProperties = {
-  color: "#00a6fb",
-  fontSize: "14px",
-  textDecoration: "none",
-}
+ClientInviteEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview&next=/albums/ellis-park-wedding",
+  albumName: "Ellis & Park Wedding",
+  albumSlug: "ellis-park-wedding",
+  photoCount: 248,
+  videoCount: 2,
+} satisfies Props

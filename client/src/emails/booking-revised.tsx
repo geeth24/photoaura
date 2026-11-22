@@ -1,5 +1,4 @@
-import { Section, Text } from "@react-email/components"
-import { Button, DetailRows, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import { Button, DetailRows, EmailShell, Eyebrow, Heading, Hint, Lead, Note, firstName } from "./shell"
 
 type Props = {
   fullName?: string
@@ -14,18 +13,20 @@ type Props = {
 export const bookingRevisedSubject = (bookingNumber: string) => `Your updated agreement — ${bookingNumber}`
 
 export default function BookingRevisedEmail({ fullName, link, bookingNumber, eventType, eventDate, totalDue, note }: Props) {
-  const first = (fullName || "there").split(" ")[0]
-
   return (
-    <EmailShell preview="Your agreement has been updated. Review the new version and sign when you're ready.">
+    <EmailShell
+      preview="Your agreement has been updated. Review the new version and sign when you're ready."
+      art="booking-revised"
+      artAlt="Two agreement pages with a pencil making an edit"
+    >
       <Eyebrow>{`Booking ${bookingNumber}`}</Eyebrow>
-      <Text style={styles.heading}>Your agreement is updated</Text>
-      <Text style={styles.subtitle}>
-        Hi {first} — we&apos;ve updated your agreement. Please give the new version a read and sign it when you&apos;re
-        ready.
-      </Text>
+      <Heading>Your agreement is updated</Heading>
+      <Lead>
+        Hi {firstName(fullName)}, we&apos;ve updated your agreement. Please give the new version a read and sign it
+        when you&apos;re ready.
+      </Lead>
 
-      {note && <Text style={styles.paragraph}>{note}</Text>}
+      {note && <Note label="What changed">{note}</Note>}
 
       <DetailRows
         rows={[
@@ -35,15 +36,21 @@ export default function BookingRevisedEmail({ fullName, link, bookingNumber, eve
         ]}
       />
 
-      <Section>
-        <Button href={link}>Review &amp; sign</Button>
-      </Section>
+      <Button href={link}>Review &amp; sign</Button>
 
-      <Divider />
-
-      <Text style={styles.hint}>
-        The earlier version can&apos;t be signed anymore. This link signs you in — please don&apos;t forward it.
-      </Text>
+      <Hint>
+        The earlier version can&apos;t be signed anymore. This link signs you in, so please don&apos;t forward it.
+      </Hint>
     </EmailShell>
   )
 }
+
+BookingRevisedEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview&next=/bookings/RS-1042",
+  bookingNumber: "RS-1042",
+  eventType: "Wedding",
+  eventDate: "Saturday, March 13, 2027",
+  totalDue: "$2,640.00",
+  note: "Moved the start time to 4 PM and added an hour of portraits, like we talked about.",
+} satisfies Props

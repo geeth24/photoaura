@@ -1,31 +1,29 @@
-import { Section, Text } from "@react-email/components"
-import { Button, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import { Button, EmailShell, Eyebrow, Heading, Hint, Lead, firstName } from "./shell"
 
 type Props = { fullName?: string; link: string }
 
 export const verifyEmailSubject = () => "Confirm this email for Reactive Shots"
 
 export default function VerifyEmail({ fullName, link }: Props) {
-  const first = (fullName || "there").split(" ")[0]
   return (
-    <EmailShell preview="Confirm this email address">
+    <EmailShell
+      preview="Confirm this email address"
+      art="verify-email"
+      artAlt="A sealed envelope with a checkmark wax seal"
+    >
       <Eyebrow>Confirm your email</Eyebrow>
-      <Text style={styles.heading}>One quick step, {first}.</Text>
-      <Text style={styles.subtitle}>
-        You added this address to your Reactive Shots account. Confirm it below
-        so we can sign you in with it later. The link expires in 30 minutes.
-      </Text>
-
-      <Section>
-        <Button href={link}>Confirm email</Button>
-      </Section>
-
-      <Divider />
-
-      <Text style={styles.hint}>
-        If you didn&apos;t add this email, ignore this message — it&apos;ll
-        expire on its own.
-      </Text>
+      <Heading>One quick step, {firstName(fullName)}.</Heading>
+      <Lead>
+        You added this address to your Reactive Shots account. Confirm it below so you can sign in with it later. The
+        link expires in 30 minutes.
+      </Lead>
+      <Button href={link}>Confirm email</Button>
+      <Hint>If you didn&apos;t add this email, ignore this message. The link expires on its own.</Hint>
     </EmailShell>
   )
 }
+
+VerifyEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview",
+} satisfies Props

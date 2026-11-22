@@ -1,5 +1,5 @@
-import { Section, Text } from "@react-email/components"
-import { Button, DetailRows, Divider, EmailShell, Eyebrow, styles } from "./shell"
+import { Button, DetailRows, EmailShell, Eyebrow, Heading, Hint, Lead, Paragraph, Strong, firstName } from "./shell"
+import { SIGN_IN_HINT } from "./copy"
 
 // money and dates arrive preformatted from the server ("$675.00", "Saturday, November 14, 2026")
 type Props = {
@@ -25,16 +25,18 @@ export default function BookingInviteEmail({
   totalDue,
   retainer,
 }: Props) {
-  const first = (fullName || "there").split(" ")[0]
-
   return (
-    <EmailShell preview={`Your ${(eventType || "booking").toLowerCase()} agreement is ready to review and sign`}>
+    <EmailShell
+      preview={`Your ${(eventType || "booking").toLowerCase()} agreement is ready to review and sign`}
+      art="booking-invite"
+      artAlt="A calendar page with one date circled beside a camera"
+    >
       <Eyebrow>{`Booking ${bookingNumber}`}</Eyebrow>
-      <Text style={styles.heading}>Let&apos;s lock in your date</Text>
-      <Text style={styles.subtitle}>
-        Hi {first} — thank you for choosing Reactive Shots. Your agreement is ready. Give it a read and sign it online;
-        it only takes a minute.
-      </Text>
+      <Heading>Let&apos;s lock in your date</Heading>
+      <Lead>
+        Hi {firstName(fullName)}, thank you for choosing Reactive Shots. Your agreement is ready. Give it a read and
+        sign it online; it only takes a minute.
+      </Lead>
 
       <DetailRows
         rows={[
@@ -45,18 +47,25 @@ export default function BookingInviteEmail({
         ]}
       />
 
-      <Section>
-        <Button href={link}>Review &amp; sign</Button>
-      </Section>
+      <Button href={link}>Review &amp; sign</Button>
 
-      <Divider />
+      <Paragraph>
+        Once it&apos;s signed, a <Strong>{retainer}</Strong> retainer (10%) holds your date. You can pay by Zelle, cash
+        or check. Your booking page has the details.
+      </Paragraph>
 
-      <Text style={styles.paragraph}>
-        Once it&apos;s signed, a <span style={styles.emphasis}>{retainer}</span> retainer (10%) holds your date. You can
-        pay by Zelle, cash, or check — your booking page has the details.
-      </Text>
-
-      <Text style={styles.hint}>This link signs you in. It&apos;s just for you — please don&apos;t forward it.</Text>
+      <Hint>{SIGN_IN_HINT}</Hint>
     </EmailShell>
   )
 }
+
+BookingInviteEmail.PreviewProps = {
+  fullName: "Jordan Ellis",
+  link: "https://aura.reactiveshots.com/auth/verify?token=preview&next=/bookings/RS-1042",
+  bookingNumber: "RS-1042",
+  eventType: "Wedding",
+  eventDate: "Saturday, March 13, 2027",
+  packageName: "Photo + Video",
+  totalDue: "$2,400.00",
+  retainer: "$240.00",
+} satisfies Props
