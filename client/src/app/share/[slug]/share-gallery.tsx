@@ -128,12 +128,13 @@ export function ShareGallery({ slug }: { slug: string }) {
               )}
             </motion.div>
 
-            <PhotoGrid photos={album.album_photos} onOpen={openPhoto} />
+            <PhotoGrid photos={album.album_photos} onOpen={openPhoto} versions={false} />
             <PhotoViewer
               photos={stills}
               openIndex={viewer}
               onClose={() => setViewer(null)}
               canDownload={!album.locked}
+              versions={false}
             />
             <VideoViewer photo={video} onClose={() => setVideo(null)} canDownload={!album.locked} />
           </>
