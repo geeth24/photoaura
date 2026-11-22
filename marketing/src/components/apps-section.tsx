@@ -54,7 +54,7 @@ export function AppsSection() {
             className="relative z-0 mt-14 w-[52%]"
           >
             <Image
-              src="/mockups/app-home.webp"
+              src="/mockups/ios-home.webp"
               alt="The PhotoAura iPhone app's home screen with the client's galleries"
               width={896}
               height={1660}
@@ -70,7 +70,7 @@ export function AppsSection() {
             className="relative z-10 -ml-[8%] w-[54%]"
           >
             <Image
-              src="/mockups/app-viewer.webp"
+              src="/mockups/ios-viewer.webp"
               alt="A photo open full screen in the PhotoAura iPhone app"
               width={929}
               height={1656}
