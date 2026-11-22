@@ -11,17 +11,17 @@ export function Footer() {
 
   return (
     <footer className="border-t border-border-subtle bg-surface">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-12 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-10">
         <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo-color.png" alt="PhotoAura" width={28} height={28} />
+          <Image src="/logo-color.png" alt="" width={24} height={24} />
           <span className="text-[11px] font-medium uppercase tracking-[0.35em] text-text-muted">
             PhotoAura
           </span>
         </Link>
 
         <nav className="flex flex-wrap items-center gap-6 text-[11px] font-medium uppercase tracking-[0.2em] text-text-muted">
-          <Link href="/#features" className="transition-colors hover:text-text-primary">
-            Features
+          <Link href="/#sorting" className="transition-colors hover:text-text-primary">
+            How it works
           </Link>
           <Link href="/policy" className="transition-colors hover:text-text-primary">
             Privacy

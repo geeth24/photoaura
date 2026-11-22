@@ -2,19 +2,19 @@ import { ImageResponse } from "next/og"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-export const alt = "PhotoAura — Your photos, beautifully managed."
+export const alt = "PhotoAura — Client galleries that sort themselves"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
-const dataUrl = (b: Buffer) => `data:image/png;base64,${b.toString("base64")}`
+// square JPEG tiles from the made-up demo wedding (shelfshot web/landing-assets.py og)
+const TILES = ["og-1", "og-2", "og-3", "og-4", "og-5", "og-6", "og-7", "og-8", "og-9"]
+const dataUrl = (b: Buffer) => `data:image/jpeg;base64,${b.toString("base64")}`
 
 export default async function OpenGraphImage() {
-  // the device PNGs are exported by shelfshot (bun run mockups projects/photoaura)
-  const [sans, serif, mac, phone] = await Promise.all([
+  const [sans, serif, ...tiles] = await Promise.all([
     readFile(join(process.cwd(), "assets/Outfit-Regular.ttf")),
     readFile(join(process.cwd(), "assets/DMSerifDisplay-Regular.ttf")),
-    readFile(join(process.cwd(), "assets/og/hero-mac.png")),
-    readFile(join(process.cwd(), "assets/og/app-viewer.png")),
+    ...TILES.map((t) => readFile(join(process.cwd(), `assets/og/${t}.jpg`))),
   ])
 
   return new ImageResponse(
@@ -24,13 +24,9 @@ export default async function OpenGraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          position: "relative",
           background: "#030d14",
-          backgroundImage:
-            "radial-gradient(circle at 12% 20%, rgba(0,166,251,0.22), transparent 55%), radial-gradient(circle at 80% 85%, rgba(0,166,251,0.18), transparent 50%)",
           color: "#edf6fc",
           fontFamily: "Outfit",
-          overflow: "hidden",
         }}
       >
         <div
@@ -38,8 +34,8 @@ export default async function OpenGraphImage() {
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
-            padding: "64px 0 60px 68px",
-            width: 560,
+            padding: "62px 0 58px 64px",
+            flex: 1,
           }}
         >
           <div
@@ -49,39 +45,45 @@ export default async function OpenGraphImage() {
               gap: 16,
               fontSize: 16,
               letterSpacing: 7,
-              color: "rgba(237,246,252,0.55)",
+              color: "rgba(237,246,252,0.58)",
               textTransform: "uppercase",
             }}
           >
             <div style={{ width: 48, height: 1, background: "#00a6fb" }} />
             <span>PhotoAura</span>
           </div>
-
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               fontFamily: "DM Serif Display",
-              fontSize: 84,
+              fontSize: 70,
               lineHeight: 0.98,
               letterSpacing: -1.5,
             }}
           >
-            <span>Your photos,</span>
-            <span style={{ color: "#00a6fb" }}>beautifully</span>
-            <span style={{ color: "#00a6fb" }}>managed.</span>
+            <span>Galleries that</span>
+            <span style={{ color: "#00a6fb" }}>sort themselves.</span>
           </div>
-
-          <div style={{ display: "flex", fontSize: 22, color: "rgba(237,246,252,0.55)" }}>
-            Client galleries · Face recognition · iPhone & Android apps
+          <div
+            style={{
+              display: "flex",
+              fontSize: 17,
+              letterSpacing: 4,
+              textTransform: "uppercase",
+              color: "rgba(237,246,252,0.58)",
+            }}
+          >
+            People · Highlights · Moments · Reels
           </div>
         </div>
 
-        {/* studio on a Mac, the client's app in front — bleeding off the edge */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={dataUrl(mac)} width={760} height={557} style={{ position: "absolute", left: 540, top: 110 }} alt="" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={dataUrl(phone)} width={218} height={388} style={{ position: "absolute", left: 1000, top: 250 }} alt="" />
+        {/* the gallery grid, bleeding off the right edge */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, width: 626, height: 630 }}>
+          {tiles.map((t, i) => (
+            <img key={TILES[i]} src={dataUrl(t)} width={206} height={207} style={{ objectFit: "cover" }} alt="" />
+          ))}
+        </div>
       </div>
     ),
     {
@@ -90,6 +92,6 @@ export default async function OpenGraphImage() {
         { name: "Outfit", data: sans, style: "normal", weight: 400 },
         { name: "DM Serif Display", data: serif, style: "normal", weight: 400 },
       ],
-    }
+    },
   )
 }

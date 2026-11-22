@@ -21,7 +21,7 @@ const software = {
   applicationCategory: "PhotographyApplication",
   operatingSystem: "Web, iOS, Android, Linux, macOS, Windows (Docker)",
   description:
-    "Self-hosted or managed photo gallery for photography studios. Client galleries, face recognition, branded shared albums.",
+    "Client galleries for photography studios: face grouping, Highlights, Moments, reels, revisions with Compare, watermarked proofs until the final payment, and iPhone and Android apps.",
   url: SITE_URL,
   image: `${SITE_URL}/logo-color.png`,
   downloadUrl: [APP_STORE, PLAY_STORE],

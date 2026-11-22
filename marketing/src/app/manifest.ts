@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "PhotoAura",
     short_name: "PhotoAura",
     description:
-      "Self-hosted or managed photo gallery for photography studios.",
+      "Client galleries that sort themselves, for photography studios.",
     start_url: "/",
     display: "standalone",
     background_color: "#030d14",
