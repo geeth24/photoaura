@@ -127,6 +127,9 @@ type Props = {
   slug?: string
   // false on a proof-locked album
   canDownload?: boolean
+  // version label and compare are for the client; off on share links, where
+  // the versions call would also need a sign-in
+  versions?: boolean
 }
 
 export function PhotoViewer({
@@ -140,6 +143,7 @@ export function PhotoViewer({
   onToggleFavorite,
   slug,
   canDownload = true,
+  versions: showVersions = true,
 }: Props) {
   const pswpRef = useRef<PhotoSwipe | null>(null)
   const [layer, setLayer] = useState<HTMLElement | null>(null)
@@ -350,7 +354,7 @@ export function PhotoViewer({
 
   const current = layer ? photos[index] : undefined
   const currentId = current?.file_metadata.id
-  const revised = (current?.file_metadata.version ?? 1) > 1
+  const revised = showVersions && (current?.file_metadata.version ?? 1) > 1
   useEffect(() => {
     if (!revised || currentId == null || versions[currentId]) return
     getPhotoVersions(currentId)

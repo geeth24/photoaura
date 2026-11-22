@@ -90,6 +90,8 @@ type Props = {
   onSetCover?: (filename: string) => void
   // the size buttons; a page with several grids shows them once
   controls?: boolean
+  // v2 badges are for the client; a share link goes to people outside the edit
+  versions?: boolean
 }
 
 function PhotoGridImpl({
@@ -100,6 +102,7 @@ function PhotoGridImpl({
   onDelete,
   onSetCover,
   controls = true,
+  versions = true,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -200,6 +203,7 @@ function PhotoGridImpl({
             onToggleFavorite={onToggleFavorite}
             onDelete={onDelete}
             onSetCover={onSetCover}
+            showVersion={versions}
           />
         ))}
       </div>
@@ -217,6 +221,7 @@ type TileProps = {
   onToggleFavorite?: (filename: string) => void
   onDelete?: (filename: string) => void
   onSetCover?: (filename: string) => void
+  showVersion: boolean
 }
 
 const Tile = memo(function Tile({
@@ -227,6 +232,7 @@ const Tile = memo(function Tile({
   onToggleFavorite,
   onDelete,
   onSetCover,
+  showVersion,
 }: TileProps) {
   const m = photo.file_metadata
   const video = isVideo(photo)
@@ -280,7 +286,7 @@ const Tile = memo(function Tile({
         )}
       </button>
 
-      {(m.version ?? 1) > 1 && (
+      {showVersion && (m.version ?? 1) > 1 && (
         <span className="pointer-events-none absolute bottom-1.5 right-1.5 bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.1em] text-white backdrop-blur">
           v{m.version}
         </span>
