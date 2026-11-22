@@ -28,7 +28,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/context/auth-context"
 import Image from "next/image"
-import { RadSoftMark } from "@/components/icons"
+import { BuiltByRadSoft } from "@/components/built-by"
 
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
@@ -133,19 +133,7 @@ export function AppSidebar() {
           Sign out
         </button>
 
-        <Link
-          href="https://radsoftinc.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Built by Rad Soft"
-          className="group mt-3 flex items-center gap-1.5 px-3 text-[9px] uppercase tracking-[0.25em] text-text-faint transition-colors hover:text-text-primary"
-        >
-          <span>Built by</span>
-          <RadSoftMark className="size-2.5 text-text-muted transition-colors group-hover:text-brand" />
-          <span className="text-text-muted transition-colors group-hover:text-text-primary">
-            Rad Soft
-          </span>
-        </Link>
+        <BuiltByRadSoft className="mt-3 px-3" />
       </SidebarFooter>
     </Sidebar>
   )

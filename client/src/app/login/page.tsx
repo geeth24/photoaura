@@ -6,6 +6,7 @@ import Image from "next/image"
 import { ArrowRight } from "lucide-react"
 import { useAuth } from "@/context/auth-context"
 import { Input } from "@/components/ui/input"
+import { BuiltByRadSoft } from "@/components/built-by"
 import { toast } from "sonner"
 
 export default function LoginPage() {
@@ -76,7 +77,7 @@ export default function LoginPage() {
       </div>
 
       {/* form panel */}
-      <div className="flex items-center justify-center px-6 py-16 sm:px-12">
+      <div className="relative flex items-center justify-center px-6 py-16 sm:px-12">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -211,6 +212,9 @@ export default function LoginPage() {
             {mode === "magic" ? "Sign in with password" : "Use a magic link instead"}
           </button>
         </motion.div>
+        <div className="absolute inset-x-0 bottom-6 flex justify-center">
+          <BuiltByRadSoft />
+        </div>
       </div>
     </div>
   )

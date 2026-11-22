@@ -8,6 +8,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { ClientTabBar, ClientTopNav, ProfileLink, useClientNav } from "@/components/client-nav"
 import { PreviewBanner } from "@/components/preview-banner"
+import { BuiltByRadSoft } from "@/components/built-by"
 import { EyeOff, LogOut } from "lucide-react"
 
 // clients get a light top bar (tabs at the bottom on phones); the studio keeps its sidebar
@@ -96,6 +97,9 @@ function ClientShell({ children }: { children: React.ReactNode }) {
       {/* clip, not hidden: hidden would make this the scroll parent and break sticky headers */}
       <main className="min-w-0 flex-1 overflow-x-clip px-5 pb-28 pt-8 sm:px-8 md:pb-8 lg:px-12">
         <div className="mx-auto w-full max-w-6xl">{children}</div>
+        <footer className="mx-auto mt-20 flex w-full max-w-6xl justify-center border-t border-border-subtle pt-6">
+          <BuiltByRadSoft />
+        </footer>
       </main>
       <ClientTabBar items={items} pathname={pathname} />
     </div>
