@@ -168,7 +168,7 @@ def _current_name(photo: FileMetadata) -> str:
     return photo.original_filename if photo.held and photo.original_filename else photo.filename
 
 
-def _snapshot(session, photo: FileMetadata):
+def _snapshot(session, photo: FileMetadata, proof: Optional[str] = None):
     session.add(
         PhotoVersion(
             photo_id=photo.id,
@@ -179,6 +179,7 @@ def _snapshot(session, photo: FileMetadata):
             height=photo.height,
             revision_number=photo.revision_number,
             uploaded_at=photo.upload_date,
+            proof_filename=proof,
         )
     )
 
@@ -190,6 +191,8 @@ def _replace(session, album, photo, upload_name, content, content_type, number, 
     filename = _versioned_name(photo, upload_name, version, taken)
     taken.add(filename.lower())
     old_proof = photo.filename if photo.held else None
+    # a locked album keeps the old proof so compare has a watermarked "before"
+    keep_proof = old_proof if album.proof_locked else None
     if album.proof_locked:
         gallery_name = proof_service.proof_name(filename, taken)
         key, full_key = proof_service.store_held(album, filename, content, content_type, gallery_name)
@@ -200,7 +203,13 @@ def _replace(session, album, photo, upload_name, content, content_type, number, 
 
     # the first revision of a photo also records what it was before
     if not session.query(PhotoVersion).filter_by(photo_id=photo.id).first():
-        _snapshot(session, photo)
+        _snapshot(session, photo, keep_proof)
+    elif keep_proof:
+        prev = session.query(PhotoVersion).filter_by(photo_id=photo.id, version=photo.version or 1).first()
+        if prev:
+            prev.proof_filename = keep_proof
+        else:
+            _snapshot(session, photo, keep_proof)
 
     album_dir = os.path.join(settings.DATA_DIR, album.slug)
     os.makedirs(album_dir, exist_ok=True)
@@ -231,8 +240,8 @@ def _replace(session, album, photo, upload_name, content, content_type, number, 
     session.query(FaceEmbedding).filter_by(photo_id=photo.id).delete()
     session.flush()
     _snapshot(session, photo)
-    # the previous version's original stays held; only its proof goes
-    if old_proof:
+    # the previous version's original stays held; its proof goes once unlocked
+    if old_proof and not keep_proof:
         try:
             s3_client.delete_object(Bucket=AWS_BUCKET, Key=f"{album.slug}/{old_proof}")
         except Exception as e:
@@ -470,16 +479,20 @@ def photo_versions(
     album = session.get(Album, photo.album_id)
     if not album or not _can_view(session, current_user, album):
         raise HTTPException(status_code=403, detail="Not your album")
-    # earlier versions are clean full-resolution files held until the final payment
-    if album.proof_locked:
-        return []
     from utils.utils import build_photo_json
 
     rows = session.query(PhotoVersion).filter_by(photo_id=photo_id).order_by(PhotoVersion.version).all()
     out = []
     for v in rows:
+        name = v.filename
+        # earlier versions are clean full-resolution files held until the
+        # final payment, so a locked album compares watermarked proofs
+        if album.proof_locked:
+            name = photo.filename if v.version == (photo.version or 1) else v.proof_filename
+            if not name:
+                continue
         urls = build_photo_json(
-            FileMetadata(filename=v.filename, content_type=photo.content_type), album.slug
+            FileMetadata(filename=name, content_type=photo.content_type), album.slug
         )
         out.append(
             {
