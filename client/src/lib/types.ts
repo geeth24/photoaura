@@ -233,6 +233,8 @@ export type Face = {
   external_id: string
   image_url?: string
   face_photos?: Photo[]
+  // one per photo the person is in, limited to albums the caller can see
+  photo_links?: { photo_id: number; album_id: number }[]
 }
 
 export type AlbumFace = {

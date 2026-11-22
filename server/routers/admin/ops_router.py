@@ -6,7 +6,7 @@ import os
 
 import requests
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, text
+from sqlalchemy import desc, func, text
 from sqlalchemy.orm import Session
 
 from config import settings
@@ -50,6 +50,35 @@ def _cdn_ok(session) -> bool:
         return False
 
 
+def top_albums(session, limit: int = 6) -> list[dict]:
+    """The albums holding the most media, biggest first, to see what's worth archiving."""
+    is_video = FileMetadata.content_type.ilike("video/%")
+    rows = (
+        session.query(
+            Album.slug,
+            Album.name,
+            func.coalesce(func.sum(FileMetadata.size), 0).label("bytes"),
+            func.count(FileMetadata.id).label("files"),
+            func.count(FileMetadata.id).filter(is_video).label("videos"),
+        )
+        .join(FileMetadata, FileMetadata.album_id == Album.id)
+        .group_by(Album.id, Album.slug, Album.name)
+        .order_by(desc("bytes"))
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "slug": r.slug,
+            "name": r.name,
+            "bytes": int(r.bytes),
+            "photos": int(r.files) - int(r.videos),
+            "videos": int(r.videos),
+        }
+        for r in rows
+    ]
+
+
 @router.get("/api/admin/ops")
 def ops(_admin=Depends(require_admin), session: Session = Depends(get_session)):
     total = session.query(func.count(FileMetadata.id)).scalar() or 0
@@ -85,6 +114,7 @@ def ops(_admin=Depends(require_admin), session: Session = Depends(get_session)):
             "total_bytes": int(media_bytes) + int(deliverable_bytes),
         },
         "db_size_bytes": int(db_size),
+        "top_albums": top_albums(session),
         "services": {
             "backend": True,  # we're answering, so it's up
             "postgres": True,  # the queries above succeeded

@@ -1,416 +1,222 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useDocumentTitle } from "@/lib/use-document-title"
 import { motion } from "motion/react"
+import { Check, Search, UserRound } from "lucide-react"
+import { useDocumentTitle } from "@/lib/use-document-title"
 import { apiFetch } from "@/lib/api"
-import { isVideo, type Face, type Photo } from "@/lib/types"
-import { PhotoGrid } from "@/components/photo-grid"
-import { PhotoViewer, VideoViewer } from "@/components/photo-viewer"
-import { Input } from "@/components/ui/input"
+import type { Album, Face } from "@/lib/types"
+import { plural } from "@/lib/format"
+import { ease, FilterTabs, PageHeader, SectionLabel } from "@/components/page-header"
+import { FaceChip, FaceDetail, saveFaceName } from "@/components/face-detail"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
-import { Pencil, ArrowLeft, ImageOff, UserRound, Merge } from "lucide-react"
-import Image from "next/image"
-import { toast } from "sonner"
 
-type Suggestion = {
-  external_id: string
-  name: string | null
-  similarity: number
-  count: number
-  image_url: string
-}
+type Sort = "photos" | "name"
+
+const photosOf = (f: Face) => f.photo_links?.length ?? 0
+const albumsOf = (f: Face) => new Set((f.photo_links ?? []).map((l) => l.album_id))
 
 export default function FacesPage() {
   useDocumentTitle("Faces")
-  const [faces, setFaces] = useState<Face[]>([])
-  const [loading, setLoading] = useState(true)
+  const [faces, setFaces] = useState<Face[] | null>(null)
+  const [albums, setAlbums] = useState<Album[]>([])
   const [selected, setSelected] = useState<Face | null>(null)
-  const [facePhotos, setFacePhotos] = useState<Photo[]>([])
-  const [photosLoading, setPhotosLoading] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const [editName, setEditName] = useState("")
-  const [editFace, setEditFace] = useState<Face | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
-  const [merging, setMerging] = useState<string | null>(null)
-  const [viewer, setViewer] = useState<number | null>(null)
-  const [video, setVideo] = useState<Photo | null>(null)
-  const stills = useMemo(() => facePhotos.filter((p) => !isVideo(p)), [facePhotos])
-  const openPhoto = useCallback(
-    (p: Photo) => (isVideo(p) ? setVideo(p) : setViewer(stills.indexOf(p))),
-    [stills],
-  )
+  const [query, setQuery] = useState("")
+  const [sort, setSort] = useState<Sort>("photos")
 
-  const fetchFaces = () => {
-    setLoading(true)
-    apiFetch<Face[]>("/faces")
-      .then(setFaces)
-      .catch(() => setFaces([]))
-      .finally(() => setLoading(false))
-  }
+  const fetchFaces = useCallback(() => {
+    apiFetch<Face[]>("/faces").then(setFaces).catch(() => setFaces([]))
+  }, [])
 
   useEffect(() => {
     fetchFaces()
-  }, [])
+    apiFetch<Album[]>("/albums/").then(setAlbums).catch(() => setAlbums([]))
+  }, [fetchFaces])
 
-  const viewFace = async (face: Face) => {
-    setSelected(face)
-    setPhotosLoading(true)
-    setSuggestions([])
-    setSuggestionsLoading(true)
-    try {
-      const detail = await apiFetch<Face>(`/face/${face.external_id}`)
-      setFacePhotos(detail.face_photos || [])
-    } catch {
-      setFacePhotos([])
-    } finally {
-      setPhotosLoading(false)
-    }
-    // "AI thinks these might be the same person" — surfaced for manual merge
-    apiFetch<Suggestion[]>(`/face/${face.external_id}/suggestions`)
-      .then(setSuggestions)
-      .catch(() => setSuggestions([]))
-      .finally(() => setSuggestionsLoading(false))
-  }
+  const albumById = useMemo(() => new Map(albums.map((a) => [a.album_id, a])), [albums])
+  const unnamed = useMemo(() => (faces ?? []).filter((f) => !f.name).sort((a, b) => photosOf(b) - photosOf(a)), [faces])
+  const named = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return (faces ?? [])
+      .filter((f) => f.name && (!q || f.name.toLowerCase().includes(q)))
+      .sort((a, b) => (sort === "name" ? a.name.localeCompare(b.name) : photosOf(b) - photosOf(a)))
+  }, [faces, query, sort])
 
-  const mergeInto = async (sourceId: string) => {
-    if (!selected || merging) return
-    setMerging(sourceId)
-    try {
-      await apiFetch("/faces/merge", {
-        method: "POST",
-        body: JSON.stringify({
-          target_face_id: selected.external_id,
-          source_face_ids: [sourceId],
-        }),
-      })
-      toast.success("Merged — same person")
-      setSuggestions((prev) => prev.filter((s) => s.external_id !== sourceId))
-      // refresh this person's photos (they just gained the merged shots)
-      viewFace(selected)
-      fetchFaces()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't merge")
-    } finally {
-      setMerging(null)
-    }
-  }
-
-  const openEdit = (face: Face) => {
-    setEditFace(face)
-    setEditName(face.name || "")
-    setEditOpen(true)
-  }
-
-  const saveName = async () => {
-    if (!editFace) return
-    setSaving(true)
-    try {
-      await apiFetch(`/face/${editFace.external_id}`, {
-        method: "PUT",
-        body: JSON.stringify({ name: editName }),
-      })
-      toast.success("Name updated")
-      setEditOpen(false)
-      fetchFaces()
-      if (selected?.external_id === editFace.external_id) {
-        setSelected({ ...selected, name: editName })
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update name")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // detail view for a face
-  if (selected) {
+  if (selected)
     return (
-      <div className="space-y-12">
-        {/* header */}
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <button
-              onClick={() => setSelected(null)}
-              className="group mb-4 flex items-center gap-4 text-text-muted transition-colors hover:text-text-primary"
-            >
-              <span className="block h-px w-12 bg-brand" />
-              <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.35em]">
-                <ArrowLeft className="size-3 transition-transform group-hover:-translate-x-0.5" />
-                Faces
-              </span>
-            </button>
-
-            <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
-              {selected.name || "Unknown"}
-            </h1>
-
-            <p className="mt-3 text-sm font-light text-text-secondary">
-              {photosLoading
-                ? "Loading photos…"
-                : `${facePhotos.length} ${facePhotos.length === 1 ? "photo" : "photos"}`}
-            </p>
-          </div>
-
-          <button
-            onClick={() => openEdit(selected)}
-            className="flex h-10 items-center gap-2 border border-border-default px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-          >
-            <Pencil className="size-3.5" />
-            Edit Name
-          </button>
-        </div>
-
-        {/* similar people — AI suggestions to merge */}
-        {(suggestionsLoading || suggestions.length > 0) && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <span className="block h-px w-12 bg-brand" />
-              <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-                Might be the same person
-              </span>
-            </div>
-            {suggestionsLoading ? (
-              <div className="flex gap-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="size-24" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {suggestions.map((s) => (
-                  <div
-                    key={s.external_id}
-                    className="group w-24 space-y-1.5 text-center"
-                  >
-                    <div className="relative size-24 overflow-hidden border border-border-subtle bg-surface-elevated">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={s.image_url}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                      <span className="absolute right-1 top-1 bg-surface/80 px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-text-primary backdrop-blur">
-                        {s.similarity}%
-                      </span>
-                    </div>
-                    <p className="truncate text-[10px] uppercase tracking-[0.15em] text-text-muted">
-                      {s.name || `${s.count} photo${s.count === 1 ? "" : "s"}`}
-                    </p>
-                    <button
-                      onClick={() => mergeInto(s.external_id)}
-                      disabled={merging === s.external_id}
-                      className="flex w-full items-center justify-center gap-1 bg-brand py-1.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-surface transition-all hover:bg-text-primary disabled:opacity-50"
-                    >
-                      <Merge className="size-3" />
-                      {merging === s.external_id ? "…" : "Merge"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* photo grid */}
-        {photosLoading ? (
-          <div className="grid grid-cols-3 gap-[2px] max-sm:ml-[calc(50%-50vw)] max-sm:w-screen sm:grid-cols-4 sm:gap-[3px] lg:grid-cols-5">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Skeleton key={i} className="aspect-square w-full" />
-            ))}
-          </div>
-        ) : facePhotos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-24 text-center">
-            <ImageOff className="size-7 text-text-faint" />
-            <p className="mt-4 font-heading text-xl text-text-primary">
-              No photos for this face
-            </p>
-            <p className="mt-1 text-sm font-light text-text-muted">
-              This person has not appeared in any photos yet.
-            </p>
-          </div>
-        ) : (
-          <PhotoGrid photos={facePhotos} onOpen={openPhoto} />
-        )}
-
-        <PhotoViewer photos={stills} openIndex={viewer} onClose={() => setViewer(null)} />
-        <VideoViewer photo={video} onClose={() => setVideo(null)} />
-
-        <EditSheet
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          name={editName}
-          onNameChange={setEditName}
-          onSave={saveName}
-          saving={saving}
-        />
-      </div>
+      <FaceDetail
+        key={selected.external_id}
+        face={selected}
+        albums={albumById}
+        onBack={() => setSelected(null)}
+        onChanged={fetchFaces}
+      />
     )
-  }
+
+  const albumCount = new Set((faces ?? []).flatMap((f) => [...albumsOf(f)])).size
+  const subtitle = faces
+    ? `${plural(faces.length, "person", "people")} recognized across ${plural(albumCount, "album")}${unnamed.length ? ` · ${unnamed.length} still unnamed` : ""}`
+    : "Loading people…"
 
   return (
     <div className="space-y-12">
-      {/* header */}
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <div className="mb-4 flex items-center gap-4">
-            <span className="block h-px w-12 bg-brand" />
-            <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-text-muted">
-              People
-            </span>
-          </div>
-          <h1 className="font-heading text-[clamp(2.25rem,4vw,3.25rem)] leading-[0.95] tracking-tight text-text-primary">
-            Faces
-          </h1>
-          <p className="mt-3 text-sm font-light text-text-secondary">
-            {loading
-              ? "Loading people…"
-              : `${faces.length} ${faces.length === 1 ? "person" : "people"}`}
-          </p>
-        </div>
-      </div>
+      <PageHeader eyebrow="People" title="Faces" subtitle={subtitle} />
 
-      {loading ? (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {faces == null ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square w-full" />
+            <Skeleton key={i} className="aspect-[4/5] w-full" />
           ))}
         </div>
       ) : faces.length === 0 ? (
         <div className="flex flex-col items-center justify-center border border-dashed border-border-default py-24 text-center">
           <UserRound className="size-7 text-text-faint" />
-          <p className="mt-4 font-heading text-xl text-text-primary">No faces found</p>
-          <p className="mt-1 text-sm font-light text-text-muted">
-            Faces appear here once your photos have been processed.
-          </p>
+          <p className="mt-4 font-heading text-xl text-text-primary">No faces yet</p>
+          <p className="mt-1 text-sm font-light text-text-muted">People appear here once an album with face detection is processed.</p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {faces.map((face, i) => (
-            <motion.div
-              key={face.external_id}
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.5,
-                delay: Math.min(i * 0.05, 0.4),
-                ease: [0.22, 1, 0.36, 1],
-              }}
-            >
-              <button
-                onClick={() => viewFace(face)}
-                className="group block w-full text-left"
-              >
-                <div className="relative aspect-square w-full overflow-hidden border border-border-subtle bg-surface-elevated">
-                  {face.image_url ? (
-                    <Image
-                      src={face.image_url}
-                      alt={face.name || "Unknown face"}
-                      fill
-                      className="object-cover transition-transform duration-700 group-hover:scale-105"
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-text-faint">
-                      <UserRound className="size-6" />
-                    </div>
-                  )}
+        <>
+          {unnamed.length > 0 && (
+            <section className="space-y-5">
+              <SectionLabel aside={<span className="text-[10px] uppercase tracking-[0.3em] text-text-faint">{unnamed.length} to go</span>}>
+                Name these people
+              </SectionLabel>
+              <p className="-mt-2 text-sm font-light text-text-muted">
+                Names show on the people filter inside each album, for you and your clients; unnamed faces show only a photo count.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {unnamed.map((f) => (
+                  <UnnamedCard key={f.external_id} face={f} albums={albumById} onOpen={() => setSelected(f)} onNamed={fetchFaces} />
+                ))}
+              </div>
+            </section>
+          )}
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-surface/90 via-surface/15 to-transparent" />
-
-                  {/* edit pencil reveals on hover */}
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openEdit(face)
-                    }}
-                    className="absolute right-3 top-3 border border-border-strong bg-surface/70 p-1.5 text-text-secondary opacity-0 backdrop-blur transition-all hover:text-text-primary group-hover:opacity-100"
-                    aria-label="Edit name"
+          <section className="space-y-5">
+            <SectionLabel>Everyone</SectionLabel>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex h-9 min-w-0 flex-1 items-center gap-2 border border-border-default bg-surface-elevated px-3 sm:max-w-xs">
+                <Search className="size-3.5 shrink-0 text-text-faint" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Find a person"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-faint focus:outline-none"
+                />
+              </label>
+              <FilterTabs
+                value={sort}
+                onChange={setSort}
+                options={[
+                  { key: "photos", label: "Most photos" },
+                  { key: "name", label: "A–Z" },
+                ]}
+              />
+            </div>
+            {named.length === 0 ? (
+              <p className="border border-dashed border-border-default py-10 text-center text-sm font-light text-text-muted">
+                {query ? "Nobody by that name." : "Name someone above and they'll show up here."}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {named.map((f, i) => (
+                  <motion.button
+                    key={f.external_id}
+                    onClick={() => setSelected(f)}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45, delay: Math.min(i * 0.04, 0.3), ease }}
+                    className="group block text-left"
                   >
-                    <Pencil className="size-3" />
-                  </span>
-
-                  <div className="absolute inset-x-0 bottom-0 p-4">
-                    <h2 className="line-clamp-1 font-heading text-lg leading-tight tracking-tight text-text-primary">
-                      {face.name || "Unknown"}
-                    </h2>
-                  </div>
-                </div>
-              </button>
-            </motion.div>
-          ))}
-        </div>
+                    <div className="relative aspect-[4/5] overflow-hidden border border-border-subtle bg-surface-elevated">
+                      {f.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={f.image_url}
+                          alt={f.name}
+                          className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-surface/90 via-surface/10 to-transparent" />
+                      <div className="absolute inset-x-0 bottom-0 p-4">
+                        <h3 className="line-clamp-1 font-heading text-xl leading-tight tracking-tight text-text-primary">{f.name}</h3>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-[0.15em] text-text-muted">
+                          {plural(photosOf(f), "photo")} · {plural(albumsOf(f).size, "album")}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
       )}
-
-      <EditSheet
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        name={editName}
-        onNameChange={setEditName}
-        onSave={saveName}
-        saving={saving}
-      />
     </div>
   )
 }
 
-function EditSheet({
-  open,
-  onOpenChange,
-  name,
-  onNameChange,
-  onSave,
-  saving,
+function UnnamedCard({
+  face,
+  albums,
+  onOpen,
+  onNamed,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  name: string
-  onNameChange: (name: string) => void
-  onSave: () => void
-  saving: boolean
+  face: Face
+  albums: Map<number | undefined, Album>
+  onOpen: () => void
+  onNamed: () => void
 }) {
+  const [draft, setDraft] = useState("")
+  const [saving, setSaving] = useState(false)
+  const firstAlbum = albums.get(face.photo_links?.[0]?.album_id)?.album_name
+
+  const save = async () => {
+    const name = draft.trim()
+    if (!name) return
+    setSaving(true)
+    try {
+      await saveFaceName(face.external_id, name)
+      onNamed()
+    } catch {
+      setSaving(false)
+    }
+  }
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle className="font-heading text-xl text-text-primary">
-            Edit Face
-          </SheetTitle>
-          <SheetDescription className="text-sm font-light text-text-secondary">
-            Update the name for this face.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="grid gap-4 p-4">
-          <div className="grid gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-muted">
-              Name
-            </span>
-            <Input
-              value={name}
-              onChange={(e) => onNameChange(e.target.value)}
-              placeholder="Person name"
-            />
-          </div>
-          <button
-            onClick={onSave}
+    <div className="flex gap-3 border border-border-subtle bg-surface-elevated p-3">
+      <button onClick={onOpen} aria-label="See their photos" className="shrink-0">
+        <FaceChip src={face.image_url} name={null} className="size-20 transition-opacity hover:opacity-80" />
+      </button>
+      <form
+        className="flex min-w-0 flex-1 flex-col justify-between gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save()
+        }}
+      >
+        <p className="truncate text-[10px] uppercase tracking-[0.15em] text-text-faint">
+          {plural(photosOf(face), "photo")}
+          {firstAlbum && ` · ${firstAlbum}`}
+        </p>
+        <div className="flex items-center gap-1.5 border-b border-border-default focus-within:border-brand">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Who is this?"
             disabled={saving}
-            className="flex h-10 items-center justify-center gap-2 bg-brand px-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-surface transition-all hover:bg-text-primary hover:shadow-[0_0_40px_rgba(0,166,251,0.3)] disabled:opacity-60 disabled:hover:bg-brand disabled:hover:shadow-none"
+            className="h-9 min-w-0 flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-faint focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={saving || !draft.trim()}
+            aria-label="Save name"
+            className="flex size-7 items-center justify-center text-brand transition-opacity disabled:opacity-30"
           >
-            {saving ? "Saving..." : "Save"}
+            <Check className="size-4" />
           </button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </form>
+    </div>
   )
 }
