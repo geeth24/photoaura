@@ -10,6 +10,7 @@ import { isVideo, type Photo } from "@/lib/types"
 import { downloadSharedAlbumZip } from "@/lib/download"
 import { SaveToPhotos } from "@/components/save-to-photos"
 import { ProofBanner } from "@/components/proof-banner"
+import { BuiltByRadSoft } from "@/components/built-by"
 import { Download, ImageOff } from "lucide-react"
 
 const API_URL =
@@ -179,6 +180,7 @@ export function ShareGallery({ slug }: { slug: string }) {
           <p className="mt-6 text-[10px] tracking-[0.2em] text-text-faint">
             © {new Date().getFullYear()} Reactive Shots
           </p>
+          <BuiltByRadSoft className="mt-4" />
         </footer>
       </div>
     </div>
