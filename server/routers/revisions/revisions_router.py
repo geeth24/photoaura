@@ -184,6 +184,69 @@ def _snapshot(session, photo: FileMetadata, proof: Optional[str] = None):
     )
 
 
+def _set_file(session, album, photo, filename, gallery_name, content, content_type):
+    """Point the photo at a newly stored file and re-read its metadata."""
+    album_dir = os.path.join(settings.DATA_DIR, album.slug)
+    os.makedirs(album_dir, exist_ok=True)
+    local_path = os.path.join(album_dir, filename)
+    with open(local_path, "wb") as f:
+        f.write(content)
+    try:
+        fm = get_file_metadata(album.id, local_path, _BytesUpload(content))
+    finally:
+        if os.path.exists(local_path):
+            os.remove(local_path)
+
+    photo.filename = gallery_name
+    photo.original_filename = filename if album.proof_locked else None
+    photo.held = bool(album.proof_locked)
+    photo.content_type = content_type
+    photo.size = fm["size"]
+    photo.width = fm["width"]
+    photo.height = fm["height"]
+    photo.exif_data = fm["exif_data"]
+    photo.orientation = fm["orientation"]
+    photo.upload_date = datetime.now()
+    photo.blur_data_url = generate_blur_data_url(content)
+    # new pixels, so its faces get detected again
+    session.query(PhotoFaceLink).filter_by(photo_id=photo.id).delete()
+    session.query(FaceEmbedding).filter_by(photo_id=photo.id).delete()
+    session.flush()
+
+
+def _amend(session, album, photo, upload_name, content, content_type, taken):
+    """Swap the file of the photo's current version, for a fix that belongs in
+    the latest revision. The version stays; the gallery URL changes so no
+    cache shows the old file."""
+    old_gallery = photo.filename
+    if album.proof_locked:
+        # the held original isn't served while locked, so it keeps its name
+        filename = _current_name(photo)
+        gallery_name = proof_service.next_proof_name(old_gallery, taken)
+        taken.add(gallery_name.lower())
+        key, full_key = proof_service.store_held(album, filename, content, content_type, gallery_name)
+    else:
+        filename = proof_service.next_proof_name(old_gallery, taken)
+        taken.add(filename.lower())
+        gallery_name = filename
+        key = full_key = f"{album.slug}/{filename}"
+        s3_client.put_object(Bucket=AWS_BUCKET, Key=key, Body=content, ContentType=content_type)
+
+    _set_file(session, album, photo, filename, gallery_name, content, content_type)
+    row = session.query(PhotoVersion).filter_by(photo_id=photo.id, version=photo.version or 1).first()
+    if row:
+        row.filename, row.size, row.width, row.height = filename, photo.size, photo.width, photo.height
+        row.uploaded_at = photo.upload_date
+    else:
+        _snapshot(session, photo)
+    if old_gallery != gallery_name:
+        try:
+            s3_client.delete_object(Bucket=AWS_BUCKET, Key=f"{album.slug}/{old_gallery}")
+        except Exception as e:
+            print(f"revision: could not delete replaced file {old_gallery}: {e}")
+    return key, full_key
+
+
 def _replace(session, album, photo, upload_name, content, content_type, number, taken):
     """Store a re-edited file as the photo's next version. Returns
     (gallery key to warm, key of the full-resolution file for faces)."""
@@ -211,34 +274,9 @@ def _replace(session, album, photo, upload_name, content, content_type, number, 
         else:
             _snapshot(session, photo, keep_proof)
 
-    album_dir = os.path.join(settings.DATA_DIR, album.slug)
-    os.makedirs(album_dir, exist_ok=True)
-    local_path = os.path.join(album_dir, filename)
-    with open(local_path, "wb") as f:
-        f.write(content)
-    try:
-        fm = get_file_metadata(album.id, local_path, _BytesUpload(content))
-    finally:
-        if os.path.exists(local_path):
-            os.remove(local_path)
-
-    photo.filename = gallery_name
-    photo.original_filename = filename if album.proof_locked else None
-    photo.held = bool(album.proof_locked)
     photo.version = version
     photo.revision_number = number
-    photo.content_type = content_type
-    photo.size = fm["size"]
-    photo.width = fm["width"]
-    photo.height = fm["height"]
-    photo.exif_data = fm["exif_data"]
-    photo.orientation = fm["orientation"]
-    photo.upload_date = datetime.now()
-    photo.blur_data_url = generate_blur_data_url(content)
-    # new pixels, so its faces get detected again
-    session.query(PhotoFaceLink).filter_by(photo_id=photo.id).delete()
-    session.query(FaceEmbedding).filter_by(photo_id=photo.id).delete()
-    session.flush()
+    _set_file(session, album, photo, filename, gallery_name, content, content_type)
     _snapshot(session, photo)
     # the previous version's original stays held; its proof goes once unlocked
     if old_proof and not keep_proof:
@@ -318,24 +356,50 @@ async def upload_revision(
     add_unmatched: bool = Form(False),
     upload_session: Optional[str] = Form(None, alias="session", max_length=64),
     final: bool = Form(True),
+    amend: Optional[int] = Form(None),
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     """Push re-edited photos to a delivered album as the next revision. Each
     upload replaces the photo with the same base name; the old file is kept.
-    Big revisions arrive in batches that share `session`; the last is `final`."""
+    Big revisions arrive in batches that share `session`; the last is `final`.
+    `amend` puts late fixes into the latest revision instead of a new one."""
     album = _album(session, slug)
     state = _session_state(upload_session, album.id)
+    if state and state.get("amend") != amend:
+        raise HTTPException(status_code=409, detail="Upload session was started for another revision")
     matched, unmatched, duplicates = _match(session, album, [f.filename for f in files])
     if not matched and not (add_unmatched and unmatched) and not upload_session:
         raise HTTPException(
             status_code=400,
             detail="None of these files match a photo in this gallery. Revisions replace photos by filename.",
         )
+    if amend is not None:
+        latest = session.query(func.max(AlbumRevision.number)).filter_by(album_id=album.id).scalar()
+        if amend != latest:
+            raise HTTPException(status_code=409, detail=f"Only the latest revision ({latest}) can take more fixes")
+        if add_unmatched:
+            raise HTTPException(status_code=400, detail="New photos go in a new revision")
+        # a fix replaces a photo that revision already changed
+        outside = [name for name, p in matched if p.revision_number != amend]
+        if outside:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Not in revision {amend}: {', '.join(outside[:5])}" + (" ..." if len(outside) > 5 else ""),
+            )
 
     if state:
         rev = session.get(AlbumRevision, state["revision_id"])
         number = state["number"]
+    elif amend is not None:
+        rev = session.query(AlbumRevision).filter_by(album_id=album.id, number=amend).first()
+        number = amend
+        state = {
+            "album_id": album.id, "revision_id": rev.id, "number": number, "amend": amend, "at": time.time(),
+            "face_targets": [], "keys": [], "updated": [], "added": [], "unmatched": [], "duplicates": [],
+        }
+        if upload_session:
+            _sessions[upload_session] = state
     else:
         number = (
             session.query(func.max(AlbumRevision.number)).filter_by(album_id=album.id).scalar() or 1
@@ -344,7 +408,7 @@ async def upload_revision(
         session.add(rev)
         session.flush()
         state = {
-            "album_id": album.id, "revision_id": rev.id, "number": number, "at": time.time(),
+            "album_id": album.id, "revision_id": rev.id, "number": number, "amend": None, "at": time.time(),
             "face_targets": [], "keys": [], "updated": [], "added": [], "unmatched": [], "duplicates": [],
         }
         if upload_session:
@@ -359,9 +423,12 @@ async def upload_revision(
         content = await upload.read()
         ctype = upload.content_type or _guess_content_type(name)
         # S3 writes and image work off the event loop; the session stays on one thread at a time
-        key, full_key = await asyncio.to_thread(
-            _replace, session, album, photo, name, content, ctype, number, taken
-        )
+        if amend is not None:
+            key, full_key = await asyncio.to_thread(_amend, session, album, photo, name, content, ctype, taken)
+        else:
+            key, full_key = await asyncio.to_thread(
+                _replace, session, album, photo, name, content, ctype, number, taken
+            )
         keys.append(key)
         if album.face_detection:
             face_targets.append((full_key, photo.id))
@@ -404,7 +471,8 @@ async def upload_revision(
 
     if upload_session:
         _sessions.pop(upload_session, None)
-    rev.photo_count = len(state["updated"]) + len(state["added"])
+    if amend is None:
+        rev.photo_count = len(state["updated"]) + len(state["added"])
     album.image_count = session.query(FileMetadata).filter_by(album_id=album.id).count()
     session.commit()
 
