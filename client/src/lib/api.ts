@@ -432,18 +432,73 @@ export type RevisionUploadResult = {
   processing: boolean
 }
 
-/** Push re-edited photos as the album's next revision. */
-export function uploadRevision(
+/**
+ * Push re-edited photos as the album's next revision.
+ *
+ * A full re-edit can run to several GB, past the proxy's per-request limit, so
+ * files go up in batches like a normal upload. The batches share a session, so
+ * the server keeps them as one revision and notifies once, on the final batch.
+ */
+export async function uploadRevision(
   slug: string,
   opts: { files: File[]; note?: string; notify: boolean; addUnmatched: boolean },
   onProgress?: (pct: number) => void,
-) {
-  const form = new FormData()
-  opts.files.forEach((f) => form.append("files", f))
-  if (opts.note?.trim()) form.append("note", opts.note.trim())
-  form.append("notify", String(opts.notify))
-  form.append("add_unmatched", String(opts.addUnmatched))
-  return postWithProgress<RevisionUploadResult>(`/album/${slug}/revisions`, form, onProgress)
+): Promise<RevisionUploadResult> {
+  const batches = planBatches(opts.files)
+  const sessionId =
+    typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const totalBytes = opts.files.reduce((n, f) => n + f.size, 0)
+  const merged: RevisionUploadResult = {
+    revision: undefined as unknown as Revision,
+    updated: [],
+    added: [],
+    unmatched: [],
+    duplicates: [],
+    processing: false,
+  }
+  let sentBytes = 0
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i]
+    const batchBytes = batch.reduce((n, f) => n + f.size, 0)
+    const last = i === batches.length - 1
+    for (let attempt = 1; ; attempt++) {
+      const form = new FormData()
+      batch.forEach((f) => form.append("files", f))
+      if (opts.note?.trim()) form.append("note", opts.note.trim())
+      form.append("notify", String(opts.notify))
+      form.append("add_unmatched", String(opts.addUnmatched))
+      if (batches.length > 1) {
+        form.append("session", sessionId)
+        form.append("final", String(last))
+      }
+      try {
+        const res = await postWithProgress<RevisionUploadResult>(`/album/${slug}/revisions`, form, (pct) => {
+          const overall = totalBytes ? (sentBytes + (batchBytes * pct) / 100) / totalBytes : (i + pct / 100) / batches.length
+          onProgress?.(Math.min(100, Math.round(overall * 100)))
+        })
+        merged.revision = res.revision
+        merged.processing = res.processing
+        if (last && batches.length > 1) {
+          // the final batch reports the whole session
+          merged.updated = res.updated
+          merged.added = res.added
+          merged.unmatched = res.unmatched
+          merged.duplicates = res.duplicates
+        } else if (batches.length === 1) {
+          Object.assign(merged, res)
+        }
+        break
+      } catch (e) {
+        if (attempt > BATCH_RETRIES || !retryable(e)) throw e
+        await sleep(1000 * attempt)
+      }
+    }
+    sentBytes += batchBytes
+  }
+  return merged
 }
 
 export function listRevisions(slug: string) {

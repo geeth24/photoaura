@@ -1,4 +1,5 @@
 import asyncio
+import time
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -70,7 +71,8 @@ def _match(session, album, filenames):
     )
     by_base = {}
     for p in photos:
-        by_base.setdefault(p.base_name or base_name_of(p.filename), p)
+        # a proof-locked photo's filename is its proof; the original is what uploads match
+        by_base.setdefault(p.base_name or base_name_of(_current_name(p)), p)
 
     matched, unmatched, duplicates, seen = [], [], [], set()
     for name in filenames:
@@ -282,6 +284,22 @@ async def _process_and_notify(album_id, slug, face_targets, keys, image_count, n
             print(f"revision {number} of {slug}: notify failed: {e}")
 
 
+# one revision per upload session: the first batch creates it, later batches
+# add to it and the final one starts processing and sends the notification
+_sessions: dict = {}
+_SESSION_TTL = 6 * 3600
+
+
+def _session_state(session_id, album_id):
+    now = time.time()
+    for sid in [k for k, v in _sessions.items() if now - v["at"] > _SESSION_TTL]:
+        del _sessions[sid]
+    state = _sessions.get(session_id) if session_id else None
+    if state and state["album_id"] != album_id:
+        raise HTTPException(status_code=409, detail="Upload session belongs to another album")
+    return state
+
+
 @router.post("/api/album/{slug}/revisions")
 async def upload_revision(
     slug: str,
@@ -289,25 +307,39 @@ async def upload_revision(
     note: Optional[str] = Form(None),
     notify: bool = Form(True),
     add_unmatched: bool = Form(False),
+    upload_session: Optional[str] = Form(None, alias="session", max_length=64),
+    final: bool = Form(True),
     _admin=Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     """Push re-edited photos to a delivered album as the next revision. Each
-    upload replaces the photo with the same base name; the old file is kept."""
+    upload replaces the photo with the same base name; the old file is kept.
+    Big revisions arrive in batches that share `session`; the last is `final`."""
     album = _album(session, slug)
+    state = _session_state(upload_session, album.id)
     matched, unmatched, duplicates = _match(session, album, [f.filename for f in files])
-    if not matched and not (add_unmatched and unmatched):
+    if not matched and not (add_unmatched and unmatched) and not upload_session:
         raise HTTPException(
             status_code=400,
             detail="None of these files match a photo in this gallery. Revisions replace photos by filename.",
         )
 
-    number = (
-        session.query(func.max(AlbumRevision.number)).filter_by(album_id=album.id).scalar() or 1
-    ) + 1
-    rev = AlbumRevision(album_id=album.id, number=number, note=(note or "").strip() or None)
-    session.add(rev)
-    session.flush()
+    if state:
+        rev = session.get(AlbumRevision, state["revision_id"])
+        number = state["number"]
+    else:
+        number = (
+            session.query(func.max(AlbumRevision.number)).filter_by(album_id=album.id).scalar() or 1
+        ) + 1
+        rev = AlbumRevision(album_id=album.id, number=number, note=(note or "").strip() or None)
+        session.add(rev)
+        session.flush()
+        state = {
+            "album_id": album.id, "revision_id": rev.id, "number": number, "at": time.time(),
+            "face_targets": [], "keys": [], "updated": [], "added": [], "unmatched": [], "duplicates": [],
+        }
+        if upload_session:
+            _sessions[upload_session] = state
 
     by_name = {f.filename: f for f in files}
     taken = proof_service.taken_names(session, album.id)
@@ -317,7 +349,10 @@ async def upload_revision(
         upload = by_name[name]
         content = await upload.read()
         ctype = upload.content_type or _guess_content_type(name)
-        key, full_key = _replace(session, album, photo, name, content, ctype, number, taken)
+        # S3 writes and image work off the event loop; the session stays on one thread at a time
+        key, full_key = await asyncio.to_thread(
+            _replace, session, album, photo, name, content, ctype, number, taken
+        )
         keys.append(key)
         if album.face_detection:
             face_targets.append((full_key, photo.id))
@@ -345,20 +380,35 @@ async def upload_revision(
             added.append(name)
         unmatched = []
 
-    rev.photo_count = len(updated) + len(added)
+    state["at"] = time.time()
+    for k, v in (("face_targets", face_targets), ("keys", keys), ("updated", updated),
+                 ("added", added), ("unmatched", unmatched), ("duplicates", duplicates)):
+        state[k].extend(v)
+
+    if not final:
+        session.commit()
+        return {
+            "revision": _revision_json(rev),
+            "updated": updated, "added": added, "unmatched": unmatched, "duplicates": duplicates,
+            "processing": False,
+        }
+
+    if upload_session:
+        _sessions.pop(upload_session, None)
+    rev.photo_count = len(state["updated"]) + len(state["added"])
     album.image_count = session.query(FileMetadata).filter_by(album_id=album.id).count()
     session.commit()
 
-    upload_jobs.start_job(slug, face_detection=bool(face_targets), image_count=album.image_count)
+    upload_jobs.start_job(slug, face_detection=bool(state["face_targets"]), image_count=album.image_count)
     asyncio.create_task(
-        _process_and_notify(album.id, slug, face_targets, keys, album.image_count, number, notify)
+        _process_and_notify(album.id, slug, state["face_targets"], state["keys"], album.image_count, number, notify)
     )
     return {
         "revision": _revision_json(rev),
-        "updated": updated,
-        "added": added,
-        "unmatched": unmatched,
-        "duplicates": duplicates,
+        "updated": state["updated"],
+        "added": state["added"],
+        "unmatched": state["unmatched"],
+        "duplicates": state["duplicates"],
         "processing": True,
     }
 
